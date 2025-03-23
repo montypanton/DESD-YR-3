@@ -1,70 +1,74 @@
 # README.md for everyone 
 
-## Tech Stack
-- **Backend**: Python with Django and Django REST Framework
-- **Database**: MySQL 
-- **Authentication**: JWT (JSON Web Tokens)
-- **Frontend**: React with Tailwind CSS (structure in place but not fully implemented)
+#### Things to add / do / keep in mind
+- main.py file that: (automating the set up process)
+	- check dependencies 
+	- sets up environment
+	- initialises database
+	- starts backend and frontend servers 
+	- (for this we need subprocess management in Python to run npm/Django commands)
+- Docker compatibility needs doing 
+- Project currently has a React structure but minimal implementation 
+- Test cases
+- Ticket system
 
-## Project Structure
 
-### Backend (Django)
-- **account**: User management, authentication, and activity logging
-- **api_interface**: API endpoints coordination
-- **core**: Core functionality and middleware
-- **ml_interface**: ML model management and predictions
-- **finance**: Billing records and usage statistics
 
-### Frontend (React)
-- **components**: Reusable UI components
-- **context**: Authentication context
-- **pages**: Application pages including Dashboard, Auth, MLModels, etc.
-- **services**: API service connections
 
-## Features Implemented
 
-### User Management
-- Custom user model with role-based access (Admin, ML Engineer, Finance, End User)
-- JWT authentication
-- User registration and login
-- Profile management
-- Activity logging
+#### features that need fixing: / looking into 
 
-### ML Models
-- All / Most features in the ML_Interface are not working 
-
-### Finance
-- Billing records (add): not working
-- Billing records (change): not working 
-- Usage statistics (add): working
-- Usage statistics (change): not working 
-
-### Admin Features
-- User management
-- Activity log monitoring
-- System statistics
-
-- Issue: cannot delete created accounts 
-
-## Current Status
-- Backend API is operational
-- Database models and migrations are set up
-- Authentication system is working
-- Admin interface is accessible
-- No frontend user pages are currently implemented (only structure exists)
+- adding / changing billing records 
+- changing usage statistics 
+- changing ml models 
+- adding / changing predictions 
+- view site button 
+- deleting user breaks webpage 
 
 
 
 
 
 
+#### Instructions / things to keep in mind:
+
+- keep .env and requirement files separate 
+	- frontend/ doesn't have requirement instead it has .json file (same thing)
 
 
-## Notes for everyone 
-- API endpoints are defined but need testing
-- Frontend is structured but needs implementation
-- Role-based access control is implemented in the backend
-- Activity logging is in place for user actions
-- Some administrative features need fixing 
-- User end-point needs creating (structure exists)
-- Once ML Model is finished it needs plugging in and testing 
+### Set-up instructions:
+
+1. Clone repository 
+2. Create .env file from the template 
+3. Update the created .env file with your own values
+4. Start application with Docker compose 
+5. Create superuser for admin interface (store information please)
+6. Access the application:
+	1. Backend: [http://localhost:8000/admin](http://localhost:8000/admin)
+	2. Frontend: [http://localhost:3000](http://localhost:3000)
+
+
+
+### Currently in backend/: 
+	- folders for containing:
+	- user management 
+	- billings records
+	- shared functionalities used across the app 
+	- coordinator for all API endpoints 
+	- backend/ for main project settings and URL configurations 
+	- logs of all application actions 
+	- machine learning model handling / management and prediction handling 
+
+		Each folder is a Django 'app' that handles specific functionalities. 
+		.Env and requirements.txt files for handling required libraries and 
+		database connection. 
+
+		Manage.py file handles Django commands that allows us to run server commands like creating database migrations, apply them and etc... 
+
+### Currently in frontend/:
+	- pages: page components organised by feature 
+	- sevices: API connection logic 
+	- utils + components: reusable elements and functions that are shared 
+
+		Public/ will be filled with React's build process.
+		Apps.js handles routing. 
