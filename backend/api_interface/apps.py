@@ -1,3 +1,5 @@
+# App configuration class for the API interface module.
+
 from django.apps import AppConfig
 
 

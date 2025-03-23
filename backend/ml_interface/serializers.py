@@ -1,3 +1,5 @@
+# Handles conversion of ML-related data between model instances and JSON.
+
 from rest_framework import serializers
 from .models import MLModel, Prediction
 from account.serializers import UserSerializer
@@ -36,8 +38,8 @@ class PredictionSerializer(serializers.ModelSerializer):
         validated_data['user'] = self.context['request'].user
         validated_data['status'] = 'PENDING'
         
-        # In a real implementation, this would trigger a background task
-        # to process the model prediction. For now, we'll just mock it.
+        # this needs to trigger a background task 
+        # to process the model prediction, currently it mocks it (ml not ready yet)
         validated_data['status'] = 'COMPLETED'
         validated_data['output_data'] = {
             'result': 'This is a mock prediction result',

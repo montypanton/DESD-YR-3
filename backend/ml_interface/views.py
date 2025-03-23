@@ -1,3 +1,5 @@
+# Implements views to manage communication with the ML model and return results.
+
 from rest_framework import viewsets, status, permissions
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -8,24 +10,21 @@ from .serializers import MLModelSerializer, PredictionSerializer
 from account.permissions import IsAdminUser, IsMLEngineer
 
 
+
+
 class MLModelViewSet(viewsets.ModelViewSet):
     queryset = MLModel.objects.all()
     serializer_class = MLModelSerializer
     permission_classes = [IsAuthenticated]
     
     def get_permissions(self):
-        """
-        Only ML Engineers and Admins can create, update, or delete models.
-        Any authenticated user can retrieve models.
-        """
+
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAuthenticated, (IsMLEngineer | IsAdminUser)]
         return super().get_permissions()
     
     def get_queryset(self):
-        """
-        Return only active models for non-admin users
-        """
+
         if self.request.user.is_admin or self.request.user.is_ml_engineer:
             return MLModel.objects.all()
         return MLModel.objects.filter(is_active=True)
@@ -45,6 +44,11 @@ class MLModelViewSet(viewsets.ModelViewSet):
         return Response({"status": "model deactivated"})
 
 
+
+
+
+
+
 class PredictionViewSet(viewsets.ModelViewSet):
     queryset = Prediction.objects.all()
     serializer_class = PredictionSerializer
@@ -56,10 +60,7 @@ class PredictionViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
     
     def get_queryset(self):
-        """
-        Return all predictions for admins and ML engineers
-        Return only the user's predictions for regular users
-        """
+        
         if self.request.user.is_admin or self.request.user.is_ml_engineer:
             return Prediction.objects.all()
         return Prediction.objects.filter(user=self.request.user)

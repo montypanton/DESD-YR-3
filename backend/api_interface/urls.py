@@ -1,5 +1,7 @@
+# Defines URL routes for the API interface views.
+
 from django.urls import path
 
 urlpatterns = [
-    # Empty for now, will be filled by other app URL includes
+    # empty for now, will be filled with other app URL includes
 ]

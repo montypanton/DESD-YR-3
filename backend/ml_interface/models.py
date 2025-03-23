@@ -1,11 +1,11 @@
+# Defines models for storing data related to machine learning predictions.
+
 from django.db import models
 from account.models import User
 
 
 class MLModel(models.Model):
-    """
-    ML model metadata and file storage
-    """
+    
     name = models.CharField(max_length=255)
     version = models.CharField(max_length=50)
     description = models.TextField(blank=True)
@@ -30,9 +30,7 @@ class MLModel(models.Model):
 
 
 class Prediction(models.Model):
-    """
-    Stores prediction results from ML models
-    """
+
     model = models.ForeignKey(MLModel, on_delete=models.CASCADE, related_name='predictions')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='predictions')
     
