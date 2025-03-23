@@ -10,6 +10,8 @@ class ActivityLogMiddleware(MiddlewareMixin):
     """
     Middleware to track and log user activity
     """
+    async_mode = False
+    
     
     def __init__(self, get_response):
         self.get_response = get_response
