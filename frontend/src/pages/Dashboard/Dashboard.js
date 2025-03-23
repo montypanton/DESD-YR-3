@@ -1,3 +1,5 @@
+// Displays the user dashboard with prediction stats, activity logs (for admins), and available ML models
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -19,22 +21,18 @@ const Dashboard = () => {
       try {
         setLoading(true);
         
-        // Fetch recent predictions
         const predictionsResponse = await apiClient.get('/ml/predictions/my_predictions/');
         
-        // Fetch activity logs if user is admin
         let activityLogs = [];
         if (user.role === 'ADMIN') {
           const activityResponse = await apiClient.get('/account/activity-logs/');
           activityLogs = activityResponse.data.results;
         }
         
-        // Fetch ML models
         let mlModels = [];
         const mlModelsResponse = await apiClient.get('/ml/models/');
         mlModels = mlModelsResponse.data.results || [];
         
-        // Update state with fetched data
         setStats({
           predictions: predictionsResponse.data.results || [],
           predictionCount: predictionsResponse.data.count || 0,

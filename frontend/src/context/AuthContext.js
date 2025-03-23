@@ -1,3 +1,5 @@
+// Provides authentication context for managing and validating user login state across the frontend
+
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { authService } from '../services/authService';
 
@@ -10,7 +12,6 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Check if token exists
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
     
@@ -19,7 +20,6 @@ export const AuthProvider = ({ children }) => {
       setUser(JSON.parse(storedUser));
     }
     
-    // If token exists, validate it and get user data
     const validateToken = async () => {
       if (storedToken) {
         try {
@@ -27,7 +27,6 @@ export const AuthProvider = ({ children }) => {
           setUser(response.data);
           setLoading(false);
         } catch (error) {
-          // If token is invalid or expired, clear state
           console.error('Token validation failed:', error);
           logout();
           setLoading(false);
@@ -40,11 +39,9 @@ export const AuthProvider = ({ children }) => {
     validateToken();
   }, []);
   
-  // Set token in localStorage when it changes
   useEffect(() => {
     if (token) {
       localStorage.setItem('token', token);
-      // Set the token for API requests
       authService.setAuthToken(token);
     } else {
       localStorage.removeItem('token');
@@ -52,7 +49,6 @@ export const AuthProvider = ({ children }) => {
     }
   }, [token]);
   
-  // Save user in localStorage when it changes
   useEffect(() => {
     if (user) {
       localStorage.setItem('user', JSON.stringify(user));
@@ -69,7 +65,6 @@ export const AuthProvider = ({ children }) => {
       setUser(response.data.user);
       setToken(response.data.access);
       
-      // Store refresh token (if using JWT)
       if (response.data.refresh) {
         localStorage.setItem('refreshToken', response.data.refresh);
       }
@@ -93,12 +88,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    // Call backend to blacklist token if using JWT
     authService.logout()
       .then(() => console.log('Logged out successfully'))
       .catch((error) => console.error('Logout error:', error))
       .finally(() => {
-        // Clear auth state regardless of API response
         setUser(null);
         setToken(null);
         localStorage.removeItem('token');
