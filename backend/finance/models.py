@@ -1,12 +1,12 @@
+# Defines database models for storing user financial information.
+
 from django.db import models
 from account.models import User
 from ml_interface.models import Prediction
 
 
 class BillingRecord(models.Model):
-    """
-    Model to track billing information for ML model usage
-    """
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='billing_records')
     prediction = models.OneToOneField(
         Prediction, on_delete=models.SET_NULL, null=True, blank=True, related_name='billing_record'
@@ -38,9 +38,7 @@ class BillingRecord(models.Model):
 
 
 class UsageStatistics(models.Model):
-    """
-    Model to track user usage statistics for reporting
-    """
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='usage_stats')
     date = models.DateField()
     

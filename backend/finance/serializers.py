@@ -1,3 +1,5 @@
+# Converts finance model instances to JSON format and validates input data.
+
 from rest_framework import serializers
 from .models import BillingRecord, UsageStatistics
 from account.serializers import UserSerializer
