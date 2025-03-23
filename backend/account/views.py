@@ -1,3 +1,5 @@
+# Implements the logic for user registration, login, and profile-related API views.
+
 from django.contrib.auth import login, logout
 from django.utils import timezone
 from rest_framework import status, permissions, viewsets, generics
@@ -30,11 +32,11 @@ class LoginView(APIView):
         
         user = serializer.validated_data['user']
         
-        # Update last login time
+        
         user.last_login = timezone.now()
         user.save()
         
-        # Generate JWT tokens
+        
         refresh = RefreshToken.for_user(user)
         
         return Response({
@@ -49,10 +51,10 @@ class LogoutView(APIView):
 
     def post(self, request):
         try:
-            # Get refresh token from request
+            
             refresh_token = request.data.get('refresh')
             if refresh_token:
-                # Blacklist the refresh token
+                
                 token = RefreshToken(refresh_token)
                 token.blacklist()
             
@@ -82,11 +84,11 @@ class ChangePasswordView(APIView):
     def post(self, request):
         serializer = PasswordChangeSerializer(data=request.data)
         if serializer.is_valid():
-            # Check old password
+            
             if not request.user.check_password(serializer.validated_data['old_password']):
                 return Response({"old_password": ["Wrong password."]}, status=status.HTTP_400_BAD_REQUEST)
             
-            # Set new password
+            
             request.user.set_password(serializer.validated_data['new_password'])
             request.user.save()
             
@@ -101,10 +103,10 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserDetailSerializer
     
     def get_queryset(self):
-        # Admins can see all users
+        
         if self.request.user.is_admin:
             return User.objects.all()
-        # Other users can only see themselves
+        
         return User.objects.filter(id=self.request.user.id)
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
@@ -133,10 +135,10 @@ class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        # Admins can see all logs
+        
         if self.request.user.is_admin:
             return ActivityLog.objects.all()
-        # Other users can only see their own logs
+        
         return ActivityLog.objects.filter(user=self.request.user)
     
     @action(detail=False, methods=['get'])

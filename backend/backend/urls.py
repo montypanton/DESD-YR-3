@@ -1,6 +1,5 @@
-"""
-URL Configuration for backend project.
-"""
+# Root URL configuration for routing requests to app-level URLs and admin site.
+
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -14,6 +13,5 @@ urlpatterns = [
     path('api/finance/', include('finance.urls')),
 ]
 
-# Serve media files in development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

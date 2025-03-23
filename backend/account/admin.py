@@ -1,3 +1,5 @@
+# Handles the admin interface configuration for custom User model management.
+
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _

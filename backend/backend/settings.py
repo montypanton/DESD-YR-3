@@ -1,27 +1,22 @@
-"""
-Django settings for backend project.
-"""
+# Central configuration file for the Django project, including installed apps, middleware, and database setup.
 
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import timedelta
 
-# Load environment variables
 load_dotenv()
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-default-key-change-me')
+# WARNING: secret key in .env + fallback key - keep secret :p
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-default')
 
-# SECURITY WARNING: don't run with debug turned on in production!
+# WARNING: don't run with debug turned on
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
 
-# Application definition
+# aplication definitions
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -30,11 +25,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     
-    # Third-party apps
+    # third-party apps
     'rest_framework',
     'corsheaders',
     
-    # Local apps
+    # local apps
     'core',
     'account',
     'api_interface.apps.ApiInterfaceConfig',
@@ -51,7 +46,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'core.middleware.ActivityLogMiddleware',  # Custom middleware for logging user activity
+    'core.middleware.ActivityLogMiddleware',  
 ]
 
 ROOT_URLCONF = 'backend.urls'
@@ -74,17 +69,15 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-
+# db
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'desd_db',  
-        'USER': 'desd_user', 
-        'PASSWORD': 'desd_pass_123',
-        'HOST': 'localhost',
-        'PORT': '3306',
+        'NAME': os.getenv('DB_NAME', 'desd_db'),
+        'USER': os.getenv('DB_USER', 'desd_user'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'desd_pass_123'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '3306'),
         'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
         },
@@ -92,12 +85,10 @@ DATABASES = {
 }
 
 
-# Custom user model
+# custom user model
 AUTH_USER_MODEL = 'account.User'
 
-# Password validation
-# https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
-
+# password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -113,29 +104,29 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# Internationalization
-# https://docs.djangoproject.com/en/4.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+
+# time zones / etc...
+LANGUAGE_CODE = 'en-gb'
+TIME_ZONE = 'Europe/London'
 USE_I18N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/4.2/howto/static-files/
 
+
+# tells Django where to store static files 
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# REST Framework settings
+
+
+# default behaviour for API security 
+# JWT, tokens for login / permissions 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -145,7 +136,10 @@ REST_FRAMEWORK = {
     ],
 }
 
-# JWT Settings
+
+
+# JWT: controls tokens, scurity rules 
+# settings control how tokens work and data they carry
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
@@ -161,15 +155,19 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
-# CORS settings
+
+
+# needed to stop security blocks and allows communication between 
+# backend and frontend
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://frontend:3000",  
 ]
 
 CORS_ALLOW_CREDENTIALS = True
 
-# Logging configuration
+# log-in configuration
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -201,5 +199,5 @@ LOGGING = {
     },
 }
 
-# Ensure the logs directory exists
+# ensures logs directory 
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)

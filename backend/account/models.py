@@ -1,3 +1,5 @@
+# Defines the custom User model, including roles and required authentication fields.
+
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.utils import timezone
@@ -29,9 +31,6 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-    """
-    Custom User model with role-based access control
-    """
     ROLE_CHOICES = (
         ('ADMIN', 'Admin'),
         ('END_USER', 'End User'),
@@ -82,9 +81,6 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class ActivityLog(models.Model):
-    """
-    Tracks all user activities in the system
-    """
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     action = models.CharField(max_length=255)
     resource_type = models.CharField(max_length=100, blank=True, null=True)
