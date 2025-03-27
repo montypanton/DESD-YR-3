@@ -38,12 +38,21 @@
 
 ### Set-up instructions:
 
-1. Clone repository 
-2. Create .env file from the template 
-3. Update the created .env file with your own values
-4. Start application with Docker compose 
-5. Create superuser for admin interface (store information please)
-6. Access the application:
+1. Clone repository:
+git clone <repo-url>
+2. Create .env files: 
+one for backend/
+one for frontend/
+3. Build and run containers:
+docker-compose up --build
+4. Run database migrations (only once):
+docker-compose exec backend python manage.py migrate 
+5. Create superuser (note down details): 
+docker-compose exec backend python manage.py createsuperuser
+
+(Note: no need for running start server command, docker does that)
+
+7. Ports for application:
 	1. Backend: [http://localhost:8000/admin](http://localhost:8000/admin)
 	2. Frontend: [http://localhost:3000](http://localhost:3000)
 
