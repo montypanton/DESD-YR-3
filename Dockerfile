@@ -2,6 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install system dependencies required for mysqlclient
+RUN apt-get update && apt-get install -y \
+    default-libmysqlclient-dev \
+    pkg-config \
+    gcc \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
