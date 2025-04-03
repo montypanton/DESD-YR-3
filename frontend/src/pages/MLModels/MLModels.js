@@ -78,9 +78,13 @@ const MLModels = () => {
       const action = isActive ? 'deactivate' : 'activate';
       await apiClient.post(`/ml/models/${modelId}/${action}/`);
       fetchModels();
+      
+      // Show success message after toggling status
+      setSuccessMessage(`Model ${action}d successfully!`);
+      setTimeout(() => setSuccessMessage(null), 3000);
     } catch (error) {
-      console.error(`Error ${action} model:`, error);
-      setError(`Failed to ${action} model. Please try again.`);
+      console.error(`Error ${isActive ? 'deactivating' : 'activating'} model:`, error);
+      setError(`Failed to ${isActive ? 'deactivate' : 'activate'} model. Please try again.`);
     }
   };
 

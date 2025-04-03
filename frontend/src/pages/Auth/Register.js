@@ -10,6 +10,10 @@ const RegisterSchema = Yup.object().shape({
     .required('Email is required'),
   password: Yup.string()
     .min(8, 'Password must be at least 8 characters')
+    .matches(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .matches(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .matches(/[0-9]/, 'Password must contain at least one number')
+    .matches(/[^A-Za-z0-9]/, 'Password must contain at least one special character')
     .required('Password is required'),
   password2: Yup.string()
     .oneOf([Yup.ref('password'), null], 'Passwords must match')
@@ -27,24 +31,53 @@ const Register = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
   const [apiError, setApiError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const handleSubmit = async (values, { setSubmitting }) => {
     try {
       setApiError(null);
+      setFieldErrors({});
+      console.log('Registering with data:', values);
       await register(values);
       navigate('/login', { state: { message: 'Registration successful! Please log in.' } });
     } catch (error) {
       console.error('Registration error:', error);
-      setApiError(
-        error.response?.data?.message || 
-        'Failed to register. Please try again.'
-      );
       
       // Handle validation errors from API
       if (error.response?.data && typeof error.response.data === 'object') {
         const formErrors = error.response.data;
-        // This would require modifying the form to handle server-side errors
         console.log('Form validation errors:', formErrors);
+        
+        // Create a map for field-specific errors
+        const fieldSpecificErrors = {};
+        
+        // Handle specific error messages for form fields
+        Object.keys(formErrors).forEach(key => {
+          if (Array.isArray(formErrors[key])) {
+            fieldSpecificErrors[key] = formErrors[key][0];
+          } else if (typeof formErrors[key] === 'string') {
+            fieldSpecificErrors[key] = formErrors[key];
+          }
+        });
+        
+        // Set field-specific errors
+        setFieldErrors(fieldSpecificErrors);
+        
+        // Set a general API error message if there are non-field errors
+        if (formErrors.non_field_errors) {
+          setApiError(
+            Array.isArray(formErrors.non_field_errors)
+              ? formErrors.non_field_errors[0]
+              : formErrors.non_field_errors
+          );
+        } else if (!Object.keys(fieldSpecificErrors).length) {
+          setApiError('Failed to register. Please try again.');
+        }
+      } else {
+        setApiError(
+          error.response?.data?.message || 
+          'Failed to register. Please try again.'
+        );
       }
     } finally {
       setSubmitting(false);
@@ -96,7 +129,7 @@ const Register = () => {
                   </div>
                 </div>
               )}
-              
+
               <div className="rounded-md shadow-sm -space-y-px">
                 <div className="grid grid-cols-1 gap-4 mb-4">
                   <div>
@@ -117,6 +150,9 @@ const Register = () => {
                       component="div" 
                       className="text-red-500 text-xs mt-1" 
                     />
+                    {fieldErrors.email && (
+                      <div className="text-red-500 text-xs mt-1">{fieldErrors.email}</div>
+                    )}
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
@@ -138,6 +174,9 @@ const Register = () => {
                         component="div" 
                         className="text-red-500 text-xs mt-1" 
                       />
+                      {fieldErrors.first_name && (
+                        <div className="text-red-500 text-xs mt-1">{fieldErrors.first_name}</div>
+                      )}
                     </div>
                     
                     <div>
@@ -158,6 +197,9 @@ const Register = () => {
                         component="div" 
                         className="text-red-500 text-xs mt-1" 
                       />
+                      {fieldErrors.last_name && (
+                        <div className="text-red-500 text-xs mt-1">{fieldErrors.last_name}</div>
+                      )}
                     </div>
                   </div>
                   
@@ -182,6 +224,9 @@ const Register = () => {
                       component="div" 
                       className="text-red-500 text-xs mt-1" 
                     />
+                    {fieldErrors.role && (
+                      <div className="text-red-500 text-xs mt-1">{fieldErrors.role}</div>
+                    )}
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
@@ -229,6 +274,9 @@ const Register = () => {
                       component="div" 
                       className="text-red-500 text-xs mt-1" 
                     />
+                    {fieldErrors.password && (
+                      <div className="text-red-500 text-xs mt-1">{fieldErrors.password}</div>
+                    )}
                   </div>
                   
                   <div>
@@ -249,6 +297,9 @@ const Register = () => {
                       component="div" 
                       className="text-red-500 text-xs mt-1" 
                     />
+                    {fieldErrors.password2 && (
+                      <div className="text-red-500 text-xs mt-1">{fieldErrors.password2}</div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -78,8 +78,8 @@ const UserManagement = () => {
       setSuccessMessage(`User ${action}d successfully!`);
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (error) {
-      console.error(`Error ${action} user:`, error);
-      setError(`Failed to ${action} user. Please try again.`);
+      console.error(`Error ${isActive ? 'deactivating' : 'activating'} user:`, error);
+      setError(`Failed to ${isActive ? 'deactivate' : 'activate'} user. Please try again.`);
     }
   };
 

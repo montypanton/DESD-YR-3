@@ -1,18 +1,12 @@
-// Handles all authentication-related API logic including attaching tokens to requests 
-// and refreshing expired tokens
-
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
-
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+// Create an API client instance
+export const apiClient = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
 });
 
-api.interceptors.request.use(
+// Add request interceptor to include auth token in requests
+apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -20,83 +14,90 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+// Add response interceptor to handle token refresh
+apiClient.interceptors.response.use(
+  (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    
+
+    // If the error is 401 and we haven't already tried to refresh
     if (error.response.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      
-      try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) {
-          return Promise.reject(error);
+      const refreshToken = localStorage.getItem('refreshToken');
+
+      if (refreshToken) {
+        try {
+          const res = await axios.post(
+            `${process.env.REACT_APP_API_URL}/account/token/refresh/`,
+            { refresh: refreshToken }
+          );
+
+          if (res.status === 200) {
+            localStorage.setItem('token', res.data.access);
+            apiClient.defaults.headers.common['Authorization'] = `Bearer ${res.data.access}`;
+            originalRequest.headers['Authorization'] = `Bearer ${res.data.access}`;
+            
+            return apiClient(originalRequest);
+          }
+        } catch (refreshError) {
+          console.log('Error refreshing token', refreshError);
+          // If refresh token is expired, logout
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
         }
-        
-        const response = await axios.post(`${API_URL}/account/token/refresh/`, {
-          refresh: refreshToken,
-        });
-        
-        localStorage.setItem('token', response.data.access);
-        
-        originalRequest.headers['Authorization'] = `Bearer ${response.data.access}`;
-        
-        return api(originalRequest);
-      } catch (refreshError) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        return Promise.reject(refreshError);
       }
     }
-    
+
     return Promise.reject(error);
   }
 );
 
-export const authService = {
+const authService = {
   setAuthToken: (token) => {
     if (token) {
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete apiClient.defaults.headers.common['Authorization'];
     }
   },
-  
+
   removeAuthToken: () => {
-    delete api.defaults.headers.common['Authorization'];
+    delete apiClient.defaults.headers.common['Authorization'];
   },
-  
-  register: (userData) => {
-    return api.post('/account/register/', userData);
-  },
-  
+
   login: (credentials) => {
-    return api.post('/account/login/', credentials);
+    console.log('Login credentials being sent:', credentials);
+    // Django REST framework expects username/password by default, not email/password
+    return apiClient.post('/account/login/', {
+      username: credentials.email, // Try with username instead of email
+      password: credentials.password
+    });
   },
-  
+
+  register: (userData) => {
+    return apiClient.post('/account/register/', userData);
+  },
+
   logout: () => {
-    const refreshToken = localStorage.getItem('refreshToken');
-    return api.post('/account/logout/', { refresh: refreshToken });
+    return apiClient.post('/account/logout/');
   },
-  
-  getCurrentUser: () => {
-    return api.get('/account/profile/');
-  },
-  
+
   updateProfile: (profileData) => {
-    return api.put('/account/profile/', profileData);
+    return apiClient.put('/account/profile/', profileData);
   },
-  
+
   changePassword: (passwordData) => {
-    return api.post('/account/change-password/', passwordData);
+    return apiClient.post('/account/change-password/', passwordData);
   },
+
+  verifyToken: () => {
+    return apiClient.post('/account/token/verify/');
+  }
 };
 
-export const apiClient = api;
+export default authService;

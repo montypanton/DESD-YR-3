@@ -20,15 +20,35 @@ const Login = () => {
   const handleSubmit = async (values, { setSubmitting }) => {
     try {
       setApiError(null);
+      console.log('Form values:', values);
       await login(values);
       navigate('/dashboard');
     } catch (error) {
       console.error('Login error:', error);
-      setApiError(
-        error.response?.data?.detail || 
-        error.response?.data?.message || 
-        'Failed to login. Please check your credentials.'
-      );
+      console.log('Error response data:', error.response?.data);
+      
+      // Try to extract the most meaningful error message
+      let errorMessage = 'Failed to login. Please check your credentials.';
+      
+      if (error.response?.data) {
+        const data = error.response.data;
+        
+        if (data.detail) {
+          errorMessage = data.detail;
+        } else if (data.non_field_errors) {
+          errorMessage = data.non_field_errors[0];
+        } else if (data.username) {
+          errorMessage = `Email: ${data.username[0]}`;
+        } else if (data.password) {
+          errorMessage = `Password: ${data.password[0]}`;
+        } else if (typeof data === 'string') {
+          errorMessage = data;
+        } else if (data.error) {
+          errorMessage = data.error;
+        }
+      }
+      
+      setApiError(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -70,7 +90,7 @@ const Login = () => {
                   </div>
                 </div>
               )}
-              
+
               <div className="rounded-md shadow-sm -space-y-px">
                 <div>
                   <label htmlFor="email" className="sr-only">Email address</label>

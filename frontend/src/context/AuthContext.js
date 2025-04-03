@@ -1,34 +1,88 @@
-// Provides authentication context for managing and validating user login state across the frontend
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
 
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import { authService } from '../services/authService';
+const AuthContext = createContext();
 
-const AuthContext = createContext(null);
+// Create an API client instance
+export const apiClient = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
+});
+
+// Add request interceptor to include auth token in requests
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Auth service with actual implementation
+const authService = {
+  setAuthToken: (token) => {
+    if (token) {
+      localStorage.setItem('token', token);
+    } else {
+      localStorage.removeItem('token');
+    }
+  },
+  
+  login: async (credentials) => {
+    return await apiClient.post('/account/login/', credentials);
+  },
+  
+  register: async (userData) => {
+    return await apiClient.post('/account/register/', userData);
+  },
+  
+  logout: async () => {
+    return await apiClient.post('/account/logout/');
+  },
+  
+  updateProfile: async (profileData) => {
+    return await apiClient.put('/account/profile/', profileData);
+  },
+  
+  changePassword: async (passwordData) => {
+    return await apiClient.post('/account/change-password/', passwordData);
+  }
+};
+
+export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token') || null);
+  const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-    }
-    
     const validateToken = async () => {
-      if (storedToken) {
+      const storedToken = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+      
+      if (storedToken && storedUser) {
         try {
-          const response = await authService.getCurrentUser();
-          setUser(response.data);
+          // Set the token for API requests
+          apiClient.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+          
+          // Verify the token is valid by making a request to user profile
+          await apiClient.get('/account/profile/');
+          
+          // If request is successful, token is valid
+          setToken(storedToken);
+          setUser(JSON.parse(storedUser));
           setLoading(false);
         } catch (error) {
-          console.error('Token validation failed:', error);
-          logout();
+          // Token is invalid or expired
+          console.error('Token validation error:', error);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setToken(null);
+          setUser(null);
           setLoading(false);
         }
       } else {
@@ -42,10 +96,10 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (token) {
       localStorage.setItem('token', token);
-      authService.setAuthToken(token);
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     } else {
       localStorage.removeItem('token');
-      authService.removeAuthToken();
+      delete apiClient.defaults.headers.common['Authorization'];
     }
   }, [token]);
   
@@ -60,10 +114,16 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       setError(null);
+      console.log('Attempting login with credentials:', credentials);
       const response = await authService.login(credentials);
+      console.log('Login successful, response:', response.data);
       
-      setUser(response.data.user);
-      setToken(response.data.access);
+      // Extract the user and token from the response
+      const userData = response.data.user;
+      const accessToken = response.data.access;
+      
+      setUser(userData);
+      setToken(accessToken);
       
       if (response.data.refresh) {
         localStorage.setItem('refreshToken', response.data.refresh);
@@ -71,7 +131,17 @@ export const AuthProvider = ({ children }) => {
       
       return response.data;
     } catch (error) {
-      setError(error.response?.data?.message || 'Login failed');
+      console.error('Login error:', error);
+      console.error('Error response:', error.response?.data);
+      
+      // Try to extract the most meaningful error message
+      const errorMessage = 
+        error.response?.data?.detail || 
+        error.response?.data?.non_field_errors?.[0] ||
+        error.response?.data?.error || 
+        (typeof error.response?.data === 'string' ? error.response.data : 'Login failed');
+      
+      setError(errorMessage);
       throw error;
     }
   };
@@ -79,11 +149,20 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       setError(null);
+      console.log('Registering with data:', userData);
       const response = await authService.register(userData);
       return response.data;
     } catch (error) {
-      setError(error.response?.data?.message || 'Registration failed');
-      throw error;
+      console.error('Registration error:', error);
+      console.error('Error response data:', error.response?.data);
+      
+      if (error.response?.data) {
+        // Pass through the detailed error data from the backend
+        throw error;
+      } else {
+        setError('Registration failed');
+        throw error;
+      }
     }
   };
 
@@ -119,7 +198,8 @@ export const AuthProvider = ({ children }) => {
 
   const changePassword = async (passwordData) => {
     try {
-      await authService.changePassword(passwordData);
+      const response = await authService.changePassword(passwordData);
+      return response.data;
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to change password');
       throw error;
@@ -136,16 +216,8 @@ export const AuthProvider = ({ children }) => {
     logout,
     hasRole,
     updateProfile,
-    changePassword,
+    changePassword
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };
