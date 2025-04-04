@@ -28,6 +28,9 @@ const Layout = () => {
                 <Link to="/predictions" className="inline-flex items-center px-1 pt-1 text-gray-600 hover:text-gray-900">
                   Predictions
                 </Link>
+                <Link to="/claims" className="inline-flex items-center px-1 pt-1 text-gray-600 hover:text-gray-900">
+                  Claims
+                </Link>
                 {user && user.role === 'ML_ENGINEER' && (
                   <Link to="/ml-models" className="inline-flex items-center px-1 pt-1 text-gray-600 hover:text-gray-900">
                     ML Models

@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'api_interface.apps.ApiInterfaceConfig',
     'ml_interface',
     'finance',
+    'claims',
 ]
 
 MIDDLEWARE = [

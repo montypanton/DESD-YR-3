@@ -3,6 +3,7 @@ import axios from 'axios';
 // Create an API client instance
 export const apiClient = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
+  withCredentials: true,
 });
 
 // Add request interceptor to include auth token in requests
@@ -12,10 +13,20 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
+    
+    // Add CSRF protection for non-GET requests
+    if (config.method !== 'get') {
+      const csrfToken = document.cookie.match(/csrftoken=([^;]+)/);
+      if (csrfToken) {
+        config.headers['X-CSRFToken'] = csrfToken[1];
+      }
+    }
+    
     return config;
   },
   (error) => Promise.reject(error)
 );
+
 
 // Add response interceptor to handle token refresh
 apiClient.interceptors.response.use(

@@ -17,6 +17,8 @@ import Finance from './pages/Finance/Finance';
 import UserManagement from './pages/Admin/UserManagement';
 import ActivityLogs from './pages/Admin/ActivityLogs';
 import NotFound from './pages/NotFound';
+import ClaimsPage from './pages/Claims/ClaimsPage';
+
 
 function App() {
   const { user } = useAuth();
@@ -32,6 +34,8 @@ function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="predictions" element={<PredictionHistory />} />
+        <Route path="claims" element={<ClaimsPage />} />    
         
         {/* ML Engineer & Admin Routes */}
         <Route 
