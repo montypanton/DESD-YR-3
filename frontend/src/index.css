@@ -9,6 +9,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 code {
@@ -34,4 +35,52 @@ code {
 
 .btn-secondary {
   @apply bg-white text-gray-700 border-gray-300 hover:bg-gray-50 focus:ring-blue-500;
+}
+
+/* Base app background and text colors */
+.dark {
+  color-scheme: dark;
+}
+
+/* Additional custom styles for form elements */
+input:focus, 
+select:focus, 
+textarea:focus, 
+button:focus {
+  outline: none;
+}
+
+/* Ensure that content height fills viewport */
+html, body, #root {
+  height: 100%;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Prevent flickering during theme transition */
+.transition-colors {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Additional spacing for readability */
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.4;
+}
+
+p {
+  line-height: 1.6;
+}
+
+.card-container {
+  @apply grid gap-6 sm:grid-cols-2 lg:grid-cols-3;
+}
+
+/* Improve container width */
+.content-container {
+  @apply max-w-6xl mx-auto;
 }
