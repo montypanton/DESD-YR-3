@@ -1,0 +1,372 @@
+/* Dark Theme Overrides for Ant Design Components */
+
+/* Form Fields */
+.dark .ant-input,
+.dark .ant-input-number,
+.dark .ant-picker,
+.dark .ant-select-selector,
+.dark .ant-select-dropdown,
+.dark .ant-checkbox-wrapper,
+.dark .ant-radio-wrapper,
+.dark .ant-form-item {
+  color: #e5e7eb !important;
+}
+
+/* Input, TextArea, and Select */
+.dark .ant-input,
+.dark .ant-input-number,
+.dark .ant-input-number-input,
+.dark .ant-picker,
+.dark .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  background-color: #374151 !important;
+  border-color: #4b5563 !important;
+  color: #e5e7eb !important;
+  padding: 8px 12px !important;
+  height: auto !important;
+}
+
+.dark .ant-input-number-input {
+  height: 24px !important;
+  padding: 4px 0 !important;
+}
+
+.dark .ant-select-selector .ant-select-selection-item {
+  line-height: 24px !important;
+}
+
+.dark .ant-input:hover,
+.dark .ant-input-number:hover,
+.dark .ant-picker:hover,
+.dark .ant-select:not(.ant-select-customize-input) .ant-select-selector:hover {
+  border-color: #6366f1 !important;
+}
+
+.dark .ant-input:focus,
+.dark .ant-input-focused,
+.dark .ant-input-number-focused,
+.dark .ant-picker-focused,
+.dark .ant-select-focused:not(.ant-select-disabled).ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
+}
+
+/* Select Dropdown */
+.dark .ant-select-dropdown {
+  background-color: #1f2937 !important;
+  border: 1px solid #4b5563 !important;
+}
+
+.dark .ant-select-item {
+  color: #e5e7eb !important;
+}
+
+.dark .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background-color: #374151 !important;
+}
+
+.dark .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background-color: #4f46e5 !important;
+  color: white !important;
+}
+
+/* DatePicker and TimePicker */
+.dark .ant-picker-panel {
+  background-color: #1f2937 !important;
+  border: 1px solid #4b5563 !important;
+}
+
+.dark .ant-picker-header {
+  color: #e5e7eb !important;
+  border-bottom: 1px solid #4b5563 !important;
+}
+
+.dark .ant-picker-header button {
+  color: #9ca3af !important;
+}
+
+.dark .ant-picker-content th {
+  color: #9ca3af !important;
+}
+
+.dark .ant-picker-cell {
+  color: #e5e7eb !important;
+}
+
+.dark .ant-picker-cell-in-view {
+  color: #e5e7eb !important;
+}
+
+.dark .ant-picker-cell:hover:not(.ant-picker-cell-selected):not(.ant-picker-cell-disabled) .ant-picker-cell-inner {
+  background-color: #374151 !important;
+}
+
+.dark .ant-picker-cell-selected .ant-picker-cell-inner {
+  background-color: #4f46e5 !important;
+}
+
+.dark .ant-picker-footer {
+  border-top: 1px solid #4b5563 !important;
+}
+
+/* Form */
+.dark .ant-form-item-label > label {
+  color: #e5e7eb !important;
+  font-size: 1rem !important;
+  font-weight: 500 !important;
+}
+
+.dark .ant-form-item-label > label.ant-form-item-required:not(.ant-form-item-required-mark-optional)::before {
+  color: #f87171 !important;
+}
+
+.dark .ant-form-item-explain,
+.dark .ant-form-item-extra {
+  color: #d1d5db !important;
+  margin-top: 0.25rem !important;
+}
+
+.dark .ant-form-item-has-error .ant-input,
+.dark .ant-form-item-has-error .ant-input-number,
+.dark .ant-form-item-has-error .ant-picker,
+.dark .ant-form-item-has-error .ant-select:not(.ant-select-disabled):not(.ant-select-customize-input) .ant-select-selector {
+  background-color: #374151 !important;
+  border-color: #ef4444 !important;
+}
+
+/* Radio & Checkbox */
+.dark .ant-radio-wrapper,
+.dark .ant-checkbox-wrapper {
+  color: #e5e7eb !important;
+}
+
+.dark .ant-radio-inner {
+  background-color: #374151 !important;
+  border-color: #4b5563 !important;
+}
+
+.dark .ant-radio-checked .ant-radio-inner {
+  border-color: #4f46e5 !important;
+}
+
+.dark .ant-radio-inner::after {
+  background-color: #4f46e5 !important;
+}
+
+.dark .ant-checkbox-inner {
+  background-color: #374151 !important;
+  border-color: #4b5563 !important;
+}
+
+.dark .ant-checkbox-checked .ant-checkbox-inner {
+  background-color: #4f46e5 !important;
+  border-color: #4f46e5 !important;
+}
+
+.dark .ant-radio + span,
+.dark .ant-checkbox + span {
+  color: #e5e7eb !important;
+  padding-left: 12px !important;
+}
+
+/* Steps */
+.custom-steps {
+  padding: 1.5rem 0;
+}
+
+.dark .ant-steps {
+  margin-bottom: 2rem;
+}
+
+.dark .ant-steps-item {
+  padding: 0 1rem;
+}
+
+.dark .ant-steps-item-title {
+  font-size: 1rem !important;
+  font-weight: 500 !important;
+  color: #e5e7eb !important;
+}
+
+.dark .ant-steps-item-description {
+  color: #9ca3af !important;
+  font-size: 0.875rem !important;
+}
+
+.dark .ant-steps-item-icon {
+  width: 40px !important;
+  height: 40px !important;
+  line-height: 40px !important;
+  font-size: 1rem !important;
+}
+
+.dark .ant-steps-item-icon .anticon {
+  font-size: 18px !important;
+}
+
+.dark .ant-steps .ant-steps-item-title,
+.dark .ant-steps .ant-steps-item-description {
+  color: #9ca3af !important;
+}
+
+.dark .ant-steps .ant-steps-item-process .ant-steps-item-title,
+.dark .ant-steps .ant-steps-item-process .ant-steps-item-description {
+  color: #e5e7eb !important;
+}
+
+.dark .ant-steps .ant-steps-item-finish .ant-steps-item-title,
+.dark .ant-steps .ant-steps-item-finish .ant-steps-item-description {
+  color: #a5b4fc !important;
+}
+
+.dark .ant-steps .ant-steps-item-wait .ant-steps-item-icon {
+  background-color: #1f2937 !important;
+  border-color: #4b5563 !important;
+}
+
+.dark .ant-steps .ant-steps-item-process .ant-steps-item-icon {
+  background-color: #4f46e5 !important;
+  border-color: #4f46e5 !important;
+}
+
+.dark .ant-steps .ant-steps-item-finish .ant-steps-item-icon {
+  background-color: #1f2937 !important;
+  border-color: #4f46e5 !important;
+}
+
+.dark .ant-steps-item-finish > .ant-steps-item-container > .ant-steps-item-tail::after {
+  background-color: #4f46e5 !important;
+}
+
+.dark .ant-steps-item-process > .ant-steps-item-container > .ant-steps-item-tail::after {
+  background-color: #4b5563 !important;
+}
+
+.dark .ant-steps-item-wait > .ant-steps-item-container > .ant-steps-item-tail::after {
+  background-color: #4b5563 !important;
+}
+
+/* Divider */
+.dark .ant-divider {
+  margin: 28px 0 !important;
+  border-top-width: 2px !important;
+  border-top-color: #4b5563 !important;
+}
+
+.dark .ant-divider-inner-text {
+  font-size: 1rem !important;
+  font-weight: 500 !important;
+  color: #e5e7eb !important;
+  background-color: #1f2937 !important;
+}
+
+.dark .ant-divider-with-text::before,
+.dark .ant-divider-with-text::after {
+  border-top-color: #4b5563 !important;
+}
+
+/* Upload */
+.dark .ant-upload.ant-upload-select-picture-card {
+  background-color: #374151 !important;
+  border-color: #4b5563 !important;
+  width: 120px !important;
+  height: 120px !important;
+}
+
+.dark .ant-upload.ant-upload-select-picture-card:hover {
+  border-color: #6366f1 !important;
+}
+
+.dark .ant-upload-list-picture-card-container {
+  background-color: #1f2937 !important;
+}
+
+.dark .ant-upload-list-picture-card .ant-upload-list-item {
+  border-color: #4b5563 !important;
+}
+
+.dark .ant-upload-list-picture-card .ant-upload-list-item-info {
+  background-color: rgba(17, 24, 39, 0.8) !important;
+}
+
+.dark .ant-upload-text {
+  color: #e5e7eb !important;
+  margin-top: 8px !important;
+}
+
+/* Messages */
+.dark .ant-message-notice-content {
+  background-color: #1f2937 !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+.dark .ant-message-success .anticon {
+  color: #10b981 !important;
+}
+
+.dark .ant-message-error .anticon {
+  color: #ef4444 !important;
+}
+
+.dark .ant-message-warning .anticon {
+  color: #f59e0b !important;
+}
+
+.dark .ant-message-info .anticon {
+  color: #3b82f6 !important;
+}
+
+/* Custom form sections */
+.dark .form-section-card {
+  background-color: #1f2937 !important;
+  border-color: #374151 !important;
+}
+
+.dark .form-section-title {
+  color: #e5e7eb !important;
+}
+
+.dark .form-section-description {
+  color: #9ca3af !important;
+}
+
+/* Tooltips */
+.dark .ant-tooltip-inner {
+  background-color: #374151 !important;
+  color: #e5e7eb !important;
+  padding: 10px 12px !important;
+  font-size: 0.875rem !important;
+}
+
+.dark .ant-tooltip-arrow-content {
+  background-color: #374151 !important;
+}
+
+/* Enhanced content text for better visibility */
+.dark .ant-input::placeholder,
+.dark .ant-input-number-input::placeholder,
+.dark .ant-select-selection-placeholder,
+.dark .ant-picker-input > input::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Improve Review page */
+.dark .bg-blue-50.dark\:bg-gray-700 {
+  background-color: #374151 !important;
+  margin-bottom: 20px !important;
+  border-radius: 8px !important;
+}
+
+.dark .bg-blue-50.dark\:bg-gray-700 h3 {
+  color: #93c5fd !important;
+  font-size: 1.25rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.dark .text-gray-900.dark\:text-white {
+  color: #f3f4f6 !important;
+}
+
+.dark .text-gray-500.dark\:text-gray-400 {
+  color: #9ca3af !important;
+  font-weight: 500 !important;
+}

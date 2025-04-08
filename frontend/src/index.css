@@ -84,3 +84,91 @@ p {
 .content-container {
   @apply max-w-6xl mx-auto;
 }
+
+/* Custom styles for Ant Design Steps in dark mode */
+.dark .ant-steps .ant-steps-item-process .ant-steps-item-icon {
+  background-color: #4f46e5;
+  border-color: #4f46e5;
+}
+
+.dark .ant-steps .ant-steps-item-finish .ant-steps-item-icon {
+  background-color: #10b981;
+  border-color: #10b981;
+}
+
+.dark .ant-steps .ant-steps-item-wait .ant-steps-item-icon {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.dark .ant-steps .ant-steps-item-title,
+.dark .ant-steps .ant-steps-item-description {
+  color: #e5e7eb;
+}
+
+.dark .ant-steps .ant-steps-item-finish .ant-steps-item-title,
+.dark .ant-steps .ant-steps-item-finish .ant-steps-item-description {
+  color: #d1fae5;
+}
+
+.dark .ant-steps .ant-steps-item-process .ant-steps-item-title,
+.dark .ant-steps .ant-steps-item-process .ant-steps-item-description {
+  color: #e0e7ff;
+}
+
+/* Enhanced upload button for dark mode */
+.dark .ant-upload-text {
+  color: white;
+}
+
+.dark .ant-upload.ant-upload-select-picture-card {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.dark .ant-upload.ant-upload-select-picture-card:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Animation for step transitions */
+.ant-steps-item {
+  transition: all 0.3s ease;
+}
+
+.ant-steps-item-icon {
+  transition: transform 0.3s ease;
+}
+
+.ant-steps-item-process .ant-steps-item-icon {
+  transform: scale(1.1);
+}
+
+/* Custom upload list styling */
+.upload-list-inline .ant-upload-list-item {
+  margin-right: 16px;
+}
+
+.upload-list-inline .ant-upload-animate-enter {
+  animation-duration: 0.5s;
+}
+
+/* Form animations */
+.ant-form-item {
+  transition: all 0.3s ease;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.5s ease;
+}

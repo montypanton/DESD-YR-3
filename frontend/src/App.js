@@ -13,10 +13,16 @@ import Dashboard from './pages/dashboard/Dashboard';
 import Profile from './pages/profile/Profile';
 import MLModels from './pages/MLModels/MLModels';
 import PredictionHistory from './pages/MLModels/PredictionHistory';
+import SubmitClaim from './pages/MLModels/SubmitClaim';
 import Finance from './pages/Finance/Finance';
 import UserManagement from './pages/admin/UserManagement';
 import ActivityLogs from './pages/admin/ActivityLogs';
 import NotFound from './pages/NotFound';
+
+// Claims Components
+import ClaimsList from './components/Claims/ClaimsList';
+import ClaimForm from './components/Claims/ClaimForm';
+import ClaimDetail from './components/Claims/ClaimDetail';
 
 // Theme-aware wrapper for auth pages
 const AuthLayout = ({ children }) => (
@@ -62,6 +68,7 @@ function App() {
           
           {/* Available to all authenticated users */}
           <Route path="predictions" element={<PredictionHistory />} />
+          <Route path="submit-claim" element={<SubmitClaim />} />
           
           {/* Finance & Admin Routes */}
           <Route 
@@ -92,6 +99,11 @@ function App() {
             } 
           />
         </Route>
+        
+        {/* Claims routes - outside the Layout component */}
+        <Route path="/claims" element={<ClaimsList />} />
+        <Route path="/claims/new" element={<ClaimForm />} />
+        <Route path="/claims/:id" element={<ClaimDetail />} />
         
         {/* 404 Not Found - with theme support */}
         <Route path="*" element={

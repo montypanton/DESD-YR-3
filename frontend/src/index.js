@@ -1,35 +1,23 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import './index.css';
+import './styles/antd-dark-theme.css'; // Import dark theme styles
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
-import './index.css';
-
-// Prevent theme flickering by setting the theme class before React loads
-const themeInitScript = document.createElement('script');
-themeInitScript.innerHTML = `
-  (function() {
-    const theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  })();
-`;
-themeInitScript.setAttribute('type', 'text/javascript');
-document.head.appendChild(themeInitScript);
+// Import diagnostic tool for development debugging
+import './utils/fixRouter';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <ThemeProvider>
-      <BrowserRouter>
-        <AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <ThemeProvider>
           <App />
-        </AuthProvider>
-      </BrowserRouter>
-    </ThemeProvider>
+        </ThemeProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );
