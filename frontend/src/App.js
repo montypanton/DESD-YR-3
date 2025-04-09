@@ -14,7 +14,7 @@ import Profile from './pages/profile/Profile';
 import MLModels from './pages/MLModels/MLModels';
 import PredictionHistory from './pages/MLModels/PredictionHistory';
 import SubmitClaim from './pages/MLModels/SubmitClaim';
-import Finance from './pages/Finance/Finance';
+import Finance from './pages/finance/Finance';
 import UserManagement from './pages/admin/UserManagement';
 import ActivityLogs from './pages/admin/ActivityLogs';
 import NotFound from './pages/NotFound';
