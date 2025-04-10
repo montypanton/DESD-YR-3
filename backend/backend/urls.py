@@ -13,6 +13,7 @@ urlpatterns = [
     path('api/account/', include('account.urls')),
     path('api/ml/', include('ml_interface.urls')),
     path('api/finance/', include('finance.urls')),
+    path('api/claims/', include('claims.urls')),
 ]
 
 if settings.DEBUG:
