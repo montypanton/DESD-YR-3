@@ -1,9 +1,9 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { DatePicker, Select, Upload, Input, Form, message, Steps, Button, Radio, InputNumber, Checkbox, Divider } from 'antd';
 import { UploadOutlined, CheckCircleOutlined, FileDoneOutlined, FileTextOutlined, InfoCircleOutlined, CarOutlined, MedicineBoxOutlined, DollarOutlined } from '@ant-design/icons';
 import { ThemeContext } from '../../context/ThemeContext';
+import { apiClient } from '../../services/authService';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -124,7 +124,7 @@ const SubmitClaim = () => {
         }
       };
 
-      await axios.post('/api/claims/', claimData);
+      await apiClient.post('/claims/', claimData);
       message.success('Insurance claim submitted successfully!');
       setSubmitted(true);
       
