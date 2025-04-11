@@ -24,7 +24,6 @@ import ClaimsList from './components/Claims/ClaimsList';
 import ClaimForm from './components/Claims/ClaimForm';
 import ClaimDetail from './components/Claims/ClaimDetail';
 
-// Theme-aware wrapper for auth pages
 const AuthLayout = ({ children }) => (
   <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
     {children}
@@ -37,7 +36,6 @@ function App() {
   return (
     <div className="font-sans text-gray-900 dark:text-gray-100 transition-colors duration-200">
       <Routes>
-        {/* Public routes wrapped in AuthLayout for theme support */}
         <Route path="/login" element={
           <AuthLayout>
             {!user ? <Login /> : <Navigate to="/dashboard" />}
@@ -50,7 +48,6 @@ function App() {
           </AuthLayout>
         } />
         
-        {/* Protected routes - Layout already has theme support */}
         <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
@@ -100,12 +97,12 @@ function App() {
           />
         </Route>
         
-        {/* Claims routes - outside the Layout component */}
-        <Route path="/claims" element={<ClaimsList />} />
-        <Route path="/claims/new" element={<ClaimForm />} />
-        <Route path="/claims/:id" element={<ClaimDetail />} />
+      {/* Claims routes */}
+      <Route path="/claims" element={<ProtectedRoute><ClaimsList /></ProtectedRoute>} />
+      <Route path="/claims/new" element={<ProtectedRoute><ClaimForm /></ProtectedRoute>} />
+      <Route path="/claims/:id" element={<ProtectedRoute><ClaimDetail /></ProtectedRoute>} />
         
-        {/* 404 Not Found - with theme support */}
+        {/* 404 Not Found */}
         <Route path="*" element={
           <AuthLayout>
             <NotFound />

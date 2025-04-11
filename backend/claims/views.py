@@ -13,7 +13,10 @@ class ClaimViewSet(viewsets.ModelViewSet):
         return Claim.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
+        print("Creating new claim for user:", self.request.user.email)
+        print("Data:", serializer.validated_data)
         serializer.save(user=self.request.user)
+        print("Claim created successfully")
     
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
@@ -77,3 +80,12 @@ class ClaimViewSet(viewsets.ModelViewSet):
             'status_distribution': list(status_distribution),
             'avg_processing_time': avg_processing_time,
         })
+    
+    @action(detail=False, methods=['get'])
+    def my_claims(self, request):
+        """
+        Returns only the current user's claims.
+        """
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

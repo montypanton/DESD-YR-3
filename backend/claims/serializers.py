@@ -19,7 +19,10 @@ class ClaimSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data['reference_number'] = f"CLM-{uuid.uuid4().hex[:8].upper()}"
-        return super().create(validated_data)
+        print("Creating claim with data:", validated_data)
+        instance = super().create(validated_data)
+        print("Created claim:", instance.id)
+        return instance
 
 
 class ClaimDashboardSerializer(serializers.ModelSerializer):

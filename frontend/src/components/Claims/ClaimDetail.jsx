@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Descriptions, Tag, Spin, Button, Typography, Divider, message, Alert } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { apiClient } from '../../services/authService';
 
 const { Title, Text } = Typography;
 
@@ -15,7 +16,9 @@ const ClaimDetail = () => {
     const fetchClaimDetails = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`/api/claims/${id}/`);
+        console.log('Fetching claim details for ID:', id);
+        const response = await apiClient.get(`/claims/${id}/`);
+        console.log('Claim details response:', response.data);
         setClaim(response.data);
       } catch (error) {
         console.error('Error fetching claim details:', error);
@@ -24,7 +27,7 @@ const ClaimDetail = () => {
         setLoading(false);
       }
     };
-
+  
     if (id) {
       fetchClaimDetails();
     }
@@ -52,7 +55,7 @@ const ClaimDetail = () => {
     <Card>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <Title level={3}>Insurance Claim Details</Title>
-        <Button onClick={() => navigate('/claims')}>Back to Claims</Button>
+        <Button onClick={() => navigate('/predictions')}>Back to Claims</Button>
       </div>
 
       {claim.ml_prediction && (

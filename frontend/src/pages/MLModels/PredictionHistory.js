@@ -1,18 +1,62 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { apiClient } from '../../services/authService';
 
 const PredictionHistory = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPrediction, setSelectedPrediction] = useState(null);
   const [showExampleModal, setShowExampleModal] = useState(false);
+  const [predictions, setPredictions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalClaims: 0,
+    approvedClaims: 0,
+    rejectedClaims: 0
+  });
   
-  // These would normally come from an API call
-  const totalClaims = 0;
-  const approvedClaims = 0;
-  const rejectedClaims = 0;
+  useEffect(() => {
+    const fetchClaims = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.get('/claims/');
+        console.log('Claims response:', response.data);
+        
+        const claimsData = response.data.results || response.data;
+        setPredictions(claimsData);
+        
+        setStats({
+          totalClaims: claimsData.length,
+          approvedClaims: claimsData.filter(claim => claim.status === 'APPROVED').length,
+          rejectedClaims: claimsData.filter(claim => claim.status === 'REJECTED').length
+        });
+      } catch (error) {
+        console.error('Error fetching claims:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
   
-  const predictions = []; // This would be populated from API
+    fetchClaims();
+  }, []);
+
+  const filteredPredictions = predictions.filter(claim => {
+    // Filter by tab
+    if (activeTab === 'approved' && claim.status !== 'APPROVED') return false;
+    if (activeTab === 'rejected' && claim.status !== 'REJECTED') return false;
+    
+    // Filter by search
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      return (
+        (claim.reference_number?.toLowerCase().includes(query)) ||
+        (claim.title?.toLowerCase().includes(query)) ||
+        (claim.description?.toLowerCase().includes(query))
+      );
+    }
+    
+    return true;
+  });
 
   const exampleInputs = [
     {
@@ -57,17 +101,17 @@ const PredictionHistory = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-700">
           <div className="p-4 sm:px-6 lg:px-8">
             <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Claims</p>
-            <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{totalClaims}</p>
+            <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{stats.totalClaims}</p>
           </div>
           
           <div className="p-4 sm:px-6 lg:px-8">
             <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Approved Claims</p>
-            <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{approvedClaims}</p>
+            <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{stats.approvedClaims}</p>
           </div>
           
           <div className="p-4 sm:px-6 lg:px-8">
             <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Rejected Claims</p>
-            <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{rejectedClaims}</p>
+            <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{stats.rejectedClaims}</p>
           </div>
         </div>
       </div>
@@ -129,51 +173,96 @@ const PredictionHistory = () => {
 
       {/* Claims List */}
       <div className="bg-white dark:bg-gray-800 shadow-md rounded-xl overflow-hidden transition-colors duration-200">
-        {predictions.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Claim ID
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Date Submitted
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {/* Table rows would be generated here from predictions data */}
-              </tbody>
-            </table>
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
         ) : (
-          <div className="px-6 py-10 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
-              <svg className="h-8 w-8 text-gray-400 dark:text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No claims submitted yet</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
-              You haven't submitted any insurance claims yet. Click the button below to submit your first claim.
-            </p>
-            <Link
-              to="/submit-claim"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
-            >
-              Submit First Claim
-            </Link>
-          </div>
+          <>
+            {filteredPredictions.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Claim ID
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Date Submitted
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Description
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {filteredPredictions.map((claim) => (
+                      <tr key={claim.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          {claim.reference_number}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {new Date(claim.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {claim.description ? 
+                            (claim.description.length > 50 ? 
+                              `${claim.description.substring(0, 50)}...` : 
+                              claim.description) : 
+                            'No description provided'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            claim.status === 'APPROVED' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 
+                            claim.status === 'REJECTED' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 
+                            'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                          }`}>
+                            {claim.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right">
+                          <Link 
+                            to={`/claims/${claim.id}`} 
+                            className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
+                          >
+                            View Details
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="px-6 py-10 text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
+                  <svg className="h-8 w-8 text-gray-400 dark:text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No claims found</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
+                  {searchQuery 
+                    ? "No claims match your search criteria. Try adjusting your filters." 
+                    : activeTab !== 'all' 
+                      ? `You don't have any ${activeTab} claims yet.`
+                      : "You haven't submitted any insurance claims yet."}
+                </p>
+                <Link
+                  to="/submit-claim"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+                >
+                  Submit New Claim
+                </Link>
+              </div>
+            )}
+          </>
         )}
       </div>
       
