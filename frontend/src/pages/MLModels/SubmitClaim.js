@@ -1,9 +1,9 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { DatePicker, Select, Upload, Input, Form, message, Steps, Button, Radio, InputNumber, Checkbox, Divider } from 'antd';
 import { UploadOutlined, CheckCircleOutlined, FileDoneOutlined, FileTextOutlined, InfoCircleOutlined, CarOutlined, MedicineBoxOutlined, DollarOutlined } from '@ant-design/icons';
 import { ThemeContext } from '../../context/ThemeContext';
+import { apiClient } from '../../services/authService';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -18,7 +18,6 @@ const SubmitClaim = () => {
   const [submitted, setSubmitted] = useState(false);
   const { darkMode } = useContext(ThemeContext);
 
-  // Form steps configuration
   const steps = [
     {
       title: 'Incident Details',
@@ -49,16 +48,10 @@ const SubmitClaim = () => {
 
   const goToNextStep = async () => {
     try {
-      // Validate fields of current step
       const values = await form.validateFields();
-      
-      // Store values
       setFormValues({ ...formValues, ...values });
-      
-      // Move to next step
       setCurrentStep(currentStep + 1);
     } catch (error) {
-      // Form validation error
       console.error('Validation failed:', error);
     }
   };
@@ -71,10 +64,8 @@ const SubmitClaim = () => {
     setLoading(true);
     
     try {
-      // Combine all form values
       const allValues = { ...formValues, ...await form.validateFields() };
       
-      // Transform form values into the required format for API
       const claimData = {
         title: `${allValues.AccidentType} Claim - ${allValues.AccidentDate?.format('MMM D, YYYY')}`,
         description: allValues.AccidentDescription,
@@ -133,12 +124,10 @@ const SubmitClaim = () => {
         }
       };
 
-      // Make API call
-      await axios.post('/api/claims/', claimData);
+      await apiClient.post('/claims/', claimData);
       message.success('Insurance claim submitted successfully!');
       setSubmitted(true);
       
-      // Wait a moment before navigating
       setTimeout(() => {
         form.resetFields();
         navigate('/predictions');
