@@ -22,12 +22,30 @@ const ProtectedRoute = ({ children, roles }) => {
   }
 
   // If roles are specified and user doesn't have required role
-  if (roles && !roles.includes(user.role)) {
-    return <Navigate to="/dashboard" />;
+  if (roles && !isUserAuthorized(user, roles)) {
+    console.log('User is not authorized for this route. User role:', user.role, 'Is superuser:', user.is_superuser);
+    
+    // Redirect admins to admin dashboard, others to regular dashboard
+    if (user.role === 'ADMIN' || user.is_superuser === true) {
+      return <Navigate to="/admin" />;
+    } else {
+      return <Navigate to="/dashboard" />;
+    }
   }
 
   // If user is authenticated and has required role, show the protected component
   return children;
+};
+
+// Helper function to check if a user has access to a route
+const isUserAuthorized = (user, requiredRoles) => {
+  // Superusers can access any route
+  if (user.is_superuser === true) {
+    return true;
+  }
+  
+  // Check if the user's role is in the list of required roles
+  return requiredRoles.includes(user.role);
 };
 
 export default ProtectedRoute;

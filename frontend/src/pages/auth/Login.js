@@ -21,8 +21,28 @@ const Login = () => {
     try {
       setApiError(null);
       console.log('Form values:', values);
-      await login(values);
+      const userData = await login(values);
+      
+      // Admin users get a direct, forced navigation
+      if (userData.user.role === 'ADMIN' || userData.user.is_superuser === true) {
+        console.log('Admin user detected - forcing hard redirect');
+        // Force a complete reload to the admin page
+        window.location.href = '/admin';
+        return; // Stop execution here for admin users
+      }
+      
+      // Finance users also get a direct, forced navigation
+      if (userData.user.role === 'FINANCE') {
+        console.log('Finance user detected - forcing hard redirect');
+        // Force a complete reload to the finance dashboard
+        window.location.href = '/finance/dashboard';
+        return; // Stop execution here for finance users
+      }
+      
+      // Regular users use React Router navigation
+      console.log('Regular user - using React Router navigation');
       navigate('/dashboard');
+      
     } catch (error) {
       console.error('Login error:', error);
       console.log('Error response data:', error.response?.data);
@@ -55,15 +75,15 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-bold text-gray-900 dark:text-white">
             Sign in to your account
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
             Or{' '}
-            <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">
               create a new account
             </Link>
           </p>
@@ -77,7 +97,7 @@ const Login = () => {
           {({ isSubmitting, errors, touched }) => (
             <Form className="mt-8 space-y-6">
               {apiError && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
+                <div className="bg-red-50 dark:bg-red-900 border-l-4 border-red-500 p-4 mb-4">
                   <div className="flex">
                     <div className="flex-shrink-0">
                       <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
@@ -85,7 +105,7 @@ const Login = () => {
                       </svg>
                     </div>
                     <div className="ml-3">
-                      <p className="text-sm text-red-700">{apiError}</p>
+                      <p className="text-sm text-red-700 dark:text-red-200">{apiError}</p>
                     </div>
                   </div>
                 </div>
@@ -100,8 +120,8 @@ const Login = () => {
                     type="email"
                     autoComplete="email"
                     className={`appearance-none rounded-none relative block w-full px-3 py-2 border ${
-                      errors.email && touched.email ? 'border-red-300' : 'border-gray-300'
-                    } placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                      errors.email && touched.email ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                    } placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                     placeholder="Email address"
                   />
                   <ErrorMessage 
@@ -118,8 +138,8 @@ const Login = () => {
                     type="password"
                     autoComplete="current-password"
                     className={`appearance-none rounded-none relative block w-full px-3 py-2 border ${
-                      errors.password && touched.password ? 'border-red-300' : 'border-gray-300'
-                    } placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                      errors.password && touched.password ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                    } placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                     placeholder="Password"
                   />
                   <ErrorMessage 
@@ -134,7 +154,7 @@ const Login = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400"
+                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400 dark:focus:ring-offset-gray-900"
                 >
                   {isSubmitting ? (
                     <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

@@ -127,23 +127,120 @@ class UserViewSet(viewsets.ModelViewSet):
         user.is_active = False
         user.save()
         return Response({"status": "user deactivated"})
+    
+    @action(detail=True, methods=['post'])
+    def delete_user(self, request, pk=None):
+        user = self.get_object()
+        
+        # Don't allow users to delete themselves
+        if user.id == request.user.id:
+            return Response(
+                {"error": "You cannot delete your own account."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            # Create activity log before deleting user
+            ActivityLog.objects.create(
+                user=request.user,
+                action="deleted",
+                resource_type="user",
+                resource_id=user.id,
+                additional_data={"deleted_user": user.email, "deleted_by": request.user.email}
+            )
+            
+            username = user.email
+            
+            # Manually delete related objects from models that may have foreign key constraints
+            # This is a safer approach than relying on CASCADE which might fail if tables don't exist
+            try:
+                # Use raw SQL to delete any entries from billing_records if the table exists
+                from django.db import connection
+                with connection.cursor() as cursor:
+                    # Check if the table exists first
+                    cursor.execute("""
+                        SELECT COUNT(*) 
+                        FROM information_schema.tables 
+                        WHERE table_name = 'finance_billingrecord'
+                        AND table_schema = DATABASE()
+                    """)
+                    if cursor.fetchone()[0] > 0:
+                        # Table exists, delete related records
+                        cursor.execute("DELETE FROM finance_billingrecord WHERE user_id = %s", [user.id])
+            except Exception as e:
+                # Log but continue if there's an issue with this specific operation
+                print(f"Warning: Could not clean up billing records: {str(e)}")
+            
+            # Now safely delete the user
+            user.delete()
+            
+            return Response(
+                {"success": f"User {username} has been permanently deleted"},
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            # Log the error for debugging
+            print(f"Error deleting user: {str(e)}")
+            return Response(
+                {"error": "An error occurred while deleting the user."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = ActivityLog.objects.all()
+    queryset = ActivityLog.objects.all().order_by('-timestamp')  # Order by newest first
     serializer_class = ActivityLogSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
+        queryset = ActivityLog.objects.all().order_by('-timestamp')
         
-        if self.request.user.is_admin:
-            return ActivityLog.objects.all()
+        # Check if user is admin
+        if not self.request.user.is_admin and not self.request.user.is_superuser:
+            queryset = queryset.filter(user=self.request.user)
         
-        return ActivityLog.objects.filter(user=self.request.user)
+        # Handle filtering parameters
+        user_id = self.request.query_params.get('user')
+        action = self.request.query_params.get('action')
+        resource_type = self.request.query_params.get('resource_type')
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        
+        if user_id:
+            queryset = queryset.filter(user__id=user_id)
+        if action:
+            queryset = queryset.filter(action=action)
+        if resource_type:
+            queryset = queryset.filter(resource_type=resource_type)
+        if start_date:
+            queryset = queryset.filter(timestamp__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(timestamp__lte=end_date)
+            
+        # Handle limit parameter (for dashboard's recent activity)
+        limit = self.request.query_params.get('limit')
+        if limit:
+            try:
+                limit = int(limit)
+                queryset = queryset[:limit]
+            except (ValueError, TypeError):
+                pass
+        
+        return queryset
     
     @action(detail=False, methods=['get'])
     def my_activity(self, request):
-        queryset = ActivityLog.objects.filter(user=request.user)
+        queryset = ActivityLog.objects.filter(user=request.user).order_by('-timestamp')
+        
+        # Handle limit parameter
+        limit = self.request.query_params.get('limit')
+        if limit:
+            try:
+                limit = int(limit)
+                queryset = queryset[:limit]
+            except (ValueError, TypeError):
+                pass
+                
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)

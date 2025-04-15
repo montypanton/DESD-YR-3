@@ -4,12 +4,17 @@ from rest_framework.decorators import action
 from django.db.models import Count, Sum, Avg, Q
 from .models import Claim
 from .serializers import ClaimSerializer, ClaimDashboardSerializer
+from account.permissions import IsAdminUser, IsFinanceUser
 
 class ClaimViewSet(viewsets.ModelViewSet):
     serializer_class = ClaimSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        # Finance users and admins should see all claims
+        if self.request.user.is_finance or self.request.user.is_admin or self.request.user.is_superuser:
+            return Claim.objects.all()
+        # Regular users should only see their own claims
         return Claim.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
@@ -17,14 +22,18 @@ class ClaimViewSet(viewsets.ModelViewSet):
         print("Data:", serializer.validated_data)
         serializer.save(user=self.request.user)
         print("Claim created successfully")
-    
+
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
         """
         Returns aggregated statistics for the current user's claims.
         """
-        user = request.user
-        queryset = Claim.objects.filter(user=user)
+        # For finance users, show stats for all claims
+        if request.user.is_finance or request.user.is_admin or request.user.is_superuser:
+            queryset = Claim.objects.all()
+        else:
+            # For regular users, filter by their own claims
+            queryset = Claim.objects.filter(user=request.user)
         
         total_claims = queryset.count()
         approved_claims = queryset.filter(status='APPROVED').count()
@@ -56,10 +65,16 @@ class ClaimViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """
-        Returns detailed statistics about the user's claims.
+        Returns detailed statistics about claims.
+        For finance users and admins: returns stats for all claims
+        For regular users: returns stats only for their own claims
         """
-        user = request.user
-        queryset = Claim.objects.filter(user=user)
+        # For finance users, show stats for all claims
+        if request.user.is_finance or request.user.is_admin or request.user.is_superuser:
+            queryset = Claim.objects.all()
+        else:
+            # For regular users, filter by their own claims
+            queryset = Claim.objects.filter(user=request.user)
         
         monthly_claims = queryset.extra(
             select={'month': "DATE_FORMAT(created_at, '%%Y-%%m')"}
@@ -75,11 +90,23 @@ class ClaimViewSet(viewsets.ModelViewSet):
         
         avg_processing_time = sum(processing_time_data) / len(processing_time_data) if processing_time_data else 0
         
-        return Response({
+        # Add user distribution data for finance users
+        response_data = {
             'monthly_claims': list(monthly_claims),
             'status_distribution': list(status_distribution),
             'avg_processing_time': avg_processing_time,
-        })
+        }
+        
+        # Add user-specific statistics for finance/admin users
+        if request.user.is_finance or request.user.is_admin or request.user.is_superuser:
+            user_claim_counts = queryset.values('user__email').annotate(
+                count=Count('id'),
+                total_amount=Sum('amount')
+            ).order_by('-count')
+            
+            response_data['user_distribution'] = list(user_claim_counts)
+        
+        return Response(response_data)
     
     @action(detail=False, methods=['get'])
     def my_claims(self, request):
@@ -88,4 +115,19 @@ class ClaimViewSet(viewsets.ModelViewSet):
         """
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def recent(self, request):
+        """
+        Returns recent claims - useful for the finance dashboard
+        """
+        # Get limit parameter from request or default to 5
+        limit = int(request.query_params.get('limit', 5))
+        
+        # Use the existing get_queryset method which already handles permissions
+        queryset = self.get_queryset().order_by('-created_at')[:limit]
+        
+        # Use dashboard serializer for more compact representation
+        serializer = ClaimDashboardSerializer(queryset, many=True)
         return Response(serializer.data)

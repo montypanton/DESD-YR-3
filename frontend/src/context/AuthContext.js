@@ -116,12 +116,27 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       console.log('Attempting login with credentials:', credentials);
       const response = await authService.login(credentials);
-      console.log('Login successful, response:', response.data);
+      console.log('Login successful, full API response:', response);
       
       // Extract the user and token from the response
       const userData = response.data.user;
       const accessToken = response.data.access;
       
+      // Enhanced debugging for admin detection
+      console.log('Original user data from backend:', userData);
+      console.log('User role before processing:', userData.role);
+      console.log('Is superuser flag:', userData.is_superuser);
+      console.log('Is staff flag:', userData.is_staff);
+      
+      // Ensure superusers are treated as admins in the frontend - more explicit comparison
+      if ((userData.is_superuser === true || userData.is_staff === true) && userData.role !== 'ADMIN') {
+        console.log('Detected superuser/staff - explicitly setting role to ADMIN');
+        userData.role = 'ADMIN';
+      }
+      
+      console.log('Final user role after processing:', userData.role);
+      
+      // Store the processed user data
       setUser(userData);
       setToken(accessToken);
       

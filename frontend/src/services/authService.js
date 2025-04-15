@@ -74,7 +74,7 @@ const authService = {
     console.log('Login credentials being sent:', credentials);
     // Django REST framework expects username/password by default, not email/password
     return apiClient.post('/account/login/', {
-      username: credentials.email, // Try with username instead of email
+      username: credentials.email, // Email is used as the username
       password: credentials.password
     });
   },

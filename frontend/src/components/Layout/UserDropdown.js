@@ -28,8 +28,8 @@ const UserDropdown = () => {
 
   // Generate initials for the user avatar placeholder
   const getInitials = () => {
-    if (!user?.firstName && !user?.lastName) return "U";
-    return `${user?.firstName?.charAt(0) || ''}${user?.lastName?.charAt(0) || ''}`;
+    if (!user?.first_name && !user?.last_name) return "U";
+    return `${user?.first_name?.charAt(0) || ''}${user?.last_name?.charAt(0) || ''}`;
   };
 
   return (
@@ -46,7 +46,7 @@ const UserDropdown = () => {
       {isOpen && (
         <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg overflow-hidden z-10 ring-1 ring-black ring-opacity-5">
           <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700">
-            <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.firstName} {user?.lastName}</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.first_name} {user?.last_name}</p>
             <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
           </div>
           <div className="border-t border-gray-200 dark:border-gray-600">

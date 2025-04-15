@@ -35,13 +35,14 @@ services:
       - DB_ROOT_PASSWORD=rootpassword
       - DB_HOST=db
       - DB_PORT=3306
+      - PYTHONUNBUFFERED=1
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app/backend
     command: >
       sh -c "python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8000"
+             python manage.py runserver 0.0.0.0:8000 --insecure"
 
   # Frontend
   frontend:
@@ -53,11 +54,18 @@ services:
     ports:
       - "3000:3000"
     command: >
-      sh -c "chmod +x ./start.sh && ./start.sh"
+      sh -c "echo '#!/bin/sh' > ./start.sh &&
+            echo 'npm install' >> ./start.sh &&
+            echo 'export WATCHPACK_POLLING=true' >> ./start.sh &&
+            echo 'npm start -- --polling' >> ./start.sh &&
+            chmod +x ./start.sh && 
+            ./start.sh"
     environment:
       - REACT_APP_API_URL=http://localhost:8000/api
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=500
+      - FAST_REFRESH=true
       - CI=false
     depends_on:
       - backend

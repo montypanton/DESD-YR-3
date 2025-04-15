@@ -5,6 +5,8 @@ import { useAuth } from './context/AuthContext';
 // Layout Components
 import Layout from './components/Layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
+import FinanceRoute from './components/FinanceRoute';
 
 // Pages
 import Login from './pages/auth/Login';
@@ -14,9 +16,13 @@ import Profile from './pages/profile/Profile';
 import MLModels from './pages/MLModels/MLModels';
 import PredictionHistory from './pages/MLModels/PredictionHistory';
 import SubmitClaim from './pages/MLModels/SubmitClaim';
-import Finance from './pages/finance/Finance';
+import FinanceDashboard from './pages/finance/FinanceDashboard';
+import FinanceClaims from './pages/finance/FinanceClaims';
+import FinanceReports from './pages/finance/FinanceReports';
+import FinanceClaimDetail from './pages/finance/FinanceClaimDetail';
 import UserManagement from './pages/admin/UserManagement';
 import ActivityLogs from './pages/admin/ActivityLogs';
+import AdminDashboard from './pages/admin/AdminDashboard';
 import NotFound from './pages/NotFound';
 
 // Claims Components
@@ -38,18 +44,40 @@ function App() {
       <Routes>
         <Route path="/login" element={
           <AuthLayout>
-            {!user ? <Login /> : <Navigate to="/dashboard" />}
+            {!user ? <Login /> : (
+              user.role === 'ADMIN' || user.is_superuser === true ? 
+                <Navigate to="/admin" /> : 
+                user.role === 'FINANCE' ?
+                <Navigate to="/finance/dashboard" /> :
+                <Navigate to="/dashboard" />
+            )}
           </AuthLayout>
         } />
         
         <Route path="/register" element={
           <AuthLayout>
-            {!user ? <Register /> : <Navigate to="/dashboard" />}
+            {!user ? <Register /> : (
+              user.role === 'ADMIN' || user.is_superuser === true ? 
+                <Navigate to="/admin" /> : 
+                user.role === 'FINANCE' ?
+                <Navigate to="/finance/dashboard" /> :
+                <Navigate to="/dashboard" />
+            )}
           </AuthLayout>
         } />
         
         <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route index element={
+            user ? 
+              (user.role === 'ADMIN' || user.is_superuser === true ? 
+                <Navigate to="/admin" replace /> : 
+                user.role === 'FINANCE' ?
+                <Navigate to="/finance/dashboard" replace /> :
+                <Navigate to="/dashboard" replace />
+              ) : 
+              <Navigate to="/login" replace />
+          } />
+          
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="profile" element={<Profile />} />
           
@@ -67,32 +95,68 @@ function App() {
           <Route path="predictions" element={<PredictionHistory />} />
           <Route path="submit-claim" element={<SubmitClaim />} />
           
-          {/* Finance & Admin Routes */}
+          {/* Finance Routes - Now using FinanceRoute component */}
           <Route 
-            path="finance" 
+            path="finance/dashboard" 
             element={
-              <ProtectedRoute roles={['ADMIN', 'FINANCE']}>
-                <Finance />
-              </ProtectedRoute>
+              <FinanceRoute>
+                <FinanceDashboard />
+              </FinanceRoute>
             } 
           />
           
-          {/* Admin Only Routes */}
+          <Route 
+            path="finance/claims" 
+            element={
+              <FinanceRoute>
+                <FinanceClaims />
+              </FinanceRoute>
+            } 
+          />
+          
+          <Route 
+            path="finance/reports" 
+            element={
+              <FinanceRoute>
+                <FinanceReports />
+              </FinanceRoute>
+            } 
+          />
+          
+          <Route 
+            path="finance/claims/:id" 
+            element={
+              <FinanceRoute>
+                <FinanceClaimDetail />
+              </FinanceRoute>
+            } 
+          />
+          
+          {/* Admin Only Routes - Now using AdminRoute component */}
+          <Route 
+            path="admin" 
+            element={
+              <AdminRoute>
+                <AdminDashboard />
+              </AdminRoute>
+            } 
+          />
+          
           <Route 
             path="admin/users" 
             element={
-              <ProtectedRoute roles={['ADMIN']}>
+              <AdminRoute>
                 <UserManagement />
-              </ProtectedRoute>
+              </AdminRoute>
             } 
           />
           
           <Route 
             path="admin/activity-logs" 
             element={
-              <ProtectedRoute roles={['ADMIN']}>
+              <AdminRoute>
                 <ActivityLogs />
-              </ProtectedRoute>
+              </AdminRoute>
             } 
           />
         </Route>

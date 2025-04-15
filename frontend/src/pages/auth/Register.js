@@ -85,15 +85,15 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-bold text-gray-900 dark:text-white">
             Create a new account
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
             Or{' '}
-            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">
               sign in to your existing account
             </Link>
           </p>
@@ -116,7 +116,7 @@ const Register = () => {
           {({ isSubmitting, errors, touched }) => (
             <Form className="mt-8 space-y-6">
               {apiError && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4">
+                <div className="bg-red-50 dark:bg-red-900 border-l-4 border-red-500 p-4">
                   <div className="flex">
                     <div className="flex-shrink-0">
                       <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
@@ -124,7 +124,7 @@ const Register = () => {
                       </svg>
                     </div>
                     <div className="ml-3">
-                      <p className="text-sm text-red-700">{apiError}</p>
+                      <p className="text-sm text-red-700 dark:text-red-200">{apiError}</p>
                     </div>
                   </div>
                 </div>
@@ -133,7 +133,7 @@ const Register = () => {
               <div className="rounded-md shadow-sm -space-y-px">
                 <div className="grid grid-cols-1 gap-4 mb-4">
                   <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Email address
                     </label>
                     <Field
@@ -142,8 +142,8 @@ const Register = () => {
                       type="email"
                       autoComplete="email"
                       className={`appearance-none relative block w-full px-3 py-2 border ${
-                        errors.email && touched.email ? 'border-red-300' : 'border-gray-300'
-                      } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                        errors.email && touched.email ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                      } placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                     />
                     <ErrorMessage 
                       name="email" 
@@ -157,7 +157,7 @@ const Register = () => {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         First name
                       </label>
                       <Field
@@ -166,8 +166,8 @@ const Register = () => {
                         type="text"
                         autoComplete="given-name"
                         className={`appearance-none relative block w-full px-3 py-2 border ${
-                          errors.first_name && touched.first_name ? 'border-red-300' : 'border-gray-300'
-                        } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                          errors.first_name && touched.first_name ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                        } placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                       />
                       <ErrorMessage 
                         name="first_name" 
@@ -180,7 +180,7 @@ const Register = () => {
                     </div>
                     
                     <div>
-                      <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Last name
                       </label>
                       <Field
@@ -189,8 +189,8 @@ const Register = () => {
                         type="text"
                         autoComplete="family-name"
                         className={`appearance-none relative block w-full px-3 py-2 border ${
-                          errors.last_name && touched.last_name ? 'border-red-300' : 'border-gray-300'
-                        } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                          errors.last_name && touched.last_name ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                        } placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                       />
                       <ErrorMessage 
                         name="last_name" 
@@ -204,7 +204,7 @@ const Register = () => {
                   </div>
                   
                   <div>
-                    <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Role
                     </label>
                     <Field
@@ -212,8 +212,8 @@ const Register = () => {
                       id="role"
                       name="role"
                       className={`appearance-none relative block w-full px-3 py-2 border ${
-                        errors.role && touched.role ? 'border-red-300' : 'border-gray-300'
-                      } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                        errors.role && touched.role ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                      } placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                     >
                       <option value="END_USER">End User</option>
                       <option value="ML_ENGINEER">ML Engineer</option>
@@ -231,19 +231,19 @@ const Register = () => {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="department" className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="department" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Department (Optional)
                       </label>
                       <Field
                         id="department"
                         name="department"
                         type="text"
-                        className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                        className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                       />
                     </div>
                     
                     <div>
-                      <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Phone (Optional)
                       </label>
                       <Field
@@ -251,13 +251,13 @@ const Register = () => {
                         name="phone_number"
                         type="tel"
                         autoComplete="tel"
-                        className="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                        className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                       />
                     </div>
                   </div>
                   
                   <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Password
                     </label>
                     <Field
@@ -266,8 +266,8 @@ const Register = () => {
                       type="password"
                       autoComplete="new-password"
                       className={`appearance-none relative block w-full px-3 py-2 border ${
-                        errors.password && touched.password ? 'border-red-300' : 'border-gray-300'
-                      } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                        errors.password && touched.password ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                      } placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                     />
                     <ErrorMessage 
                       name="password" 
@@ -280,7 +280,7 @@ const Register = () => {
                   </div>
                   
                   <div>
-                    <label htmlFor="password2" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="password2" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Confirm Password
                     </label>
                     <Field
@@ -289,8 +289,8 @@ const Register = () => {
                       type="password"
                       autoComplete="new-password"
                       className={`appearance-none relative block w-full px-3 py-2 border ${
-                        errors.password2 && touched.password2 ? 'border-red-300' : 'border-gray-300'
-                      } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                        errors.password2 && touched.password2 ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                      } placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
                     />
                     <ErrorMessage 
                       name="password2" 
@@ -308,7 +308,7 @@ const Register = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400"
+                  className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400 dark:focus:ring-offset-gray-900"
                 >
                   {isSubmitting ? (
                     <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
