@@ -82,10 +82,13 @@ cd DESD-YR-3
 
 4. Database Setup and Migrations:
    
-   Run the following commands to set up the database completely:
+   The basic migration command is run automatically when starting the containers. However, if you encounter migration errors or need to ensure migrations run in the correct order, use these commands:
    
    ```
-   # Apply all migrations to set up the database schema
+   # Run specific migrations in the correct order to resolve dependencies
+   docker-compose exec backend python manage.py makemigrations ml_interface
+   docker-compose exec backend python manage.py migrate ml_interface
+   docker-compose exec backend python manage.py makemigrations claims
    docker-compose exec backend python manage.py migrate
    
    # Create necessary directories for media uploads
@@ -94,9 +97,6 @@ cd DESD-YR-3
    
    # Create a superuser account (write down these credentials)
    docker-compose exec backend python manage.py createsuperuser
-   
-   # Optional: Load initial data for ML models if you have fixtures
-   # docker-compose exec backend python manage.py loaddata ml_initial_data
    ```
 
 5. Access the application:
