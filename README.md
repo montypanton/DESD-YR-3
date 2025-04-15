@@ -39,24 +39,111 @@
 ### Set-up instructions:
 
 1. Clone repository:
+```
 git clone <repo-url>
-2. Create .env files: 
-one for backend/
-one for frontend/
+cd DESD-YR-3
+```
+
+2. Create .env files:
+   
+   **For backend (create file at `backend/.env`):**
+   ```
+   SECRET_KEY=2jSD9r2-KTldmeaVwm1QQx7qVyf4sRgJ8o2k7-Y1m6DZW5eoVcNIDJsEDpiPttz3c7g
+   DEBUG=True
+   DB_NAME=desd_db
+   DB_USER=desd_user
+   DB_PASSWORD=desd_pass_123
+   DB_ROOT_PASSWORD=rootpassword
+   DB_HOST=db
+   DB_PORT=3306
+   ```
+   
+   **For frontend (create file at `frontend/.env`):**
+   ```
+   REACT_APP_API_URL=http://localhost:8000/api
+   NODE_ENV=development
+   CHOKIDAR_USEPOLLING=true
+   ```
+
 3. Build and run containers:
-docker-compose up --build
-4. Run database migrations (only once):
-docker-compose exec backend python manage.py migrate 
-5. Create superuser (note down details): 
-docker-compose exec backend python manage.py createsuperuser
+   ```
+   docker-compose up --build
+   ```
+   This will:
+   - Build the backend Docker image
+   - Start the MySQL database service
+   - Start the Django backend service
+   - Start the React frontend service
+   
+   You can run in detached mode with:
+   ```
+   docker-compose up --build -d
+   ```
 
-(Note: no need for running start server command, docker does that)
+4. Database Setup and Migrations:
+   
+   Run the following commands to set up the database completely:
+   
+   ```
+   # Apply all migrations to set up the database schema
+   docker-compose exec backend python manage.py migrate
+   
+   # Create necessary directories for media uploads
+   docker-compose exec backend mkdir -p media/ml_models
+   docker-compose exec backend mkdir -p media/profile_pictures
+   
+   # Create a superuser account (write down these credentials)
+   docker-compose exec backend python manage.py createsuperuser
+   
+   # Optional: Load initial data for ML models if you have fixtures
+   # docker-compose exec backend python manage.py loaddata ml_initial_data
+   ```
 
-7. Ports for application:
-	1. Backend: [http://localhost:8000/admin](http://localhost:8000/admin)
-	2. Frontend: [http://localhost:3000](http://localhost:3000)
+5. Access the application:
+   - Backend Admin Panel: [http://localhost:8000/admin](http://localhost:8000/admin)
+   - Frontend Application: [http://localhost:3000](http://localhost:3000)
 
+6. Useful commands for development:
+   - View container logs:
+     ```
+     docker-compose logs -f
+     ```
+   - View logs for a specific service:
+     ```
+     docker-compose logs -f backend
+     docker-compose logs -f frontend
+     docker-compose logs -f db
+     ```
+   - Restart a specific service:
+     ```
+     docker-compose restart backend
+     docker-compose restart frontend
+     ```
+   - Stop all services:
+     ```
+     docker-compose down
+     ```
+   - Stop all services and remove volumes (will delete database data):
+     ```
+     docker-compose down -v
+     ```
 
+7. Troubleshooting:
+   - If the database connection fails, ensure the MySQL service is healthy:
+     ```
+     docker-compose exec db mysqladmin ping -h localhost
+     ```
+   - To reset the database completely:
+     ```
+     docker-compose down -v
+     docker-compose up --build
+     docker-compose exec backend python manage.py migrate
+     docker-compose exec backend python manage.py createsuperuser
+     ```
+   - If frontend dependencies aren't installing correctly, you can manually run:
+     ```
+     docker-compose exec frontend npm install
+     ```
 
 ### Currently in backend/: 
 	- folders for containing:
@@ -80,4 +167,4 @@ docker-compose exec backend python manage.py createsuperuser
 	- utils + components: reusable elements and functions that are shared 
 
 		Public/ will be filled with React's build process.
-		Apps.js handles routing. 
+		Apps.js handles routing.
