@@ -99,14 +99,29 @@ class ChangePasswordView(APIView):
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated]  # Allow all authenticated users initially
     serializer_class = UserDetailSerializer
     
+    def get_permissions(self):
+        """
+        Override to set custom permissions for different actions
+        - List/Create/Update/Delete: Admin only
+        - Retrieve (detail view): Admin or Finance users
+        """
+        if self.action in ['list', 'create', 'update', 'partial_update', 'destroy']:
+            permission_classes = [IsAuthenticated, IsAdminUser]
+        else:  # For 'retrieve' and custom actions
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
+    
     def get_queryset(self):
-        
-        if self.request.user.is_admin:
+        # Admin users can see all users
+        if self.request.user.is_admin or self.request.user.is_superuser:
             return User.objects.all()
-        
+        # Finance users can see all users for claim processing
+        elif hasattr(self.request.user, 'is_finance') and self.request.user.is_finance:
+            return User.objects.all()
+        # Regular users can only see themselves
         return User.objects.filter(id=self.request.user.id)
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])

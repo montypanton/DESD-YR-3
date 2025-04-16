@@ -17,7 +17,7 @@ import { useTheme } from '../../context/ThemeContext';
 const { TextArea } = Input;
 const { Option } = Select;
 
-const FinanceClaimDetail = () => {
+const AdminClaimDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [claim, setClaim] = useState(null);
@@ -30,9 +30,16 @@ const FinanceClaimDetail = () => {
     const fetchClaimDetails = async () => {
       try {
         setLoading(true);
+        console.log('Fetching claim details for ID:', id);
         
         const response = await apiClient.get(`/claims/${id}/`);
+        console.log('Claim API response:', response.data);
+        
         setClaim(response.data);
+        
+        // Check the user data - could be a number (ID) or an object
+        console.log('User data from claim:', response.data.user);
+        console.log('User data type:', typeof response.data.user);
         
         // Extract userId based on the data type
         let userId = null;
@@ -40,16 +47,25 @@ const FinanceClaimDetail = () => {
         // If user is just a number (direct ID)
         if (typeof response.data.user === 'number' || typeof response.data.user === 'string') {
           userId = response.data.user;
+          console.log('User ID is directly stored as:', userId);
         } 
         // If user is an object with an id property
         else if (typeof response.data.user === 'object' && response.data.user !== null) {
           userId = response.data.user.id;
+          console.log('Extracted userId from object:', userId);
+        } 
+        else {
+          console.log('Unexpected user data format:', response.data.user);
         }
         
         if (userId) {
+          console.log('Will fetch user details for userId:', userId);
           fetchUserDetails(userId);
+        } else {
+          console.log('No valid userId found to fetch user details');
         }
       } catch (error) {
+        console.error('Error fetching claim details:', error);
         message.error('Failed to load claim details');
       } finally {
         setLoading(false);
@@ -61,16 +77,25 @@ const FinanceClaimDetail = () => {
     }
   }, [id]);
   
-  // Fetch complete user details based on user ID
   const fetchUserDetails = async (userId) => {
     if (!userId) {
+      console.log('fetchUserDetails: No userId provided');
       return;
     }
     
     try {
+      console.log('Starting user details fetch for ID:', userId);
       setUserLoading(true);
+      
       const response = await apiClient.get(`/account/users/${userId}/`);
+      console.log('User API response:', response.data);
+      
       setUser(response.data);
+      console.log('User state updated with:', response.data);
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      console.log('Error response:', error.response?.data);
+      console.log('Error status:', error.response?.status);
     } finally {
       setUserLoading(false);
     }
@@ -112,56 +137,58 @@ const FinanceClaimDetail = () => {
 
   const formatClaimField = (key) => {
     return key
-      .replace(/([A-Z])/g, ' $1') // Insert a space before all capital letters
-      .replace(/^./, str => str.toUpperCase()) // Capitalize the first letter
-      .replace(/_/g, ' '); // Replace underscores with spaces
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .replace(/_/g, ' ');
   };
-  
-  // Get user information from claim.user or separate user object
+
   const getUserInfo = () => {
-    // If we have the detailed user object, use that
+    console.log('getUserInfo called with claim:', claim?.id);
+    console.log('Current user state:', user);
+    console.log('Current claim.user:', claim?.user);
+    
     if (user) {
+      console.log('Using detailed user object');
       return {
         id: user.id,
         firstName: user.first_name || '',
         lastName: user.last_name || '',
         email: user.email || '',
         role: user.role || '',
+        isActive: user.is_active,
         fullName: user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.email
       };
     }
     
-    // Otherwise use what's available in claim.user
     if (claim?.user) {
+      console.log('Using claim.user data');
       const claimUser = claim.user;
       
-      if (typeof claimUser === 'object' && claimUser !== null) {
-        return {
-          id: claimUser.id,
-          firstName: claimUser.first_name || '',
-          lastName: claimUser.last_name || '',
-          email: claimUser.email || '',
-          fullName: claimUser.first_name && claimUser.last_name 
-            ? `${claimUser.first_name} ${claimUser.last_name}` 
-            : (claimUser.email || 'Unknown User')
-        };
-      } else {
-        // If claim.user is just an ID (number/string)
-        return {
-          id: claimUser,
-          fullName: `User (ID: ${claimUser})`,
-          email: 'User details not available'
-        };
+      console.log('claimUser type:', typeof claimUser);
+      if (typeof claimUser === 'object') {
+        console.log('claimUser keys:', Object.keys(claimUser));
       }
+      
+      return {
+        id: typeof claimUser === 'object' ? claimUser.id : claimUser,
+        firstName: claimUser.first_name || '',
+        lastName: claimUser.last_name || '',
+        email: claimUser.email || '',
+        fullName: claimUser.first_name && claimUser.last_name 
+          ? `${claimUser.first_name} ${claimUser.last_name}` 
+          : (claimUser.email || 'Unknown User')
+      };
     }
     
-    // Fallback for no user info
+    console.log('No user data available, using fallback');
     return {
       id: 'N/A',
       firstName: '',
       lastName: '',
       email: '',
-      fullName: 'Unknown User'
+      fullName: 'Unknown User',
+      role: '',
+      isActive: false
     };
   };
 
@@ -220,7 +247,7 @@ const FinanceClaimDetail = () => {
                 We couldn't find the claim you're looking for. It may have been removed or you might not have access to it.
               </p>
               <div className="mt-4">
-                <Button type="primary" onClick={() => navigate('/finance/claims')}>Back to Claims</Button>
+                <Button type="primary" onClick={() => navigate('/admin/claims')}>Back to Claims</Button>
               </div>
             </div>
           </div>
@@ -228,13 +255,15 @@ const FinanceClaimDetail = () => {
       </div>
     );
   }
-
-  // Get user information 
+  
+  console.log('Before getUserInfo - claim.user:', claim.user);
+  console.log('Before getUserInfo - user state:', user);
+  
   const userInfo = getUserInfo();
+  console.log('Generated userInfo:', userInfo);
 
   return (
-    <div className={`space-y-8 max-w-6xl mx-auto py-10 px-4 sm:px-6 lg:px-8 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>      
-      {/* Breadcrumbs */}
+    <div className={`space-y-8 max-w-6xl mx-auto py-10 px-4 sm:px-6 lg:px-8 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
       <Breadcrumb className="mb-4">
         <Breadcrumb.Item>
           <Link to="/" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
@@ -242,7 +271,7 @@ const FinanceClaimDetail = () => {
           </Link>
         </Breadcrumb.Item>
         <Breadcrumb.Item>
-          <Link to="/finance/claims" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
+          <Link to="/admin/claims" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
             <FileTextOutlined /> Claims
           </Link>
         </Breadcrumb.Item>
@@ -251,13 +280,12 @@ const FinanceClaimDetail = () => {
         </Breadcrumb.Item>
       </Breadcrumb>
       
-      {/* Header */}
       <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-md overflow-hidden`}>
-        <div className="bg-gradient-to-r from-green-500 to-teal-600 px-8 py-6">
+        <div className="bg-gradient-to-r from-purple-500 to-indigo-600 px-8 py-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-white">{claim.title}</h1>
-              <p className="mt-2 text-green-100">Reference: {claim.reference_number}</p>
+              <p className="mt-2 text-purple-100">Reference: {claim.reference_number}</p>
             </div>
             <div className="mt-4 md:mt-0">
               <Tag 
@@ -291,12 +319,11 @@ const FinanceClaimDetail = () => {
         </div>
       </div>
 
-      {/* User Information */}
       <div className={`mb-8 ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} shadow-md rounded-xl overflow-hidden`}>
-        <div className={`px-6 py-5 ${darkMode ? 'border-gray-700 bg-teal-900' : 'border-gray-200 bg-teal-100'} border-b`}>
+        <div className={`px-6 py-5 ${darkMode ? 'border-gray-700 bg-purple-900' : 'border-gray-200 bg-purple-100'} border-b`}>
           <div className="flex items-center">
-            <UserOutlined className={`mr-2 ${darkMode ? 'text-teal-300' : 'text-teal-700'}`} />
-            <h3 className={`text-lg font-medium ${darkMode ? 'text-teal-100' : 'text-teal-900'}`}>Employee Information</h3>
+            <UserOutlined className={`mr-2 ${darkMode ? 'text-purple-300' : 'text-purple-700'}`} />
+            <h3 className={`text-lg font-medium ${darkMode ? 'text-purple-100' : 'text-purple-900'}`}>User Information</h3>
           </div>
         </div>
         <div className="p-6">
@@ -333,12 +360,32 @@ const FinanceClaimDetail = () => {
                   </dd>
                 </div>
               )}
+              {userInfo.isActive !== undefined && (
+                <div className="sm:col-span-1">
+                  <dt className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Status</dt>
+                  <dd className={`mt-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    <Tag color={userInfo.isActive ? 'green' : 'red'}>
+                      {userInfo.isActive ? 'Active' : 'Inactive'}
+                    </Tag>
+                  </dd>
+                </div>
+              )}
             </dl>
+          )}
+          {userInfo.id !== 'N/A' && typeof userInfo.id !== 'undefined' && userInfo.id !== null && (
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <Link 
+                to={`/admin/users/${userInfo.id}`}
+                className={`inline-flex items-center text-sm ${darkMode ? 'text-purple-400 hover:text-purple-300' : 'text-purple-600 hover:text-purple-800'}`}
+              >
+                <UserOutlined className="mr-1" />
+                View Complete User Profile
+              </Link>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Description */}
       <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-md overflow-hidden`}>
         <div className={`px-6 py-5 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
           <h3 className={`text-lg font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>Claim Description</h3>
@@ -348,7 +395,6 @@ const FinanceClaimDetail = () => {
         </div>
       </div>
 
-      {/* AI Analysis */}
       {claim.ml_prediction && (
         <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-md overflow-hidden`}>
           <div className={`px-6 py-5 border-b ${darkMode ? 'border-gray-700 bg-indigo-900' : 'border-gray-200 bg-indigo-50'}`}>
@@ -385,33 +431,27 @@ const FinanceClaimDetail = () => {
         </div>
       )}
 
-      {/* Claim Details Sections */}
       <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mt-8 mb-6`}>Detailed Claim Information</h2>
 
-      {/* Incident Details */}
       {renderClaimDataSection("Incident Information", [
         'AccidentType', 'AccidentDate', 'ClaimDate', 'AccidentDescription', 
         'PoliceReportFiled', 'WitnessPresent', 'WeatherConditions'
       ])}
       
-      {/* Vehicle Details */}
       {renderClaimDataSection("Vehicle Details", [
         'VehicleType', 'VehicleAge', 'SpecialAssetDamage', 
         'SpecialFixes', 'SpecialLoanerVehicle'
       ])}
       
-      {/* Personal Information */}
       {renderClaimDataSection("Personal Information", [
         'Gender', 'DriverAge', 'NumberOfPassengers'
       ])}
       
-      {/* Injury Details */}
       {renderClaimDataSection("Injury Information", [
         'DominantInjury', 'InjuryDescription', 'InjuryPrognosis',
         'Whiplash', 'MinorPsychologicalInjury', 'SpecialAdditionalInjury'
       ])}
       
-      {/* Financial Information */}
       {renderClaimDataSection("Financial Information", [
         'SpecialHealthExpenses', 'SpecialMedications', 'SpecialRehabilitation',
         'SpecialTherapy', 'SpecialEarningsLoss', 'SpecialUsageLoss',
@@ -419,25 +459,35 @@ const FinanceClaimDetail = () => {
         'GeneralFixed', 'GeneralUplift', 'SpecialReduction', 'SpecialOverage'
       ])}
       
-      {/* Other Information */}
       {renderClaimDataSection("Additional Information", [
         'ExceptionalCircumstances'
       ])}
 
-      {/* Actions */}
       <div className="flex justify-between mt-8">
         <Button 
           type="primary"
           icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/finance/claims')}
+          onClick={() => navigate('/admin/claims')}
           size="large"
           className={darkMode ? 'ant-btn-primary-dark' : ''}
         >
           Back to Claims List
         </Button>
+
+        {userInfo.id !== 'N/A' && (
+          <Link to={`/admin/users/${userInfo.id}`}>
+            <Button 
+              type="default"
+              icon={<UserOutlined />}
+              size="large"
+            >
+              View User Profile
+            </Button>
+          </Link>
+        )}
       </div>
     </div>
   );
 };
 
-export default FinanceClaimDetail;
+export default AdminClaimDetail;

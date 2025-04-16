@@ -1,7 +1,15 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+import os
 
 User = get_user_model()
+
+def claim_file_path(instance, filename):
+    """
+    Function to determine the file path for claim attachments.
+    Files will be uploaded to MEDIA_ROOT/claims/claim_<id>/<filename>
+    """
+    return os.path.join('claims', f'claim_{instance.claim.id}', filename)
 
 class Claim(models.Model):
     STATUS_CHOICES = (

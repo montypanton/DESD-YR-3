@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { apiClient } from '../../services/authService';
+import { Link } from 'react-router-dom';
 
 const UserSchema = Yup.object().shape({
   email: Yup.string()
@@ -482,6 +483,12 @@ const UserManagement = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium transition-colors duration-200">
+                    <Link
+                      to={`/admin/users/${user.id}`}
+                      className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
+                    >
+                      View Profile
+                    </Link>
                     <button
                       onClick={() => toggleUserStatus(user.id, user.is_active)}
                       className={`mr-3 ${

@@ -30,6 +30,10 @@ const AdminNavbar = () => {
               User Management
             </Link>
             
+            <Link to="/admin/claims" className="text-white hover:bg-purple-700 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-sm font-medium">
+              Claims Management
+            </Link>
+            
             <Link to="/admin/activity-logs" className="text-white hover:bg-purple-700 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-sm font-medium">
               Activity Logs
             </Link>
@@ -87,6 +91,14 @@ const AdminNavbar = () => {
             onClick={() => setIsMobileMenuOpen(false)}
           >
             User Management
+          </Link>
+          
+          <Link 
+            to="/admin/claims" 
+            className="text-white hover:bg-purple-700 dark:hover:bg-gray-700 block px-3 py-2 rounded-md text-base font-medium"
+            onClick={() => setIsMobileMenuOpen(false)}
+          >
+            Claims Management
           </Link>
           
           <Link 

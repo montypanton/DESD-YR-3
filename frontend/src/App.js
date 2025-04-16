@@ -20,9 +20,13 @@ import FinanceDashboard from './pages/finance/FinanceDashboard';
 import FinanceClaims from './pages/finance/FinanceClaims';
 import FinanceReports from './pages/finance/FinanceReports';
 import FinanceClaimDetail from './pages/finance/FinanceClaimDetail';
+import FinanceUserProfile from './pages/finance/FinanceUserProfile';
 import UserManagement from './pages/admin/UserManagement';
+import AdminUserProfile from './pages/admin/AdminUserProfile';
 import ActivityLogs from './pages/admin/ActivityLogs';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminClaims from './pages/admin/AdminClaims';
+import AdminClaimDetail from './pages/admin/AdminClaimDetail';
 import NotFound from './pages/NotFound';
 
 // Claims Components
@@ -132,6 +136,16 @@ function App() {
             } 
           />
           
+          {/* New route for viewing user profiles in finance area */}
+          <Route 
+            path="finance/users/:id" 
+            element={
+              <FinanceRoute>
+                <FinanceUserProfile />
+              </FinanceRoute>
+            } 
+          />
+          
           {/* Admin Only Routes - Now using AdminRoute component */}
           <Route 
             path="admin" 
@@ -151,11 +165,49 @@ function App() {
             } 
           />
           
+          {/* Add a "create user" route that redirects to the user management page */}
+          <Route
+            path="admin/users/new"
+            element={
+              <AdminRoute>
+                <Navigate to="/admin/users" replace state={{ showForm: true }} />
+              </AdminRoute>
+            }
+          />
+          
+          {/* New route for viewing individual user profiles in admin area */}
+          <Route 
+            path="admin/users/:id" 
+            element={
+              <AdminRoute>
+                <AdminUserProfile />
+              </AdminRoute>
+            } 
+          />
+          
           <Route 
             path="admin/activity-logs" 
             element={
               <AdminRoute>
                 <ActivityLogs />
+              </AdminRoute>
+            } 
+          />
+
+          <Route 
+            path="admin/claims" 
+            element={
+              <AdminRoute>
+                <AdminClaims />
+              </AdminRoute>
+            } 
+          />
+
+          <Route 
+            path="admin/claims/:id" 
+            element={
+              <AdminRoute>
+                <AdminClaimDetail />
               </AdminRoute>
             } 
           />

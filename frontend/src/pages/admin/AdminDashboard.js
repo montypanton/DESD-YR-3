@@ -12,6 +12,7 @@ const AdminDashboard = () => {
     financeUsers: 0,
     endUsers: 0,
     adminUsers: 0,
+    totalClaims: 0,
     recentActivity: []
   });
   const [loading, setLoading] = useState(true);
@@ -48,12 +49,17 @@ const AdminDashboard = () => {
         
         console.log('User stats:', userStats);
         
+        // Fetch claims statistics for total claims count
+        const claimsResponse = await apiClient.get('/claims/dashboard/');
+        const claimsStats = claimsResponse.data;
+        
         // Fetch recent activity logs - limit to 5 explicitly
         const logsResponse = await apiClient.get('/account/activity-logs/?limit=5');
         const recentActivity = logsResponse.data.results || logsResponse.data || [];
         
         setStats({
           ...userStats,
+          totalClaims: claimsStats.total_claims || 0,
           recentActivity
         });
         
@@ -100,7 +106,7 @@ const AdminDashboard = () => {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 transition-colors duration-200">
           <div className="flex items-center">
             <div className="p-3 rounded-full bg-blue-500 bg-opacity-10">
@@ -145,6 +151,32 @@ const AdminDashboard = () => {
               </p>
             </div>
           </div>
+        </div>
+        
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 transition-colors duration-200">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-amber-500 bg-opacity-10">
+              <svg className="h-8 w-8 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Total Claims</h2>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {loading ? (
+                  <span className="animate-pulse">...</span>
+                ) : (
+                  stats.totalClaims
+                )}
+              </p>
+            </div>
+          </div>
+          <Link to="/admin/claims" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center mt-4">
+            View all claims
+            <svg className="w-4 h-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </Link>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 transition-colors duration-200">
@@ -415,7 +447,7 @@ const AdminDashboard = () => {
       {/* Quick Actions */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 transition-colors duration-200">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Admin Tools</h2>
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-3 gap-4">
           <Link to="/admin/users" className="flex items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200">
             <div className="flex-shrink-0 h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
               <svg className="h-6 w-6 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -425,6 +457,18 @@ const AdminDashboard = () => {
             <div className="ml-4">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">User Management</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">Add, update, or deactivate user accounts</p>
+            </div>
+          </Link>
+          
+          <Link to="/admin/claims" className="flex items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200">
+            <div className="flex-shrink-0 h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
+              <svg className="h-6 w-6 text-amber-600 dark:text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Claims Management</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Review and manage insurance claims</p>
             </div>
           </Link>
           

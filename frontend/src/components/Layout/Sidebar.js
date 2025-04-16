@@ -66,6 +66,19 @@ const Sidebar = () => {
               </li>
               <li>
                 <Link 
+                  to="/admin/claims" 
+                  className={`block py-2.5 px-4 rounded transition ${isActive('/admin/claims')} hover:bg-purple-700`}
+                >
+                  <div className="flex items-center">
+                    <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                    </svg>
+                    <span>Claims Management</span>
+                  </div>
+                </Link>
+              </li>
+              <li>
+                <Link 
                   to="/admin/activity-logs" 
                   className={`block py-2.5 px-4 rounded transition ${isActive('/admin/activity-logs')} hover:bg-purple-700`}
                 >
@@ -122,19 +135,6 @@ const Sidebar = () => {
                       <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                     </svg>
                     <span>Manage Claims</span>
-                  </div>
-                </Link>
-              </li>
-              <li>
-                <Link 
-                  to="/finance/reports" 
-                  className={`block py-2.5 px-4 rounded transition ${isActive('/finance/reports')} hover:bg-green-700`}
-                >
-                  <div className="flex items-center">
-                    <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <span>Financial Reports</span>
                   </div>
                 </Link>
               </li>

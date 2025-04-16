@@ -11,11 +11,22 @@ class ClaimViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Finance users and admins should see all claims
-        if self.request.user.is_finance or self.request.user.is_admin or self.request.user.is_superuser:
-            return Claim.objects.all()
-        # Regular users should only see their own claims
-        return Claim.objects.filter(user=self.request.user)
+        queryset = Claim.objects.all()
+        
+        # If a user filter is specified, apply it regardless of current user's role
+        user_id = self.request.query_params.get('user', None)
+        if user_id is not None:
+            queryset = queryset.filter(user_id=user_id)
+        else:
+            # If no specific user filter, apply regular permission logic
+            # Finance users and admins should see all claims
+            if self.request.user.is_finance or self.request.user.is_admin or self.request.user.is_superuser:
+                pass  # queryset is already all claims
+            else:
+                # Regular users should only see their own claims
+                queryset = queryset.filter(user=self.request.user)
+                
+        return queryset
 
     def perform_create(self, serializer):
         print("Creating new claim for user:", self.request.user.email)
