@@ -1,0 +1,19 @@
+data:
+  input_path: 'data/Synthetic_Data_For_Students.csv'
+  target_column: 'SettlementValue'
+  test_size: 0.2
+  random_state: 42
+
+models:
+  mlp:
+    hidden_layers: [100, 50]
+    max_iter: 1000
+  xgboost:
+    n_estimators: 200
+    max_depth: 6
+    learning_rate: 0.1
+
+paths:
+  processed_data: 'data/processed_data'
+  models: 'models'
+  results: 'results'
