@@ -3,17 +3,17 @@
 ## Overview
 
 - **80% Prediction interval coverage**: 70.68%
-- **Average interval width**: Â£602.09
+- **Average interval width**: £602.09
 - **Average relative width**: 43.27% of settlement value
 
 ## Coverage by Settlement Value
 
 | Settlement Value Range | Coverage (%) | Avg Interval Width |
 |------------------------|--------------|--------------------|
-| (239.999, 681.0] | 67.48% | Â£202.32 |
-| (681.0, 973.12] | 72.65% | Â£247.86 |
-| (973.12, 1500.0] | 75.30% | Â£465.79 |
-| (1500.0, 6976.96] | 67.22% | Â£1509.97 |
+| (239.999, 681.0] | 67.48% | £202.32 |
+| (681.0, 973.12] | 72.65% | £247.86 |
+| (973.12, 1500.0] | 75.30% | £465.79 |
+| (1500.0, 6976.96] | 67.22% | £1509.97 |
 
 ## Visualizations
 

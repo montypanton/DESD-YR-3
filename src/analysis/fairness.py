@@ -254,8 +254,7 @@ def generate_fairness_report(results, output_dir):
             min_count = metrics_df.loc[min_count_idx, 'count']
             
             if min_count < 20:
-                f.write(f"⚠️ **Warning**: Low sample count ({min_count}) for {min_count_idx}. Results may not be reliable.\n\n")
-            
+                f.write(f"WARNING: Low sample count ({min_count}) for {min_count_idx}. Results may not be reliable.\n\n")            
             # Include visualizations
             f.write("#### Visualizations\n\n")
             f.write(f"![Bias by {attribute}]({attribute}/{attribute}_bias.png)\n\n")
