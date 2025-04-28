@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 class EnsembleModel(BaseModel):
     """Enhanced ensemble model combining multiple base models with advanced stacking."""
     
-    def __init__(self, base_models, ensemble_type='weighted', random_state=42):
+    def __init__(self, base_models=None, ensemble_type='weighted', random_state=42):
         """
         Initialize ensemble model.
         
@@ -23,12 +23,15 @@ class EnsembleModel(BaseModel):
             Type of ensemble: 'weighted', 'stacking', 'blending', or 'stacking_cv'
         """
         super().__init__(model_name=f"{ensemble_type}_ensemble", random_state=random_state)
-        # Filter out any EnsembleModel instances to prevent recursion
-        self.base_models = {name: model for name, model in base_models.items() 
-                           if not isinstance(model, EnsembleModel)}
-        
-        if len(self.base_models) < len(base_models):
-            print(f"Warning: Removed {len(base_models) - len(self.base_models)} ensemble models from base_models to prevent recursion")
+        # Initialize base_models as an empty dict if None
+        self.base_models = {}
+        if base_models is not None:
+            # Filter out any EnsembleModel instances to prevent recursion
+            self.base_models = {name: model for name, model in base_models.items() 
+                            if not isinstance(model, EnsembleModel)}
+            
+            if len(self.base_models) < len(base_models):
+                print(f"Warning: Removed {len(base_models) - len(self.base_models)} ensemble models from base_models to prevent recursion")
         
         self.ensemble_type = ensemble_type
         self.weights = None
@@ -36,8 +39,20 @@ class EnsembleModel(BaseModel):
         self.model_info = None  # Store ensemble information separately
         self.cv_metadata = None  # Store cross-validation metadata
     
-    def train(self, X_train, y_train, X_val=None, y_val=None):
+    def train(self, X_train=None, y_train=None, X_val=None, y_val=None):
         """Train the ensemble model."""
+        # If first parameter is a dictionary, it's the base_models
+        if isinstance(X_train, dict):
+            self.base_models = {name: model for name, model in X_train.items() 
+                          if not isinstance(model, EnsembleModel)}
+            X_train = y_train
+            y_train = X_val
+            X_val = y_val
+            y_val = None
+            
+        if self.base_models is None or len(self.base_models) == 0:
+            raise ValueError("No base models provided for ensemble")
+            
         if X_val is None or y_val is None:
             from sklearn.model_selection import train_test_split
             X_train, X_val, y_train, y_val = train_test_split(
@@ -703,3 +718,67 @@ class EnsembleModel(BaseModel):
             }, path)
         
         print(f"Ensemble model saved to {path}")
+
+class WeightedEnsembleModel(EnsembleModel):
+    """Weighted average ensemble model"""
+    
+    def __init__(self, random_state=42):
+        """Initialize weighted ensemble model."""
+        super().__init__(ensemble_type='weighted', random_state=random_state)
+
+
+class StackingEnsembleModel(EnsembleModel):
+    """Stacking ensemble model"""
+    
+    def __init__(self, random_state=42):
+        """Initialize stacking ensemble model."""
+        super().__init__(ensemble_type='stacking', random_state=random_state)
+
+
+class StackingCVEnsembleModel(EnsembleModel):
+    """Stacking ensemble model with cross-validation"""
+    
+    def __init__(self, random_state=42):
+        """Initialize stacking CV ensemble model."""
+        super().__init__(ensemble_type='stacking_cv', random_state=random_state)
+
+
+class BlendingEnsembleModel(EnsembleModel):
+    """Blending ensemble model"""
+    
+    def __init__(self, random_state=42):
+        """Initialize blending ensemble model."""
+        super().__init__(ensemble_type='blending', random_state=random_state)
+        
+    def train(self, base_models, X_train, y_train, blend_ratio=0.5):
+        """
+        Train blending ensemble with specified blend ratio.
+        
+        Parameters:
+        -----------
+        base_models : dict
+            Dictionary of base models {name: model}
+        X_train : array-like
+            Training data features
+        y_train : array-like
+            Training data target
+        blend_ratio : float
+            Ratio of training data to use for base models vs meta-learner
+        """
+        # Set base_models
+        self.base_models = {name: model for name, model in base_models.items() 
+                      if not isinstance(model, EnsembleModel)}
+                      
+        # Split training data for validation if needed
+        from sklearn.model_selection import train_test_split
+        X_train_main, X_val, y_train_main, y_val = train_test_split(
+            X_train, y_train, test_size=0.2, random_state=self.random_state
+        )
+        
+        # Train the blending ensemble
+        self._train_blending_ensemble(X_train_main, y_train_main, X_val, y_val, blend_ratio=blend_ratio)
+        
+        # Set self.model for BaseModel compatibility
+        self.model = True  # Just a placeholder
+        
+        return self

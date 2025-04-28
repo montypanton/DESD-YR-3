@@ -1,0 +1,30 @@
+2025-04-28 03:11:01,373 - settlement_prediction - INFO - Starting the settlement value prediction pipeline
+2025-04-28 03:11:01,381 - settlement_prediction - INFO - Using configuration:
+2025-04-28 03:11:01,381 - settlement_prediction - INFO -   data:
+2025-04-28 03:11:01,381 - settlement_prediction - INFO -     input_path: data/Synthetic_Data_For_Students.csv
+2025-04-28 03:11:01,382 - settlement_prediction - INFO -     target_column: SettlementValue
+2025-04-28 03:11:01,382 - settlement_prediction - INFO -     test_size: 0.2
+2025-04-28 03:11:01,382 - settlement_prediction - INFO -     random_state: 42
+2025-04-28 03:11:01,383 - settlement_prediction - INFO -   models:
+2025-04-28 03:11:01,383 - settlement_prediction - INFO -     mlp: {'hidden_layers': [100, 50], 'max_iter': 1000}
+2025-04-28 03:11:01,383 - settlement_prediction - INFO -     xgboost: {'n_estimators': 200, 'max_depth': 6, 'learning_rate': 0.1}
+2025-04-28 03:11:01,383 - settlement_prediction - INFO -     lightgbm: {'n_estimators': 200, 'max_depth': 6, 'learning_rate': 0.1, 'num_leaves': 31}
+2025-04-28 03:11:01,384 - settlement_prediction - INFO -     random_forest: {'n_estimators': 200, 'max_depth': 10}
+2025-04-28 03:11:01,384 - settlement_prediction - INFO -   paths:
+2025-04-28 03:11:01,384 - settlement_prediction - INFO -     processed_data: data/processed_data
+2025-04-28 03:11:01,384 - settlement_prediction - INFO -     models: models
+2025-04-28 03:11:01,384 - settlement_prediction - INFO -     results: results
+2025-04-28 03:11:01,385 - settlement_prediction - INFO -   tune:
+2025-04-28 03:11:01,385 - settlement_prediction - INFO -     models: ['lightgbm', 'xgboost', 'mlp', 'random_forest']
+2025-04-28 03:11:01,385 - settlement_prediction - INFO -     n_trials: 50
+2025-04-28 03:11:01,385 - settlement_prediction - INFO -   fairness:
+2025-04-28 03:11:01,385 - settlement_prediction - INFO -     sensitive_attributes: ['Gender', 'AccidentType', 'Dominant injury', 'Whiplash', 'Vehicle Type', 'Weather Conditions', 'Injury_Prognosis']
+2025-04-28 03:11:01,386 - settlement_prediction - INFO -   random_forest:
+2025-04-28 03:11:01,386 - settlement_prediction - INFO -     n_estimators: 200
+2025-04-28 03:11:01,386 - settlement_prediction - INFO -     max_depth: 10
+2025-04-28 03:11:01,386 - settlement_prediction - INFO - Running the following steps: preprocess, train_lgbm, train_xgboost, train_mlp, train_rf, tune, ensemble, evaluate, interpret, fairness, uncertainty
+2025-04-28 03:11:01,386 - settlement_prediction - INFO - Step 1: Preprocessing data
+2025-04-28 03:11:09,144 - settlement_prediction - INFO - Preprocessing complete. Training data shape: (3915, 83)
+2025-04-28 03:11:09,147 - settlement_prediction - INFO - Training LightGBM model
+2025-04-28 03:11:09,670 - settlement_prediction - INFO - LightGBM RMSE: 282.9300, R²: 0.8764
+2025-04-28 03:11:09,670 - settlement_prediction - INFO - Training XGBoost model

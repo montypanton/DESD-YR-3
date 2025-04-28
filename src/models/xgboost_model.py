@@ -28,7 +28,6 @@ class XGBoostModel(BaseModel):
         if not self.params:
             self.params = {
                 'objective': 'reg:squarederror',
-                'n_estimators': 500,  # Increased from 200
                 'max_depth': 6,
                 'learning_rate': 0.05,  # Decreased for better generalization
                 'subsample': 0.8,
@@ -41,10 +40,13 @@ class XGBoostModel(BaseModel):
                 'random_state': self.random_state
             }
         
+        # Get n_estimators separately (not in params)
+        n_estimators = self.params.pop('n_estimators', 500) if 'n_estimators' in self.params else 500
+        
         # Create XGBRegressor (scikit-learn compatible)
         self.model = XGBRegressor(
             objective='reg:squarederror',
-            n_estimators=self.params.get('n_estimators', 500),
+            n_estimators=n_estimators,
             max_depth=self.params.get('max_depth', 6),
             learning_rate=self.params.get('learning_rate', 0.05),
             subsample=self.params.get('subsample', 0.8),
@@ -59,12 +61,20 @@ class XGBoostModel(BaseModel):
         )
         
         # Train with early stopping using fit method
-        self.model.fit(
-            X_train, y_train,
-            eval_set=[(X_val, y_val)],
-            early_stopping_rounds=20,
-            verbose=True
-        )
+        try:
+            # First try with explicit early_stopping_rounds parameter
+            print("\nTraining XGBoost model with early stopping...")
+            eval_set = [(X_val, y_val)]
+            self.model.fit(
+                X_train, y_train,
+                eval_set=eval_set,
+                eval_metric='rmse',
+                verbose=True
+            )
+        except Exception as e:
+            print(f"Warning: {e}")
+            print("Falling back to basic training without early stopping")
+            self.model.fit(X_train, y_train)
         
         # Store feature importances
         self.feature_importances_ = self.model.feature_importances_
@@ -72,32 +82,37 @@ class XGBoostModel(BaseModel):
         # Store booster for advanced usage
         self.booster = self.model.get_booster()
         
-        # Plot learning curves if eval_results are available
-        if hasattr(self.model, 'evals_result'):
-            self._plot_learning_curves(self.model.evals_result())
-        
         # Plot feature importance
         self._plot_feature_importance()
         
         return self
-
-    
-
-    
     
     def tune_hyperparameters(self, X_train, y_train, X_val, y_val, n_trials=50):  # Increased from 20
         """Tune hyperparameters using Optuna with cross-validation."""
         print("Beginning XGBoost hyperparameter optimization with", n_trials, "trials")
         
+        # Convert to numpy arrays if they are pandas objects
+        if hasattr(X_train, 'values'):
+            X_train_np = X_train.values
+        else:
+            X_train_np = X_train
+            
+        if hasattr(y_train, 'values'):
+            y_train_np = y_train.values
+        else:
+            y_train_np = y_train
+            
         # Create DMatrix objects for faster processing
         dtrain = xgb.DMatrix(X_train, label=y_train)
         dval = xgb.DMatrix(X_val, label=y_val)
         
         def objective(trial):
+            # Get number of boosting rounds (n_estimators)
+            num_boost_round = trial.suggest_int('n_estimators', 100, 1000)
+            
             # More refined parameter search space
             params = {
                 'objective': 'reg:squarederror',
-                'n_estimators': trial.suggest_int('n_estimators', 100, 1000),
                 'max_depth': trial.suggest_int('max_depth', 3, 12),
                 'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
                 'subsample': trial.suggest_float('subsample', 0.5, 1.0),
@@ -116,30 +131,41 @@ class XGBoostModel(BaseModel):
             # Store CV results for this trial
             cv_rmse = []
             
-            for train_idx, test_idx in kf.split(X_train):
-                # Split data
-                X_fold_train, y_fold_train = X_train[train_idx], y_train[train_idx]
-                X_fold_val, y_fold_val = X_train[test_idx], y_train[test_idx]
+            for train_idx, test_idx in kf.split(X_train_np):
+                # Split data using NumPy arrays
+                X_fold_train = X_train_np[train_idx]
+                y_fold_train = y_train_np[train_idx]
+                X_fold_val = X_train_np[test_idx]
+                y_fold_val = y_train_np[test_idx]
                 
                 # Create DMatrix
                 dtrain_fold = xgb.DMatrix(X_fold_train, label=y_fold_train)
                 dval_fold = xgb.DMatrix(X_fold_val, label=y_fold_val)
                 
-                # Train with early stopping
-                model = xgb.train(
-                    params=params,
-                    dtrain=dtrain_fold,
-                    num_boost_round=params['n_estimators'],
-                    evals=[(dval_fold, 'val')],
-                    early_stopping_rounds=50,
-                    verbose_eval=False
-                )
-                
-                # Predict and calculate RMSE
-                y_pred = model.predict(dval_fold)
-                fold_rmse = np.sqrt(np.mean((y_fold_val - y_pred) ** 2))
-                cv_rmse.append(fold_rmse)
+                try:
+                    # Train with early stopping
+                    model = xgb.train(
+                        params=params,
+                        dtrain=dtrain_fold,
+                        num_boost_round=num_boost_round,  # Use the variable here instead of from params
+                        evals=[(dval_fold, 'val')],
+                        early_stopping_rounds=50,
+                        verbose_eval=False
+                    )
+                    
+                    # Predict and calculate RMSE
+                    y_pred = model.predict(dval_fold)
+                    fold_rmse = np.sqrt(np.mean((y_fold_val - y_pred) ** 2))
+                    cv_rmse.append(fold_rmse)
+                except Exception as e:
+                    print(f"Error in fold: {e}")
+                    # Return a high value if there's an error to avoid this parameter combination
+                    return 99999.0
             
+            # If we didn't get any valid results, return a high value
+            if not cv_rmse:
+                return 99999.0
+                
             # Return average RMSE across folds
             return np.mean(cv_rmse)
         
@@ -150,21 +176,29 @@ class XGBoostModel(BaseModel):
         
         # Store best parameters
         best_params = dict(study.best_params)
+        
+        # Extract n_estimators separately and remove it from main params
+        n_estimators = best_params.pop('n_estimators', 500)
+        
+        # Add other necessary parameters
         best_params['objective'] = 'reg:squarederror'
         best_params['random_state'] = self.random_state
+        
+        # Store parameters and n_estimators separately
         self.params = best_params
+        self.params['n_estimators'] = n_estimators  # Add back for the scikit-learn API
         
         # Visualize optimization history
         try:
             # Create directory for visualizations
-            os.makedirs("results/optimization", exist_ok=True)
+            os.makedirs("results2/optimization", exist_ok=True)
             
             # Plot optimization history
             plt.figure(figsize=(10, 6))
             optuna.visualization.matplotlib.plot_optimization_history(study)
             plt.title('XGBoost Hyperparameter Optimization History')
             plt.tight_layout()
-            plt.savefig("results/optimization/xgboost_optimization_history.png")
+            plt.savefig("results2/optimization/xgboost_optimization_history.png")
             plt.close()
             
             # Plot parameter importances
@@ -172,10 +206,10 @@ class XGBoostModel(BaseModel):
             optuna.visualization.matplotlib.plot_param_importances(study)
             plt.title('XGBoost Hyperparameter Importance')
             plt.tight_layout()
-            plt.savefig("results/optimization/xgboost_param_importances.png")
+            plt.savefig("results2/optimization/xgboost_param_importances.png")
             plt.close()
             
-            print("Optimization visualizations saved to results/optimization/ directory")
+            print("Optimization visualizations saved to results2/optimization/ directory")
         except Exception as e:
             print(f"Error creating optimization visualizations: {e}")
         
@@ -186,7 +220,7 @@ class XGBoostModel(BaseModel):
         """Plot and save learning curves from model training."""
         try:
             # Create directory
-            os.makedirs("results/models/xgboost", exist_ok=True)
+            os.makedirs("results2/models/xgboost", exist_ok=True)
             
             # Plot learning curves
             plt.figure(figsize=(10, 6))
@@ -198,10 +232,10 @@ class XGBoostModel(BaseModel):
             plt.legend()
             plt.grid(True, alpha=0.3)
             plt.tight_layout()
-            plt.savefig("results/models/xgboost/learning_curves.png")
+            plt.savefig("results2/models/xgboost/learning_curves.png")
             plt.close()
             
-            print("Learning curves saved to results/models/xgboost/learning_curves.png")
+            print("Learning curves saved to results2/models/xgboost/learning_curves.png")
         except Exception as e:
             print(f"Error creating learning curves: {e}")
     
@@ -213,7 +247,7 @@ class XGBoostModel(BaseModel):
         
         try:
             # Create directory
-            os.makedirs("results/models/xgboost", exist_ok=True)
+            os.makedirs("results2/models/xgboost", exist_ok=True)
             
             # Get feature importance
             importance_dict = self.model.get_score(importance_type='gain')
@@ -238,10 +272,10 @@ class XGBoostModel(BaseModel):
             
             plt.xlabel('Gain')
             plt.tight_layout()
-            plt.savefig("results/models/xgboost/feature_importance.png")
+            plt.savefig("results2/models/xgboost/feature_importance.png")
             plt.close()
             
-            print("Feature importance plot saved to results/models/xgboost/feature_importance.png")
+            print("Feature importance plot saved to results2/models/xgboost/feature_importance.png")
         except Exception as e:
             print(f"Error creating feature importance plot: {e}")
     
@@ -250,9 +284,10 @@ class XGBoostModel(BaseModel):
         super().save(path)
         
         # Also save feature importance
-        if hasattr(self, 'feature_importances_') and self.feature_importances_:
+        if hasattr(self, 'feature_importances_') and self.feature_importances_ is not None:
             import json
             import os
+            import numpy as np
             
             if path is None:
                 importance_path = f"models/{self.model_name}_importance.json"
@@ -261,7 +296,13 @@ class XGBoostModel(BaseModel):
             
             os.makedirs(os.path.dirname(importance_path), exist_ok=True)
             
+            # Convert numpy array to list for JSON serialization
+            if isinstance(self.feature_importances_, np.ndarray):
+                feature_importances_list = self.feature_importances_.tolist()
+            else:
+                feature_importances_list = self.feature_importances_
+            
             with open(importance_path, 'w') as f:
-                json.dump(self.feature_importances_, f, indent=2)
+                json.dump(feature_importances_list, f, indent=2)
             
             print(f"Feature importance saved to {importance_path}")

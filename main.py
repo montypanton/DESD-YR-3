@@ -1,440 +1,507 @@
-# main.py
-import argparse
-import os
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error, r2_score
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-from src.utils.config import load_config
+import os
+import sys
+import argparse
+import yaml
+import numpy as np
+import pandas as pd
+import joblib
+import matplotlib.pyplot as plt
+from datetime import datetime
+from sklearn.model_selection import KFold, cross_val_score, train_test_split
+
+# Import project modules
 from src.data.preprocessing import preprocess_data
-from src.models.mlp_model import MLPModel
 from src.models.xgboost_model import XGBoostModel
-from src.models.random_forest_model import RandomForestModel  # New model
-from src.models.ensemble import EnsembleModel
-from src.evaluation.metrics import calculate_regression_metrics
+from src.models.mlp_model import MLPModel
+from src.models.random_forest_model import RandomForestModel
+from src.models.lightgbm_model import LightGBMModel
+from src.models.ensemble import (
+    WeightedEnsembleModel, 
+    StackingEnsembleModel, 
+    StackingCVEnsembleModel, 
+    BlendingEnsembleModel
+)
 from src.analysis.interpret_predictions import generate_shap_explanations
 from src.analysis.fairness import analyze_fairness_across_attributes
 from src.analysis.uncertainty import quantify_uncertainty
-from src.utils.io import load_processed_data, load_raw_data
+from src.utils.config import load_config
+from src.utils.logger import setup_logger
 
-
-
-
-# Configure logging for cleaner output
-import logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-
-# Suppress verbose warnings
-import warnings
-warnings.filterwarnings('ignore', category=UserWarning)
-warnings.filterwarnings('ignore', category=FutureWarning)
-warnings.filterwarnings('ignore', category=DeprecationWarning)
-warnings.filterwarnings('ignore', module='sklearn.neural_network')
-
-
-
-
-
-
-
-
-
-
-def setup_directories(config):
-    """Create necessary directories."""
-    directories = [
-        config['paths']['processed_data'],
-        config['paths']['models'],
-        config['paths']['results'],
-        os.path.join(config['paths']['results'], 'models'),
-        os.path.join(config['paths']['results'], 'analysis'),
-        os.path.join(config['paths']['results'], 'explanations'),
-        os.path.join(config['paths']['results'], 'uncertainty'),
-        os.path.join(config['paths']['results'], 'fairness'),
-        os.path.join(config['paths']['results'], 'optimization')
-    ]
+def main(args=None):
+    """
+    Main entry point for the application.
     
-    for directory in directories:
-        os.makedirs(directory, exist_ok=True)
-
-def run_pipeline(config, steps):
-    """Run the machine learning pipeline with specified steps."""
+    Parameters:
+    -----------
+    args : list, optional
+        Command line arguments
+    """
+    # Set up logging
+    logger = setup_logger()
+    logger.info("Starting the settlement value prediction pipeline")
     
-    # Create directories
-    setup_directories(config)
+    # Parse arguments
+    if args is None:
+        args = sys.argv[1:]
+    args = parse_args(args)
     
-    # 1. Preprocessing
-    if 'preprocess' in steps:
-        print("\n=== Enhanced Data Preprocessing ===")
-        preprocess_data(
-            config['data']['input_path'], 
+    # Load configuration
+    config_path = os.path.join('config', 'default.yaml')
+    config = load_config(config_path)
+    
+    # Print current configuration
+    logger.info("Using configuration:")
+    for section, params in config.items():
+        logger.info(f"  {section}:")
+        for param, value in params.items():
+            logger.info(f"    {param}: {value}")
+    
+    # Determine steps to run
+    steps_to_run = args.steps
+    if 'all' in steps_to_run:
+        steps_to_run = ['preprocess', 'train_lgbm', 'train_xgboost', 'train_mlp', 'train_rf', 
+                       'tune', 'ensemble', 'evaluate', 'interpret', 'fairness', 'uncertainty']
+    
+    logger.info(f"Running the following steps: {', '.join(steps_to_run)}")
+    
+    # Define file paths
+    data_path = 'data/Synthetic_Data_For_Students.csv'
+    processed_dir = 'data/processed_data'
+    
+    # Step 1: Preprocess data
+    if 'preprocess' in steps_to_run:
+        logger.info("Step 1: Preprocessing data")
+        
+        # Create processed data directory if it doesn't exist
+        os.makedirs(processed_dir, exist_ok=True)
+        
+        # Process data with our enhanced preprocessing pipeline
+        X_train, X_test, y_train, y_test, preprocessor = preprocess_data(
+            data_path, 
             target_column=config['data']['target_column'],
             test_size=config['data']['test_size'],
             random_state=config['data']['random_state']
         )
+        logger.info(f"Preprocessing complete. Training data shape: {X_train.shape}")
+    else:
+        # Load preprocessed data
+        logger.info("Loading preprocessed data")
+        X_train = np.load(os.path.join(processed_dir, 'X_train_processed.npy'))
+        X_test = np.load(os.path.join(processed_dir, 'X_test_processed.npy'))
+        y_train = np.load(os.path.join(processed_dir, 'y_train.npy'))
+        y_test = np.load(os.path.join(processed_dir, 'y_test.npy'))
+        preprocessor = joblib.load(os.path.join(processed_dir, 'preprocessor.pkl'))
+        logger.info(f"Preprocessed data loaded. Training data shape: {X_train.shape}")
     
-    # Load data for subsequent steps
-    X_train, X_test, y_train, y_test = load_processed_data(config['paths']['processed_data'])
-    
-    # Split train data for validation
-    from sklearn.model_selection import train_test_split
-    X_train_split, X_val, y_train_split, y_val = train_test_split(
-        X_train, y_train, test_size=0.2, random_state=config['data']['random_state']
-    )
-    
-    # 2. Train models
+    # Dictionary to store trained models
     models = {}
     
-    if 'train_mlp' in steps:
-        print("\n=== Training Enhanced MLP Model ===")
-        mlp_model = MLPModel(
-            hidden_layers=(100, 100, 50),  # Default to deeper architecture
-            max_iter=1000,
-            activation='relu',
-            alpha=0.001,  # Regularization
-            learning_rate_init=0.001, 
-            random_state=config['data']['random_state']
-        )
-        if 'tune' in steps:
-            mlp_model.tune_hyperparameters(X_train_split, y_train_split, X_val, y_val, n_trials=50)
-        else:
-            mlp_model.train(X_train, y_train)
-        mlp_model.save()
-        models['mlp'] = mlp_model
+    # Define a validation set for hyperparameter tuning
+    X_train_main, X_val, y_train_main, y_val = train_test_split(
+        X_train, y_train, 
+        test_size=0.2, 
+        random_state=config['data']['random_state']
+    )
     
-    if 'train_xgboost' in steps:
-        print("\n=== Training Enhanced XGBoost Model ===")
-        xgb_model = XGBoostModel(
-            n_estimators=200,
-            max_depth=6,
-            learning_rate=0.05,  # Default to slower learning rate
-            subsample=0.8,
-            colsample_bytree=0.8,
+    # Step 2: Train LightGBM model (new addition)
+    if 'train_lgbm' in steps_to_run:
+        logger.info("Training LightGBM model")
+        lgbm_model = LightGBMModel(
+            n_estimators=config['models']['lightgbm']['n_estimators'],
+            learning_rate=config['models']['lightgbm']['learning_rate'],
+            max_depth=config['models']['lightgbm']['max_depth'],
             random_state=config['data']['random_state']
         )
-        if 'tune' in steps:
-            xgb_model.tune_hyperparameters(X_train_split, y_train_split, X_val, y_val, n_trials=50)
-        else:
-            xgb_model.train(X_train, y_train)
+        lgbm_model.train(X_train, y_train)
+        lgbm_model.save()
+        models['lightgbm'] = lgbm_model
+        
+        # Evaluate the model
+        metrics, _ = lgbm_model.evaluate(X_test, y_test)
+        logger.info(f"LightGBM RMSE: {metrics['rmse']:.4f}, R²: {metrics['r2']:.4f}")
+    
+    # Step 3: Train XGBoost model
+    if 'train_xgboost' in steps_to_run:
+        logger.info("Training XGBoost model")
+        xgb_model = XGBoostModel(
+            n_estimators=config['models']['xgboost']['n_estimators'],
+            learning_rate=config['models']['xgboost']['learning_rate'],
+            max_depth=config['models']['xgboost']['max_depth'],
+            random_state=config['data']['random_state']
+        )
+        xgb_model.train(X_train, y_train)
         xgb_model.save()
         models['xgboost'] = xgb_model
+        
+        # Evaluate the model
+        metrics, _ = xgb_model.evaluate(X_test, y_test)
+        logger.info(f"XGBoost RMSE: {metrics['rmse']:.4f}, R²: {metrics['r2']:.4f}")
     
-    if 'train_random_forest' in steps:
-        print("\n=== Training Random Forest Model ===")
-        rf_model = RandomForestModel(
-            n_estimators=200,
-            max_depth=None,
-            min_samples_split=2,
-            min_samples_leaf=1,
+    # Step 4: Train MLP model
+    if 'train_mlp' in steps_to_run:
+        logger.info("Training MLP model")
+        mlp_model = MLPModel(
+            hidden_layer_sizes=config['models']['mlp']['hidden_layers'],
+            max_iter=config['models']['mlp']['max_iter'],
+            alpha=config['models']['mlp'].get('alpha', 0.0001),
             random_state=config['data']['random_state']
         )
-        if 'tune' in steps:
-            rf_model.tune_hyperparameters(X_train_split, y_train_split, X_val, y_val, n_trials=50)
-        else:
-            rf_model.train(X_train, y_train)
+        mlp_model.train(X_train, y_train)
+        mlp_model.save()
+        models['mlp'] = mlp_model
+        
+        # Evaluate the model
+        metrics, _ = mlp_model.evaluate(X_test, y_test)
+        logger.info(f"MLP RMSE: {metrics['rmse']:.4f}, R²: {metrics['r2']:.4f}")
+    
+    # Step 5: Train Random Forest model
+    if 'train_rf' in steps_to_run:
+        logger.info("Training Random Forest model")
+        rf_model = RandomForestModel(
+            n_estimators=config['models']['random_forest']['n_estimators'],
+            max_depth=config['models']['random_forest']['max_depth'],
+            random_state=config['data']['random_state']
+        )
+        rf_model.train(X_train, y_train)
         rf_model.save()
         models['random_forest'] = rf_model
+        
+        # Evaluate the model
+        metrics, _ = rf_model.evaluate(X_test, y_test)
+        logger.info(f"Random Forest RMSE: {metrics['rmse']:.4f}, R²: {metrics['r2']:.4f}")
     
-    # 3. Create ensembles
-    if 'ensemble' in steps and len(models) >= 2:
-        print("\n=== Creating Enhanced Ensemble Models ===")
+    # Step 6: Hyperparameter tuning
+    if 'tune' in steps_to_run:
+        logger.info("Hyperparameter tuning")
         
-        # Create base_models dictionary with only the non-ensemble models
-        base_models = {name: model for name, model in models.items() 
-                      if not name.endswith('_ensemble')}
+        if 'lgbm' in config['tune']['models']:
+            logger.info("Tuning LightGBM model")
+            lgbm_model = LightGBMModel(
+                random_state=config['data']['random_state']
+            )
+            lgbm_model.tune_hyperparameters(
+                X_train_main, y_train_main, 
+                X_val, y_val,
+                n_trials=config['tune']['n_trials']
+            )
+            lgbm_model.save()
+            models['lightgbm'] = lgbm_model
+            metrics, _ = lgbm_model.evaluate(X_test, y_test)
+            logger.info(f"Tuned LightGBM RMSE: {metrics['rmse']:.4f}, R²: {metrics['r2']:.4f}")
         
-        print(f"Creating ensembles using {len(base_models)} base models: {list(base_models.keys())}")
+        if 'xgboost' in config['tune']['models']:
+            logger.info("Tuning XGBoost model")
+            xgb_model = XGBoostModel(
+                random_state=config['data']['random_state']
+            )
+            xgb_model.tune_hyperparameters(
+                X_train_main, y_train_main, 
+                X_val, y_val,
+                n_trials=config['tune']['n_trials']
+            )
+            xgb_model.save()
+            models['xgboost'] = xgb_model
+            metrics, _ = xgb_model.evaluate(X_test, y_test)
+            logger.info(f"Tuned XGBoost RMSE: {metrics['rmse']:.4f}, R²: {metrics['r2']:.4f}")
         
-        # Simple weighted ensemble
-        weighted_ensemble = EnsembleModel(base_models, ensemble_type='weighted')
-        weighted_ensemble.train(X_train, y_train, X_val, y_val)
-        weighted_ensemble.save()
-        models['weighted_ensemble'] = weighted_ensemble
+        if 'mlp' in config['tune']['models']:
+            logger.info("Tuning MLP model")
+            mlp_model = MLPModel(
+                random_state=config['data']['random_state']
+            )
+            mlp_model.tune_hyperparameters(
+                X_train_main, y_train_main, 
+                X_val, y_val,
+                n_trials=config['tune']['n_trials']
+            )
+            mlp_model.save()
+            models['mlp'] = mlp_model
+            metrics, _ = mlp_model.evaluate(X_test, y_test)
+            logger.info(f"Tuned MLP RMSE: {metrics['rmse']:.4f}, R²: {metrics['r2']:.4f}")
         
-        # Stacking ensemble
-        stacking_ensemble = EnsembleModel(base_models, ensemble_type='stacking')
-        stacking_ensemble.train(X_train, y_train, X_val, y_val)
-        stacking_ensemble.save()
-        models['stacking_ensemble'] = stacking_ensemble
-        
-        # New: Stacking with cross-validation (prevents data leakage)
-        stacking_cv_ensemble = EnsembleModel(base_models, ensemble_type='stacking_cv')
-        stacking_cv_ensemble.train(X_train, y_train)
-        stacking_cv_ensemble.save()
-        models['stacking_cv_ensemble'] = stacking_cv_ensemble
-        
-        # New: Blending ensemble
-        blending_ensemble = EnsembleModel(base_models, ensemble_type='blending')
-        blending_ensemble.train(X_train, y_train, X_val, y_val)
-        blending_ensemble.save()
-        models['blending_ensemble'] = blending_ensemble
+        if 'random_forest' in config['tune']['models']:
+            logger.info("Tuning Random Forest model")
+            rf_model = RandomForestModel(
+                random_state=config['data']['random_state']
+            )
+            rf_model.tune_hyperparameters(
+                X_train_main, y_train_main, 
+                X_val, y_val,
+                n_trials=config['tune']['n_trials']
+            )
+            rf_model.save()
+            models['random_forest'] = rf_model
+            metrics, _ = rf_model.evaluate(X_test, y_test)
+            logger.info(f"Tuned Random Forest RMSE: {metrics['rmse']:.4f}, R²: {metrics['r2']:.4f}")
     
-    # 4. Evaluate models
-    if 'evaluate' in steps:
-        print("\n=== Evaluating Models ===")
-        results = []
-        predictions = {}
+    # Load models if not already trained
+    if not models:
+        logger.info("Loading saved models")
+        models_to_load = ['lightgbm', 'xgboost', 'mlp', 'random_forest']
         
-        for name, model in models.items():
-            print(f"\nEvaluating {name} model...")
-            metrics, y_pred = model.evaluate(X_test, y_test)
-            results.append(metrics)
-            predictions[name] = y_pred
+        for model_name in models_to_load:
+            try:
+                if model_name == 'lightgbm':
+                    model = LightGBMModel()
+                elif model_name == 'xgboost':
+                    model = XGBoostModel()
+                elif model_name == 'mlp':
+                    model = MLPModel()
+                elif model_name == 'random_forest':
+                    model = RandomForestModel()
+                    
+                model.load()
+                models[model_name] = model
+                logger.info(f"Loaded {model_name} model")
+            except Exception as e:
+                logger.warning(f"Could not load {model_name} model: {str(e)}")
+    
+    # Step 7: Ensemble models
+    if 'ensemble' in steps_to_run:
+        logger.info("Creating ensemble models")
+        
+        # Make sure we have at least 2 models for ensembling
+        if len(models) >= 2:
+            # Weighted ensemble
+            logger.info("Creating weighted ensemble")
+            weighted_ensemble = WeightedEnsembleModel()
+            weighted_ensemble.train(models, X_train, y_train)
+            weighted_ensemble.save()
+            metrics, _ = weighted_ensemble.evaluate(X_test, y_test)
+            logger.info(f"Weighted Ensemble RMSE: {metrics['rmse']:.4f}, R²: {metrics['r2']:.4f}")
             
-            # Additional evaluation
-            rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-            r2 = r2_score(y_test, y_pred)
-            print(f"RMSE: {rmse:.2f}, R²: {r2:.4f}")
-        
-        # Create comparison table
-        comparison_df = pd.DataFrame(results)
-        comparison_df.to_csv(os.path.join(config['paths']['results'], 'model_comparison.csv'), index=False)
-        print("\nModel comparison saved to results/model_comparison.csv")
-        
-        # Create performance visualization
-        create_performance_visualization(comparison_df, os.path.join(config['paths']['results'], 'model_comparison.png'))
-        
-        # If we have multiple models, create prediction correlation analysis
-        if len(predictions) > 1:
-            create_prediction_correlation_analysis(predictions, os.path.join(config['paths']['results'], 'prediction_correlation.png'))
+            # Stacking ensemble
+            logger.info("Creating stacking ensemble")
+            stacking_ensemble = StackingEnsembleModel()
+            stacking_ensemble.train(models, X_train, y_train)
+            stacking_ensemble.save()
+            metrics, _ = stacking_ensemble.evaluate(X_test, y_test)
+            logger.info(f"Stacking Ensemble RMSE: {metrics['rmse']:.4f}, R²: {metrics['r2']:.4f}")
+            
+            # Stacking CV ensemble
+            logger.info("Creating stacking CV ensemble")
+            stacking_cv_ensemble = StackingCVEnsembleModel()
+            stacking_cv_ensemble.train(models, X_train, y_train)
+            stacking_cv_ensemble.save()
+            metrics, _ = stacking_cv_ensemble.evaluate(X_test, y_test)
+            logger.info(f"Stacking CV Ensemble RMSE: {metrics['rmse']:.4f}, R²: {metrics['r2']:.4f}")
+            
+            # Blending ensemble
+            logger.info("Creating blending ensemble")
+            blending_ensemble = BlendingEnsembleModel()
+            blending_ensemble.train(models, X_train, y_train, blend_ratio=0.2)
+            blending_ensemble.save()
+            metrics, _ = blending_ensemble.evaluate(X_test, y_test)
+            logger.info(f"Blending Ensemble RMSE: {metrics['rmse']:.4f}, R²: {metrics['r2']:.4f}")
+        else:
+            logger.warning("Not enough trained models for ensembling (need at least 2)")
     
-    # 5. Model interpretation
-    if 'interpret' in steps:
-        print("\n=== Generating Model Explanations ===")
-        # Load original data to get feature names
-        _, _, df = load_raw_data(config['data']['input_path'])
-        feature_names = df.drop(columns=[config['data']['target_column']]).columns.tolist()
+    # Step 8: Comprehensive evaluation
+    if 'evaluate' in steps_to_run:
+        logger.info("Comprehensive model evaluation")
         
-        # SHAP explanations for each model type
-        for name, model in models.items():
-            # Only generate SHAP for tree-based models and the best ensemble
-            if name in ['xgboost', 'random_forest', 'stacking_cv_ensemble']:
+        # Models to evaluate (base models + ensembles)
+        all_models = {}
+        
+        # Load base models if not already in memory
+        for model_name in ['lightgbm', 'xgboost', 'mlp', 'random_forest']:
+            if model_name in models:
+                all_models[model_name] = models[model_name]
+            else:
                 try:
-                    print(f"Generating SHAP explanations for {name}...")
-                    if hasattr(model, 'model'):
-                        base_model = model.model
-                        if name.endswith('_ensemble'):
-                            # For ensembles, use the meta-model or first base model
-                            if hasattr(model, 'meta_model') and model.meta_model is not None:
-                                base_model = model.meta_model
-                            elif len(model.base_models) > 0:
-                                first_model_name = list(model.base_models.keys())[0]
-                                base_model = model.base_models[first_model_name].model
+                    if model_name == 'lightgbm':
+                        model = LightGBMModel()
+                    elif model_name == 'xgboost':
+                        model = XGBoostModel()
+                    elif model_name == 'mlp':
+                        model = MLPModel()
+                    elif model_name == 'random_forest':
+                        model = RandomForestModel()
                         
-                        generate_shap_explanations(
-                            base_model, 
-                            X_test, 
-                            feature_names=feature_names,
-                            output_dir=f"results/explanations/{name}"
-                        )
+                    model.load()
+                    all_models[model_name] = model
                 except Exception as e:
-                    print(f"Error generating SHAP for {name}: {e}")
+                    logger.warning(f"Could not load {model_name} model: {str(e)}")
+        
+        # Load ensemble models
+        for ensemble_name in ['weighted_ensemble', 'stacking_ensemble', 'stacking_cv_ensemble', 'blending_ensemble']:
+            try:
+                if ensemble_name == 'weighted_ensemble':
+                    model = WeightedEnsembleModel()
+                elif ensemble_name == 'stacking_ensemble':
+                    model = StackingEnsembleModel()
+                elif ensemble_name == 'stacking_cv_ensemble':
+                    model = StackingCVEnsembleModel()
+                elif ensemble_name == 'blending_ensemble':
+                    model = BlendingEnsembleModel()
+                
+                model.load()
+                all_models[ensemble_name] = model
+            except Exception as e:
+                logger.warning(f"Could not load {ensemble_name} model: {str(e)}")
+        
+        # Evaluate all models
+        results = []
+        for name, model in all_models.items():
+            try:
+                metrics, _ = model.evaluate(X_test, y_test)
+                results.append(metrics)
+                logger.info(f"{name}: RMSE={metrics['rmse']:.4f}, MAE={metrics['mae']:.4f}, R²={metrics['r2']:.4f}")
+            except Exception as e:
+                logger.warning(f"Error evaluating {name}: {str(e)}")
+        
+        if results:
+            # Create comparison DataFrame
+            comparison_df = pd.DataFrame(results)
+            
+            # Sort by RMSE (lower is better)
+            comparison_df = comparison_df.sort_values('rmse')
+            
+            # Save comparison
+            os.makedirs('results2', exist_ok=True)
+            comparison_path = os.path.join('results2', 'model_comparison.csv')
+            comparison_df.to_csv(comparison_path, index=False)
+            logger.info(f"Model comparison saved to {comparison_path}")
+            
+            # Create comparison visualization
+            plt.figure(figsize=(12, 8))
+            
+            # RMSE
+            plt.subplot(2, 2, 1)
+            plt.barh(comparison_df['model'], comparison_df['rmse'], color='skyblue')
+            plt.xlabel('RMSE (lower is better)')
+            plt.title('RMSE by Model')
+            plt.grid(axis='x', linestyle='--', alpha=0.6)
+            
+            # MAE
+            plt.subplot(2, 2, 2)
+            plt.barh(comparison_df['model'], comparison_df['mae'], color='lightgreen')
+            plt.xlabel('MAE (lower is better)')
+            plt.title('MAE by Model')
+            plt.grid(axis='x', linestyle='--', alpha=0.6)
+            
+            # R²
+            plt.subplot(2, 2, 3)
+            plt.barh(comparison_df['model'], comparison_df['r2'], color='salmon')
+            plt.xlabel('R² (higher is better)')
+            plt.title('R² by Model')
+            plt.grid(axis='x', linestyle='--', alpha=0.6)
+            
+            # MAPE
+            if 'mape' in comparison_df.columns:
+                plt.subplot(2, 2, 4)
+                plt.barh(comparison_df['model'], comparison_df['mape'], color='orchid')
+                plt.xlabel('MAPE % (lower is better)')
+                plt.title('MAPE by Model')
+                plt.grid(axis='x', linestyle='--', alpha=0.6)
+            
+            plt.tight_layout()
+            
+            # Save visualization
+            vis_path = os.path.join('results2', 'model_comparison.png')
+            plt.savefig(vis_path)
+            plt.close()
+            logger.info(f"Model comparison visualization saved to {vis_path}")
     
-    # 6. Fairness analysis
-    if 'fairness' in steps:
-        print("\n=== Analyzing Model Fairness ===")
-        # Get best model predictions (preferring stacking_cv_ensemble if available)
-        best_model_name = 'stacking_cv_ensemble' if 'stacking_cv_ensemble' in models else 'weighted_ensemble'
-        if best_model_name not in models:
-            best_model_name = next(iter(models.keys()))
+    # Step 9: Model interpretation with SHAP
+    if 'interpret' in steps_to_run:
+        logger.info("Model interpretation")
         
-        best_model = models[best_model_name]
-        y_pred = best_model.predict(X_test)
+        # Select the best model for interpretation (default to XGBoost if available)
+        interp_model = None
+        for model_name in ['lightgbm', 'xgboost']:  # Prefer tree-based models for SHAP
+            if model_name in models:
+                interp_model = models[model_name]
+                break
         
-        print(f"Using {best_model_name} for fairness analysis")
+        if interp_model is None and models:
+            # Use the first available model
+            interp_model = list(models.values())[0]
         
-        # Load original data
-        raw_df = pd.read_csv(config['data']['input_path'])
-        
-        # Get the actual column names from dataset
-        categorical_cols = raw_df.select_dtypes(include=['object', 'category']).columns.tolist()
-        print(f"Available categorical columns: {categorical_cols}")
-        
-        # Define sensitive attributes based on the actual columns in dataset
-        sensitive_attributes = []
-        
-        # Try to add common sensitive attributes if they exist
-        potential_attributes = [
-            'Gender', 'AccidentType', 'Vehicle Type', 'Injury_Prognosis', 
-            'Weather Conditions', 'Dominant injury', 'Whiplash'
-        ]
-        
-        for attr in potential_attributes:
-            if attr in raw_df.columns:
-                sensitive_attributes.append(attr)
-                print(f"Found sensitive attribute: {attr}")
-        
-        if not sensitive_attributes:
-            # If none of the common attributes are found, use the first few categorical columns
-            for col in categorical_cols[:3]:  # Use the first 3 categorical columns
-                if col != config['data']['target_column']:
-                    sensitive_attributes.append(col)
-                    print(f"Using categorical column as sensitive attribute: {col}")
-        
-        if sensitive_attributes:
-            # Analyze fairness
-            analyze_fairness_across_attributes(y_test, y_pred, raw_df, sensitive_attributes)
-        else:
-            print("No suitable sensitive attributes found for fairness analysis.")
-        
-    # 7. Uncertainty quantification
-    if 'uncertainty' in steps:
-        print("\n=== Quantifying Prediction Uncertainty ===")
-        # Preferring XGBoost for quantile regression, fallback to best model
-        uncertainty_model = models.get('xgboost', next(iter(models.values()))).model
-        
-        # Use model with best average performance if we have ensembles
-        if 'stacking_cv_ensemble' in models or 'weighted_ensemble' in models:
-            best_model_name = 'stacking_cv_ensemble' if 'stacking_cv_ensemble' in models else 'weighted_ensemble'
-            print(f"Using {best_model_name} for prediction base values")
+        if interp_model:
+            # Get raw features if preprocessor is available
+            raw_features = None
+            if 'preprocess' in steps_to_run:
+                raw_features = pd.read_csv(data_path).drop(columns=[config['data']['target_column']])
             
-            # Get base predictions to calibrate uncertainty bounds
-            base_predictions = models[best_model_name].predict(X_test)
-            
-            # Quantify uncertainty using XGBoost but calibrated to best model
-            quantify_uncertainty(
-                X_train, y_train, 
-                X_test, y_test, 
-                uncertainty_model,
-                base_predictions=base_predictions
+            generate_shap_explanations(
+                interp_model, 
+                X_train, X_test,
+                feature_names=raw_features.columns if raw_features is not None else None,
+                n_samples=min(100, len(X_test))  # Use a subset for interpretation
             )
         else:
-            # Regular uncertainty quantification
-            quantify_uncertainty(
-                X_train, y_train, 
-                X_test, y_test, 
-                uncertainty_model
+            logger.warning("No model available for interpretation")
+    
+    # Step 10: Fairness analysis
+    if 'fairness' in steps_to_run:
+        logger.info("Fairness analysis")
+        
+        # Select the best model for fairness analysis
+        if 'weighted_ensemble' in models:
+            fairness_model = models['weighted_ensemble']
+        elif models:
+            # Use the first available model
+            fairness_model = list(models.values())[0]
+        else:
+            fairness_model = None
+        
+        if fairness_model:
+            # Read raw data for demographic information
+            raw_data = pd.read_csv(data_path)
+            
+            # Identify sensitive attributes
+            sensitive_attributes = config['fairness']['sensitive_attributes']
+            
+            # Run fairness analysis
+            analyze_fairness_across_attributes(
+                model=fairness_model,
+                X=X_test, 
+                y=y_test,
+                raw_data=raw_data,
+                sensitive_attributes=sensitive_attributes,
+                preprocessor=preprocessor if 'preprocess' in steps_to_run else None
             )
-        
-    print("\n=== Pipeline completed successfully ===")
-    return models
-
-def create_performance_visualization(comparison_df, output_path):
-    """Create visualization of model performance metrics."""
-    try:
-        # Prepare data
-        models = comparison_df['model'].tolist()
-        rmse = comparison_df['rmse'].tolist()
-        r2 = comparison_df['r2'].tolist()
-        
-        # Sort by RMSE (ascending)
-        sorted_idx = np.argsort(rmse)
-        sorted_models = [models[i] for i in sorted_idx]
-        sorted_rmse = [rmse[i] for i in sorted_idx]
-        sorted_r2 = [r2[i] for i in sorted_idx]
-        
-        # Create figure with two subplots
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-        
-        # RMSE plot (lower is better)
-        bars1 = ax1.bar(sorted_models, sorted_rmse, color='skyblue')
-        ax1.set_title('Model Comparison - RMSE (lower is better)')
-        ax1.set_xlabel('Model')
-        ax1.set_ylabel('RMSE')
-        ax1.grid(axis='y', alpha=0.3)
-        ax1.set_xticklabels(sorted_models, rotation=45, ha='right')
-        
-        # Add value labels
-        for i, bar in enumerate(bars1):
-            height = bar.get_height()
-            ax1.text(bar.get_x() + bar.get_width()/2., height + 5,
-                    f'{sorted_rmse[i]:.2f}', ha='center', va='bottom')
-        
-        # R² plot (higher is better)
-        # Sort by R² (descending)
-        sorted_idx_r2 = np.argsort([-x for x in r2])
-        sorted_models_r2 = [models[i] for i in sorted_idx_r2]
-        sorted_r2_desc = [r2[i] for i in sorted_idx_r2]
-        
-        bars2 = ax2.bar(sorted_models_r2, sorted_r2_desc, color='lightgreen')
-        ax2.set_title('Model Comparison - R² (higher is better)')
-        ax2.set_xlabel('Model')
-        ax2.set_ylabel('R²')
-        ax2.grid(axis='y', alpha=0.3)
-        ax2.set_xticklabels(sorted_models_r2, rotation=45, ha='right')
-        
-        # Add value labels
-        for i, bar in enumerate(bars2):
-            height = bar.get_height()
-            ax2.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                    f'{sorted_r2_desc[i]:.4f}', ha='center', va='bottom')
-        
-        plt.tight_layout()
-        plt.savefig(output_path)
-        plt.close()
-        
-        print(f"Performance visualization saved to {output_path}")
-    except Exception as e:
-        print(f"Error creating performance visualization: {e}")
-
-def create_prediction_correlation_analysis(predictions, output_path):
-    """Create correlation analysis of model predictions."""
-    try:
-        # Convert predictions to DataFrame
-        pred_df = pd.DataFrame(predictions)
-        
-        # Calculate correlation matrix
-        corr_matrix = pred_df.corr()
-        
-        # Create correlation heatmap
-        plt.figure(figsize=(10, 8))
-        plt.imshow(corr_matrix, cmap='coolwarm', interpolation='none', aspect='equal')
-        plt.colorbar(label='Correlation')
-        plt.title('Correlation Between Model Predictions')
-        
-        # Add correlation values
-        for i in range(len(corr_matrix)):
-            for j in range(len(corr_matrix)):
-                plt.text(j, i, f'{corr_matrix.iloc[i, j]:.2f}',
-                        ha='center', va='center', color='white')
-        
-        # Set axis labels
-        plt.xticks(range(len(corr_matrix)), corr_matrix.columns, rotation=45, ha='right')
-        plt.yticks(range(len(corr_matrix)), corr_matrix.index)
-        
-        plt.tight_layout()
-        plt.savefig(output_path)
-        plt.close()
-        
-        print(f"Prediction correlation analysis saved to {output_path}")
-        
-        # Also look for highly correlated models (candidates for removal)
-        print("\nModel correlation analysis:")
-        for i in range(len(corr_matrix.columns)):
-            for j in range(i+1, len(corr_matrix.columns)):
-                col1, col2 = corr_matrix.columns[i], corr_matrix.columns[j]
-                correlation = corr_matrix.loc[col1, col2]
-                if correlation > 0.95:
-                    print(f"  High correlation ({correlation:.4f}) between {col1} and {col2}")
-                    print(f"  Consider removing one of these models from the ensemble")
-    except Exception as e:
-        print(f"Error creating prediction correlation analysis: {e}")
-
-def main():
-    """Parse arguments and run pipeline."""
-    parser = argparse.ArgumentParser(description='Run enhanced settlement prediction ML pipeline')
-    parser.add_argument('--config', type=str, default='config/default.yaml',
-                       help='Path to configuration file')
-    parser.add_argument('--steps', type=str, default='all',
-                       help='Comma-separated list of steps to run')
+        else:
+            logger.warning("No model available for fairness analysis")
     
-    args = parser.parse_args()
-    config = load_config(args.config)
+    # Step 11: Uncertainty quantification
+    if 'uncertainty' in steps_to_run:
+        logger.info("Uncertainty quantification")
+        
+        # Train quantile regression models
+        quantify_uncertainty(
+            X_train, y_train, X_test, y_test,
+            quantiles=[0.1, 0.5, 0.9],
+            model_type='lightgbm' if 'lightgbm' in models else 'xgboost'
+        )
     
-    # Parse steps
-    if args.steps.lower() == 'all':
-        steps = ['preprocess', 'train_mlp', 'train_xgboost', 'train_random_forest', 'tune',
-                'ensemble', 'evaluate', 'interpret', 'fairness', 'uncertainty']
-    else:
-        steps = [step.strip() for step in args.steps.split(',')]
+    logger.info("Pipeline completed successfully")
     
-    # Run pipeline
-    run_pipeline(config, steps)
+    return 0
 
-if __name__ == "__main__":
-    main()
+def parse_args(args):
+    """
+    Parse command line arguments.
+    
+    Parameters:
+    -----------
+    args : list
+        Command line arguments
+    
+    Returns:
+    --------
+    argparse.Namespace
+        Parsed arguments
+    """
+    parser = argparse.ArgumentParser(description='Settlement Value Prediction System')
+    parser.add_argument('--steps', nargs='+', default=['all'],
+                        help='Pipeline steps to run: preprocess, train_lgbm, train_xgboost, train_mlp, train_rf, tune, ensemble, evaluate, interpret, fairness, uncertainty')
+    
+    return parser.parse_args(args)
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -127,14 +127,14 @@ class RandomForestModel(BaseModel):
         
         # Visualize optimization results
         try:
-            os.makedirs("results/optimization", exist_ok=True)
+            os.makedirs("results2/optimization", exist_ok=True)
             
             # Plot optimization history
             plt.figure(figsize=(10, 6))
             optuna.visualization.matplotlib.plot_optimization_history(study)
             plt.title('Random Forest Hyperparameter Optimization History')
             plt.tight_layout()
-            plt.savefig("results/optimization/rf_optimization_history.png")
+            plt.savefig("results2/optimization/rf_optimization_history.png")
             plt.close()
             
             # Plot parameter importances
@@ -142,10 +142,10 @@ class RandomForestModel(BaseModel):
             optuna.visualization.matplotlib.plot_param_importances(study)
             plt.title('Random Forest Hyperparameter Importance')
             plt.tight_layout()
-            plt.savefig("results/optimization/rf_param_importances.png")
+            plt.savefig("results2/optimization/rf_param_importances.png")
             plt.close()
             
-            print("Optimization visualizations saved to results/optimization/ directory")
+            print("Optimization visualizations saved to results2/optimization/ directory")
         except Exception as e:
             print(f"Error creating optimization visualizations: {e}")
         
@@ -172,7 +172,7 @@ class RandomForestModel(BaseModel):
         
         try:
             # Create directory
-            os.makedirs("results/models/random_forest", exist_ok=True)
+            os.makedirs("results2/models/random_forest", exist_ok=True)
             
             # Get feature importances
             importances = self.model.feature_importances_
@@ -192,17 +192,17 @@ class RandomForestModel(BaseModel):
             plt.xticks(range(n_features), [feature_names[i] for i in indices[:n_features]], rotation=90)
             plt.title('Random Forest Feature Importances')
             plt.tight_layout()
-            plt.savefig("results/models/random_forest/feature_importance.png")
+            plt.savefig("results2/models/random_forest/feature_importance.png")
             plt.close()
             
-            print("Feature importance plot saved to results/models/random_forest/feature_importance.png")
+            print("Feature importance plot saved to results2/models/random_forest/feature_importance.png")
             
             # Also save tabular data
             importance_df = pd.DataFrame({
                 'Feature': [feature_names[i] for i in indices],
                 'Importance': importances[indices]
             })
-            importance_df.to_csv("results/models/random_forest/feature_importance.csv", index=False)
-            print("Feature importance data saved to results/models/random_forest/feature_importance.csv")
+            importance_df.to_csv("results2/models/random_forest/feature_importance.csv", index=False)
+            print("Feature importance data saved to results2/models/random_forest/feature_importance.csv")
         except Exception as e:
             print(f"Error creating feature importance visualization: {e}")

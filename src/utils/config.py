@@ -18,12 +18,29 @@ DEFAULT_CONFIG = {
             'n_estimators': 200,
             'max_depth': 6,
             'learning_rate': 0.1
+        },
+        'lightgbm': {
+            'n_estimators': 200,
+            'max_depth': 6,
+            'learning_rate': 0.1,
+            'num_leaves': 31
         }
     },
     'paths': {
         'processed_data': 'data/processed_data',
         'models': 'models',
-        'results': 'results'
+        'results': 'results2'
+    },
+    'random_forest': {
+        'n_estimators': 200,
+        'max_depth': 10
+    },
+    'tune': {
+        'models': ['lightgbm', 'xgboost', 'mlp', 'random_forest'],
+        'n_trials': 50
+    },
+    'fairness': {
+        'sensitive_attributes': ['Gender', 'AccidentType', 'Dominant injury', 'Whiplash', 'Vehicle Type', 'Weather Conditions', 'Injury_Prognosis']
     }
 }
 
