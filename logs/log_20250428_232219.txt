@@ -1,0 +1,67 @@
+2025-04-28 23:22:19,388 - settlement_prediction - INFO - Starting the settlement value prediction pipeline
+2025-04-28 23:22:19,395 - settlement_prediction - INFO - Using configuration:
+2025-04-28 23:22:19,396 - settlement_prediction - INFO -   data:
+2025-04-28 23:22:19,396 - settlement_prediction - INFO -     input_path: data/Synthetic_Data_For_Students.csv
+2025-04-28 23:22:19,396 - settlement_prediction - INFO -     target_column: SettlementValue
+2025-04-28 23:22:19,396 - settlement_prediction - INFO -     test_size: 0.2
+2025-04-28 23:22:19,397 - settlement_prediction - INFO -     random_state: 42
+2025-04-28 23:22:19,397 - settlement_prediction - INFO -   models:
+2025-04-28 23:22:19,397 - settlement_prediction - INFO -     mlp: {'hidden_layers': [100, 50], 'max_iter': 1000}
+2025-04-28 23:22:19,397 - settlement_prediction - INFO -     xgboost: {'n_estimators': 200, 'max_depth': 6, 'learning_rate': 0.1}
+2025-04-28 23:22:19,398 - settlement_prediction - INFO -     lightgbm: {'n_estimators': 200, 'max_depth': 6, 'learning_rate': 0.1, 'num_leaves': 31}
+2025-04-28 23:22:19,398 - settlement_prediction - INFO -     random_forest: {'n_estimators': 200, 'max_depth': 10}
+2025-04-28 23:22:19,398 - settlement_prediction - INFO -   paths:
+2025-04-28 23:22:19,398 - settlement_prediction - INFO -     processed_data: data/processed_data
+2025-04-28 23:22:19,398 - settlement_prediction - INFO -     models: models
+2025-04-28 23:22:19,399 - settlement_prediction - INFO -     results: results
+2025-04-28 23:22:19,399 - settlement_prediction - INFO -   tune:
+2025-04-28 23:22:19,399 - settlement_prediction - INFO -     models: ['lightgbm', 'xgboost', 'mlp', 'random_forest']
+2025-04-28 23:22:19,399 - settlement_prediction - INFO -     n_trials: 50
+2025-04-28 23:22:19,400 - settlement_prediction - INFO -   fairness:
+2025-04-28 23:22:19,400 - settlement_prediction - INFO -     sensitive_attributes: ['Gender', 'AccidentType', 'Dominant injury', 'Whiplash', 'Vehicle Type', 'Weather Conditions', 'Injury_Prognosis']
+2025-04-28 23:22:19,400 - settlement_prediction - INFO -   random_forest:
+2025-04-28 23:22:19,400 - settlement_prediction - INFO -     n_estimators: 200
+2025-04-28 23:22:19,401 - settlement_prediction - INFO -     max_depth: 10
+2025-04-28 23:22:19,401 - settlement_prediction - INFO - Running the following steps: preprocess, train_lgbm, train_xgboost, train_mlp, train_rf, tune, ensemble, evaluate, interpret, fairness, uncertainty
+2025-04-28 23:22:19,401 - settlement_prediction - INFO - Step 1: Preprocessing data
+2025-04-28 23:22:26,897 - settlement_prediction - INFO - Preprocessing complete. Training data shape: (3915, 83)
+2025-04-28 23:22:26,901 - settlement_prediction - INFO - Training LightGBM model
+2025-04-28 23:22:27,528 - settlement_prediction - INFO - LightGBM RMSE: 282.9300, R²: 0.8764
+2025-04-28 23:22:27,528 - settlement_prediction - INFO - Training XGBoost model
+2025-04-28 23:22:28,923 - settlement_prediction - INFO - XGBoost RMSE: 292.8301, R²: 0.8676
+2025-04-28 23:22:28,923 - settlement_prediction - INFO - Training MLP model
+2025-04-28 23:22:38,375 - settlement_prediction - INFO - MLP RMSE: 459.5048, R²: 0.6740
+2025-04-28 23:22:38,376 - settlement_prediction - INFO - Training Random Forest model
+2025-04-28 23:22:39,669 - settlement_prediction - INFO - Random Forest RMSE: 307.6844, R²: 0.8538
+2025-04-28 23:22:39,669 - settlement_prediction - INFO - Hyperparameter tuning
+2025-04-28 23:22:39,669 - settlement_prediction - INFO - Tuning XGBoost model
+2025-04-28 23:27:01,695 - settlement_prediction - INFO - Tuned XGBoost RMSE: 277.7723, R²: 0.8809
+2025-04-28 23:27:01,695 - settlement_prediction - INFO - Tuning MLP model
+2025-04-28 23:45:14,998 - settlement_prediction - INFO - Tuned MLP RMSE: 449.6794, R²: 0.6878
+2025-04-28 23:45:14,999 - settlement_prediction - INFO - Tuning Random Forest model
+2025-04-28 23:47:32,806 - settlement_prediction - INFO - Tuned Random Forest RMSE: 274.2926, R²: 0.8838
+2025-04-28 23:47:32,807 - settlement_prediction - INFO - Creating ensemble models
+2025-04-28 23:47:32,807 - settlement_prediction - INFO - Creating weighted ensemble
+2025-04-28 23:47:33,618 - settlement_prediction - INFO - Weighted Ensemble RMSE: 282.9300, R²: 0.8764
+2025-04-28 23:47:33,618 - settlement_prediction - INFO - Creating stacking ensemble
+2025-04-28 23:47:34,510 - settlement_prediction - INFO - Stacking Ensemble RMSE: 274.5986, R²: 0.8836
+2025-04-28 23:47:34,510 - settlement_prediction - INFO - Creating stacking CV ensemble
+2025-04-28 23:48:33,702 - settlement_prediction - INFO - Stacking CV Ensemble RMSE: 269.7015, R²: 0.8877
+2025-04-28 23:48:33,703 - settlement_prediction - INFO - Creating blending ensemble
+2025-04-28 23:48:39,218 - settlement_prediction - INFO - Blending Ensemble RMSE: 347.9424, R²: 0.8131
+2025-04-28 23:48:39,219 - settlement_prediction - INFO - Comprehensive model evaluation
+2025-04-28 23:48:39,610 - settlement_prediction - INFO - Loaded weighted_ensemble model for evaluation
+2025-04-28 23:48:39,937 - settlement_prediction - INFO - Loaded stacking_ensemble model for evaluation
+2025-04-28 23:48:40,279 - settlement_prediction - INFO - Loaded stacking_cv_ensemble model for evaluation
+2025-04-28 23:48:40,911 - settlement_prediction - INFO - Loaded blending_ensemble model for evaluation
+2025-04-28 23:48:41,192 - settlement_prediction - INFO - lightgbm: RMSE=282.9300, MAE=150.2482, R²=0.8764
+2025-04-28 23:48:41,397 - settlement_prediction - INFO - xgboost: RMSE=277.7723, MAE=135.1492, R²=0.8809
+2025-04-28 23:48:41,567 - settlement_prediction - INFO - mlp: RMSE=449.6794, MAE=268.7740, R²=0.6878
+2025-04-28 23:48:41,866 - settlement_prediction - INFO - random_forest: RMSE=274.2926, MAE=142.6420, R²=0.8838
+2025-04-28 23:48:42,172 - settlement_prediction - INFO - weighted_ensemble: RMSE=1451.1509, MAE=1207.5437, R²=-2.2514
+2025-04-28 23:48:42,620 - settlement_prediction - INFO - stacking_ensemble: RMSE=340.7033, MAE=195.0888, R²=0.8208
+2025-04-28 23:48:43,077 - settlement_prediction - INFO - stacking_cv_ensemble: RMSE=340.7033, MAE=195.0888, R²=0.8208
+2025-04-28 23:48:43,424 - settlement_prediction - INFO - blending_ensemble: RMSE=347.9424, MAE=196.2252, R²=0.8131
+2025-04-28 23:48:43,427 - settlement_prediction - INFO - Model comparison saved to results\model_comparison.csv
+2025-04-28 23:48:44,166 - settlement_prediction - INFO - Model comparison visualization saved to results\model_comparison.png
+2025-04-28 23:48:44,166 - settlement_prediction - INFO - Model interpretation

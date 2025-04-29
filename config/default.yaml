@@ -24,7 +24,7 @@ models:
 paths:
   processed_data: 'data/processed_data'
   models: 'models'
-  results: 'results2'
+  results: 'results'
 
 tune:
   models: ['lightgbm', 'xgboost', 'mlp', 'random_forest']

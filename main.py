@@ -252,8 +252,10 @@ def main(args=None):
                     model = MLPModel()
                 elif model_name == 'random_forest':
                     model = RandomForestModel()
-                    
-                model.load()
+                
+                # Load the model using the instance method
+                model_path = f"models/{model_name}_model.pkl"
+                model.load(model_path)
                 models[model_name] = model
                 logger.info(f"Loaded {model_name} model")
             except Exception as e:
@@ -321,8 +323,11 @@ def main(args=None):
                     elif model_name == 'random_forest':
                         model = RandomForestModel()
                         
-                    model.load()
+                    # Load the model using the instance method
+                    model_path = f"models/{model_name}_model.pkl"
+                    model.load(model_path)
                     all_models[model_name] = model
+                    logger.info(f"Loaded {model_name} model for evaluation")
                 except Exception as e:
                     logger.warning(f"Could not load {model_name} model: {str(e)}")
         
@@ -338,8 +343,11 @@ def main(args=None):
                 elif ensemble_name == 'blending_ensemble':
                     model = BlendingEnsembleModel()
                 
-                model.load()
+                # Load the ensemble model
+                model_path = f"models/{ensemble_name}_model.pkl"
+                model.load(model_path)
                 all_models[ensemble_name] = model
+                logger.info(f"Loaded {ensemble_name} model for evaluation")
             except Exception as e:
                 logger.warning(f"Could not load {ensemble_name} model: {str(e)}")
         
@@ -361,8 +369,8 @@ def main(args=None):
             comparison_df = comparison_df.sort_values('rmse')
             
             # Save comparison
-            os.makedirs('results2', exist_ok=True)
-            comparison_path = os.path.join('results2', 'model_comparison.csv')
+            os.makedirs('results', exist_ok=True)
+            comparison_path = os.path.join('results', 'model_comparison.csv')
             comparison_df.to_csv(comparison_path, index=False)
             logger.info(f"Model comparison saved to {comparison_path}")
             
@@ -401,7 +409,7 @@ def main(args=None):
             plt.tight_layout()
             
             # Save visualization
-            vis_path = os.path.join('results2', 'model_comparison.png')
+            vis_path = os.path.join('results', 'model_comparison.png')
             plt.savefig(vis_path)
             plt.close()
             logger.info(f"Model comparison visualization saved to {vis_path}")
@@ -428,10 +436,9 @@ def main(args=None):
                 raw_features = pd.read_csv(data_path).drop(columns=[config['data']['target_column']])
             
             generate_shap_explanations(
-                interp_model, 
-                X_train, X_test,
-                feature_names=raw_features.columns if raw_features is not None else None,
-                n_samples=min(100, len(X_test))  # Use a subset for interpretation
+                interp_model.model, 
+                X_test,
+                feature_names=raw_features.columns if raw_features is not None else None
             )
         else:
             logger.warning("No model available for interpretation")

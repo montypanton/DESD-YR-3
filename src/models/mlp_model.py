@@ -123,9 +123,10 @@ class MLPModel(BaseModel):
                 batch_size=batch_size,
                 learning_rate='adaptive',
                 learning_rate_init=learning_rate,
-                max_iter=300,  # Reduced for faster optimization
+                max_iter=500,  # Increased from 300 to help with convergence
                 early_stopping=True,
                 validation_fraction=0.1,
+                n_iter_no_change=10,  # Increased patience for convergence
                 random_state=self.random_state,
                 verbose=False
             )
@@ -133,22 +134,28 @@ class MLPModel(BaseModel):
             # Use cross-validation for more robust evaluation
             kf = KFold(n_splits=3, shuffle=True, random_state=self.random_state)
             
+            # Convert to numpy arrays to avoid pandas indexing issues
+            X_train_array = X_train.values if hasattr(X_train, 'values') else X_train
+            y_train_array = y_train.values if hasattr(y_train, 'values') else y_train
+            
             cv_scores = []
-            for train_idx, test_idx in kf.split(X_train):
-                X_fold_train, y_fold_train = X_train[train_idx], y_train[train_idx]
-                X_fold_val, y_fold_val = X_train[test_idx], y_train[test_idx]
+            for train_idx, test_idx in kf.split(X_train_array):
+                X_fold_train, y_fold_train = X_train_array[train_idx], y_train_array[train_idx]
+                X_fold_val, y_fold_val = X_train_array[test_idx], y_train_array[test_idx]
                 
                 try:
                     model.fit(X_fold_train, y_fold_train)
-                    y_pred = model.predict(X_fold_val)
-                    rmse = np.sqrt(mean_squared_error(y_fold_val, y_pred))
-                    cv_scores.append(rmse)
+                    val_pred = model.predict(X_fold_val)
+                    val_rmse = np.sqrt(mean_squared_error(y_fold_val, val_pred))
+                    cv_scores.append(val_rmse)
                 except Exception as e:
-                    print(f"Error during cross-validation: {e}")
-                    return float('inf')  # Return a large value on error
+                    # If fitting fails, return a poor score
+                    print(f"Model fitting failed: {e}")
+                    return float('inf')
             
-            # Return mean RMSE if we have scores, otherwise infinity
-            return np.mean(cv_scores) if cv_scores else float('inf')
+            # Return the average RMSE
+            mean_rmse = np.mean(cv_scores)
+            return mean_rmse
 
         # Run hyperparameter optimization
         study = optuna.create_study(direction='minimize')

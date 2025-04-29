@@ -51,3 +51,26 @@ class BaseModel(ABC):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         joblib.dump(self.model, path)
         print(f"Model saved to {path}")
+        return self
+    
+    def load(self, path=None):
+        """Load a trained model from file.
+        
+        Args:
+            path (str, optional): Path to the saved model file. If None, uses default path.
+            
+        Returns:
+            BaseModel: Instance with loaded model.
+        """
+        if path is None:
+            path = f"models/{self.model_name}_model.pkl"
+        
+        # Fix potential path issues
+        path = os.path.normpath(path)
+        
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Model file not found at {path}")
+        
+        self.model = joblib.load(path)
+        print(f"Model loaded from {path}")
+        return self

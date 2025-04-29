@@ -436,45 +436,60 @@ class EnsembleModel(BaseModel):
         try:
             # Use cross-validation to generate meta-features
             kf = KFold(n_splits=5, shuffle=True, random_state=self.random_state)
-            meta_features = np.zeros((X_train.shape[0], len(self.base_models)))
+            meta_features = np.zeros((len(X_train), len(self.base_models)))
             
             # Track metadata for each fold
             fold_metadata = []
             
+            # Convert X_train and y_train to numpy arrays if they're not already
+            X_train_array = X_train.values if hasattr(X_train, 'values') else X_train
+            y_train_array = y_train.values if hasattr(y_train, 'values') else y_train
+            
             for i, (name, model) in enumerate(self.base_models.items()):
                 fold_scores = []
                 
-                for fold_idx, (train_idx, val_idx) in enumerate(kf.split(X_train)):
-                    # Get fold data
-                    X_fold_train, X_fold_val = X_train[train_idx], X_train[val_idx]
-                    y_fold_train, y_fold_val = y_train[train_idx], y_train[val_idx]
-                    
-                    try:
-                        # Clone model to avoid modifying original
-                        from sklearn.base import clone
-                        model_clone = clone(model.model)
+                try:
+                    # For safety, use direct prediction if model doesn't support fit
+                    if not hasattr(model.model, 'fit'):
+                        print(f"Model {name} doesn't have fit method, using direct prediction")
+                        meta_features[:, i] = model.predict(X_train_array)
+                        continue
                         
-                        # Train on fold
-                        model_clone.fit(X_fold_train, y_fold_train)
+                    for fold_idx, (train_idx, val_idx) in enumerate(kf.split(X_train_array)):
+                        # Get fold data
+                        X_fold_train, X_fold_val = X_train_array[train_idx], X_train_array[val_idx]
+                        y_fold_train, y_fold_val = y_train_array[train_idx], y_train_array[val_idx]
                         
-                        # Generate predictions for this fold
-                        fold_preds = model_clone.predict(X_fold_val)
-                        meta_features[val_idx, i] = fold_preds
-                        
-                        # Calculate performance on fold
-                        fold_rmse = np.sqrt(np.mean((y_fold_val - fold_preds) ** 2))
-                        fold_scores.append(fold_rmse)
-                    except Exception as e:
-                        print(f"Error in CV fold {fold_idx} for {name}: {e}")
-                        # Use fallback
-                        meta_features[val_idx, i] = model.predict(X_fold_val)
-                        fold_scores.append(float('inf'))
+                        try:
+                            # Clone model to avoid modifying original
+                            from sklearn.base import clone
+                            model_clone = clone(model.model)
+                            
+                            # Train on fold
+                            model_clone.fit(X_fold_train, y_fold_train)
+                            
+                            # Generate predictions for this fold
+                            fold_preds = model_clone.predict(X_fold_val)
+                            meta_features[val_idx, i] = fold_preds
+                            
+                            # Calculate performance on fold
+                            fold_rmse = np.sqrt(np.mean((y_fold_val - fold_preds) ** 2))
+                            fold_scores.append(fold_rmse)
+                        except Exception as e:
+                            print(f"Error in CV fold {fold_idx} for {name}: {e}")
+                            # Use fallback
+                            meta_features[val_idx, i] = model.predict(X_fold_val)
+                            fold_scores.append(float('inf'))
+                except Exception as e:
+                    print(f"Error in stacking CV for model {name}: {e}")
+                    # Fallback to direct prediction
+                    meta_features[:, i] = model.predict(X_train_array)
                 
                 # Record metadata for this model
                 fold_metadata.append({
                     'model': name,
                     'fold_scores': fold_scores,
-                    'mean_score': np.mean(fold_scores)
+                    'mean_score': np.mean(fold_scores) if fold_scores else float('inf')
                 })
             
             # Store CV metadata
@@ -486,7 +501,7 @@ class EnsembleModel(BaseModel):
             else:
                 self.meta_model = meta_learner
                 
-            self.meta_model.fit(meta_features, y_train)
+            self.meta_model.fit(meta_features, y_train_array)
             
             # Store model info
             coef_dict = dict(zip(self.base_models.keys(), self.meta_model.coef_))
@@ -507,7 +522,7 @@ class EnsembleModel(BaseModel):
             self._visualize_cv_performance(fold_metadata)
         
         except Exception as e:
-            print(f"Error in stacking CV ensemble training: {e}")
+            print(f"Error in stacking CV ensemble training: {str(e)}")
             # Fallback to simple stacking
             self._train_stacking_ensemble(X_train, y_train)
     
@@ -718,6 +733,74 @@ class EnsembleModel(BaseModel):
             }, path)
         
         print(f"Ensemble model saved to {path}")
+    
+    def load(self, path=None):
+        """Load ensemble model from file."""
+        if path is None:
+            path = f"models/{self.model_name}_model.pkl"
+        
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Model file not found at {path}")
+        
+        # Load the ensemble data
+        ensemble_data = joblib.load(path)
+        
+        # Restore model properties
+        self.model_info = ensemble_data['model_info']
+        self.ensemble_type = ensemble_data['ensemble_type']
+        self.cv_metadata = ensemble_data.get('cv_metadata')
+        
+        # Placeholder for the actual model (for compatibility with BaseModel)
+        self.model = True
+        
+        # For models with meta-learners, load the meta-model
+        if self.model_info['type'] in ['stacking', 'stacking_cv', 'blending']:
+            meta_model_path = f"models/{self.model_name}_meta_model.pkl"
+            if os.path.exists(meta_model_path):
+                self.meta_model = joblib.load(meta_model_path)
+                self.model_info['meta_model'] = self.meta_model
+            else:
+                print(f"Warning: Meta-model not found at {meta_model_path}")
+            
+            # For blending models, also load the trained base models
+            if self.model_info['type'] == 'blending':
+                blending_models_path = f"models/{self.model_name}_blending_models.pkl"
+                if os.path.exists(blending_models_path):
+                    self.model_info['base_models_trained'] = joblib.load(blending_models_path)
+                else:
+                    print(f"Warning: Trained base models not found at {blending_models_path}")
+        
+        # Load base models from ensemble_data
+        base_model_names = ensemble_data.get('base_model_names', [])
+        
+        # Import model classes
+        from src.models.xgboost_model import XGBoostModel
+        from src.models.lightgbm_model import LightGBMModel
+        from src.models.mlp_model import MLPModel
+        from src.models.random_forest_model import RandomForestModel
+        
+        # Map model names to classes
+        model_classes = {
+            'xgboost': XGBoostModel,
+            'lightgbm': LightGBMModel,
+            'mlp': MLPModel,
+            'random_forest': RandomForestModel
+        }
+        
+        # Load base models
+        self.base_models = {}
+        for name in base_model_names:
+            if name in model_classes:
+                try:
+                    model = model_classes[name]()
+                    model_path = f"models/{name}_model.pkl"
+                    model.load(model_path)
+                    self.base_models[name] = model
+                except Exception as e:
+                    print(f"Error loading base model {name}: {e}")
+        
+        print(f"Ensemble model loaded from {path}")
+        return self
 
 class WeightedEnsembleModel(EnsembleModel):
     """Weighted average ensemble model"""

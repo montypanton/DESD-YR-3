@@ -26,10 +26,28 @@ def load_models(model_names=None):
         model_names = ['xgboost', 'mlp']
     
     models = {}
+    model_classes = {
+        'xgboost': 'XGBoostModel',
+        'lightgbm': 'LightGBMModel',
+        'mlp': 'MLPModel',
+        'random_forest': 'RandomForestModel'
+    }
+    
     for name in model_names:
         try:
-            models[name] = joblib.load(f'models/{name}_model.pkl')
-        except FileNotFoundError:
-            print(f"Model {name} not found")
+            # Import the model class dynamically
+            model_class_name = model_classes.get(name)
+            if not model_class_name:
+                print(f"Unknown model type: {name}")
+                continue
+                
+            # Import the model class
+            module = __import__(f"src.models.{name}_model", fromlist=[model_class_name])
+            model_class = getattr(module, model_class_name)
+            
+            # Use the load class method
+            models[name] = model_class.load(f'models/{name}_model.pkl')
+        except (FileNotFoundError, ImportError, AttributeError) as e:
+            print(f"Could not load {name} model: {str(e)}")
     
     return models

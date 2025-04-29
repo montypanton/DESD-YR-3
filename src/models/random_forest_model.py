@@ -46,7 +46,6 @@ class RandomForestModel(BaseModel):
             'min_samples_leaf': self.min_samples_leaf,
             'max_features': 'sqrt',  # Traditional RF uses sqrt(n_features)
             'bootstrap': True,
-            'oob_score': True,  # Use out-of-bag samples to estimate generalization accuracy
             'n_jobs': -1,  # Use all available processors
             'random_state': self.random_state,
             'verbose': 0,
@@ -56,13 +55,19 @@ class RandomForestModel(BaseModel):
         # Override with any params from self.params
         params.update(self.params)
         
+        # Only set oob_score if bootstrap is True
+        if params.get('bootstrap', True):
+            params['oob_score'] = True
+        else:
+            # Ensure oob_score is False if bootstrap is False
+            params['oob_score'] = False
+        
         # Create and train model with combined parameters
         self.model = RandomForestRegressor(**params)
         
         # Fit the model
         self.model.fit(X_train, y_train)
         
-        # The rest of the method remains the same...
         # Store feature importances
         self.feature_importances_ = self.model.feature_importances_
         
@@ -73,7 +78,10 @@ class RandomForestModel(BaseModel):
         
         print(f"Validation RMSE: {val_rmse:.2f}")
         print(f"Validation R²: {val_r2:.4f}")
-        print(f"Out-of-bag score: {self.model.oob_score_:.4f}")
+        
+        # Only print OOB score if available
+        if params.get('oob_score', False):
+            print(f"Out-of-bag score: {self.model.oob_score_:.4f}")
         
         # Plot feature importance
         self._plot_feature_importance()
@@ -107,10 +115,14 @@ class RandomForestModel(BaseModel):
             # Use cross-validation for more robust evaluation
             kf = KFold(n_splits=3, shuffle=True, random_state=self.random_state)
             
+            # Convert to numpy arrays to avoid pandas indexing issues
+            X_train_array = X_train.values if hasattr(X_train, 'values') else X_train
+            y_train_array = y_train.values if hasattr(y_train, 'values') else y_train
+            
             cv_scores = []
-            for train_idx, test_idx in kf.split(X_train):
-                X_fold_train, y_fold_train = X_train[train_idx], y_train[train_idx]
-                X_fold_val, y_fold_val = X_train[test_idx], y_train[test_idx]
+            for train_idx, test_idx in kf.split(X_train_array):
+                X_fold_train, y_fold_train = X_train_array[train_idx], y_train_array[train_idx]
+                X_fold_val, y_fold_val = X_train_array[test_idx], y_train_array[test_idx]
                 
                 model.fit(X_fold_train, y_fold_train)
                 y_pred = model.predict(X_fold_val)
@@ -127,14 +139,14 @@ class RandomForestModel(BaseModel):
         
         # Visualize optimization results
         try:
-            os.makedirs("results2/optimization", exist_ok=True)
+            os.makedirs("results/optimization", exist_ok=True)
             
             # Plot optimization history
             plt.figure(figsize=(10, 6))
             optuna.visualization.matplotlib.plot_optimization_history(study)
             plt.title('Random Forest Hyperparameter Optimization History')
             plt.tight_layout()
-            plt.savefig("results2/optimization/rf_optimization_history.png")
+            plt.savefig("results/optimization/rf_optimization_history.png")
             plt.close()
             
             # Plot parameter importances
@@ -142,10 +154,10 @@ class RandomForestModel(BaseModel):
             optuna.visualization.matplotlib.plot_param_importances(study)
             plt.title('Random Forest Hyperparameter Importance')
             plt.tight_layout()
-            plt.savefig("results2/optimization/rf_param_importances.png")
+            plt.savefig("results/optimization/rf_param_importances.png")
             plt.close()
             
-            print("Optimization visualizations saved to results2/optimization/ directory")
+            print("Optimization visualizations saved to results/optimization/ directory")
         except Exception as e:
             print(f"Error creating optimization visualizations: {e}")
         
@@ -172,7 +184,7 @@ class RandomForestModel(BaseModel):
         
         try:
             # Create directory
-            os.makedirs("results2/models/random_forest", exist_ok=True)
+            os.makedirs("results/models/random_forest", exist_ok=True)
             
             # Get feature importances
             importances = self.model.feature_importances_
@@ -192,17 +204,44 @@ class RandomForestModel(BaseModel):
             plt.xticks(range(n_features), [feature_names[i] for i in indices[:n_features]], rotation=90)
             plt.title('Random Forest Feature Importances')
             plt.tight_layout()
-            plt.savefig("results2/models/random_forest/feature_importance.png")
+            plt.savefig("results/models/random_forest/feature_importance.png")
             plt.close()
             
-            print("Feature importance plot saved to results2/models/random_forest/feature_importance.png")
+            print("Feature importance plot saved to results/models/random_forest/feature_importance.png")
             
             # Also save tabular data
             importance_df = pd.DataFrame({
                 'Feature': [feature_names[i] for i in indices],
                 'Importance': importances[indices]
             })
-            importance_df.to_csv("results2/models/random_forest/feature_importance.csv", index=False)
-            print("Feature importance data saved to results2/models/random_forest/feature_importance.csv")
+            importance_df.to_csv("results/models/random_forest/feature_importance.csv", index=False)
+            print("Feature importance data saved to results/models/random_forest/feature_importance.csv")
         except Exception as e:
             print(f"Error creating feature importance visualization: {e}")
+
+    def save(self, path=None):
+        """Save the trained model to the specified path."""
+        # Use standard models directory for consistency with other models
+        if path is None:
+            path = f"models/{self.model_name}_model.pkl"
+            
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        
+        # Call the parent class save method
+        super().save(path)
+        
+        # Also save feature importance if available
+        if hasattr(self, 'feature_importances_') and self.feature_importances_ is not None:
+            import json
+            
+            # Convert numpy array to list for JSON serialization
+            feature_importances_list = self.feature_importances_.tolist()
+            importance_path = path.replace('.pkl', '_importance.json')
+            
+            with open(importance_path, 'w') as f:
+                json.dump(feature_importances_list, f, indent=2)
+            
+            print(f"Feature importance saved to {importance_path}")
+        
+        return self

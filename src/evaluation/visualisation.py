@@ -251,9 +251,9 @@ def plot_correlation_heatmap(data, feature_names, save_path=None):
 
 def plot_all_visualizations(X_train, X_test, y_train, y_test, y_pred, model, feature_names, model_name, results_dir):
     """Generate and save all visualizations for a model."""
-    # Ensure we're using results2 directory not results
+    # Ensure we're using results directory not results
     if results_dir.startswith('results/') or results_dir == 'results':
-        results_dir = 'results2' + results_dir[7:] if results_dir.startswith('results/') else 'results2'
+        results_dir = 'results' + results_dir[7:] if results_dir.startswith('results/') else 'results'
     
     # Create directory for this model's visualizations
     model_viz_dir = os.path.join(results_dir, model_name, 'visualizations')

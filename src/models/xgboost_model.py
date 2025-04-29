@@ -65,10 +65,13 @@ class XGBoostModel(BaseModel):
             # First try with explicit early_stopping_rounds parameter
             print("\nTraining XGBoost model with early stopping...")
             eval_set = [(X_val, y_val)]
+            
+            # Use the correct parameters for scikit-learn XGBoost API
+            # The eval_metric parameter is not directly supported in fit(), use the scoring parameter instead
             self.model.fit(
                 X_train, y_train,
                 eval_set=eval_set,
-                eval_metric='rmse',
+                early_stopping_rounds=50,  # Add early stopping rounds parameter
                 verbose=True
             )
         except Exception as e:
@@ -191,14 +194,14 @@ class XGBoostModel(BaseModel):
         # Visualize optimization history
         try:
             # Create directory for visualizations
-            os.makedirs("results2/optimization", exist_ok=True)
+            os.makedirs("results/optimization", exist_ok=True)
             
             # Plot optimization history
             plt.figure(figsize=(10, 6))
             optuna.visualization.matplotlib.plot_optimization_history(study)
             plt.title('XGBoost Hyperparameter Optimization History')
             plt.tight_layout()
-            plt.savefig("results2/optimization/xgboost_optimization_history.png")
+            plt.savefig("results/optimization/xgboost_optimization_history.png")
             plt.close()
             
             # Plot parameter importances
@@ -206,10 +209,10 @@ class XGBoostModel(BaseModel):
             optuna.visualization.matplotlib.plot_param_importances(study)
             plt.title('XGBoost Hyperparameter Importance')
             plt.tight_layout()
-            plt.savefig("results2/optimization/xgboost_param_importances.png")
+            plt.savefig("results/optimization/xgboost_param_importances.png")
             plt.close()
             
-            print("Optimization visualizations saved to results2/optimization/ directory")
+            print("Optimization visualizations saved to results/optimization/ directory")
         except Exception as e:
             print(f"Error creating optimization visualizations: {e}")
         
@@ -220,7 +223,7 @@ class XGBoostModel(BaseModel):
         """Plot and save learning curves from model training."""
         try:
             # Create directory
-            os.makedirs("results2/models/xgboost", exist_ok=True)
+            os.makedirs("results/models/xgboost", exist_ok=True)
             
             # Plot learning curves
             plt.figure(figsize=(10, 6))
@@ -232,10 +235,10 @@ class XGBoostModel(BaseModel):
             plt.legend()
             plt.grid(True, alpha=0.3)
             plt.tight_layout()
-            plt.savefig("results2/models/xgboost/learning_curves.png")
+            plt.savefig("results/models/xgboost/learning_curves.png")
             plt.close()
             
-            print("Learning curves saved to results2/models/xgboost/learning_curves.png")
+            print("Learning curves saved to results/models/xgboost/learning_curves.png")
         except Exception as e:
             print(f"Error creating learning curves: {e}")
     
@@ -247,40 +250,46 @@ class XGBoostModel(BaseModel):
         
         try:
             # Create directory
-            os.makedirs("results2/models/xgboost", exist_ok=True)
+            os.makedirs("results/models/xgboost", exist_ok=True)
             
-            # Get feature importance
-            importance_dict = self.model.get_score(importance_type='gain')
-            features = list(importance_dict.keys())
-            importance = list(importance_dict.values())
+            # Get feature importance - use feature_importances_ instead of get_score()
+            importance = self.model.feature_importances_
             
-            # Sort by importance
+            # Get feature names if available, otherwise use indices
+            if hasattr(self.model, 'feature_names_in_'):
+                features = self.model.feature_names_in_
+            else:
+                features = [f'f{i}' for i in range(len(importance))]
+            
+            # Create sorted indices
             sorted_idx = np.argsort(importance)
-            features = [features[i] for i in sorted_idx]
-            importance = [importance[i] for i in sorted_idx]
             
             # Plot importance (only top 20 if there are many features)
             plt.figure(figsize=(12, 10))
             if len(features) > 20:
-                plt.barh(range(20), importance[-20:])
-                plt.yticks(range(20), features[-20:])
-                plt.title('Top 20 Feature Importance (Gain)')
+                plt.barh(range(20), importance[sorted_idx[-20:]])
+                plt.yticks(range(20), [features[i] for i in sorted_idx[-20:]])
+                plt.title('Top 20 Feature Importance')
             else:
-                plt.barh(range(len(features)), importance)
-                plt.yticks(range(len(features)), features)
-                plt.title('Feature Importance (Gain)')
+                plt.barh(range(len(features)), importance[sorted_idx])
+                plt.yticks(range(len(features)), [features[i] for i in sorted_idx])
+                plt.title('Feature Importance')
             
-            plt.xlabel('Gain')
+            plt.xlabel('Importance')
             plt.tight_layout()
-            plt.savefig("results2/models/xgboost/feature_importance.png")
+            plt.savefig("results/models/xgboost/feature_importance.png")
             plt.close()
             
-            print("Feature importance plot saved to results2/models/xgboost/feature_importance.png")
+            print("Feature importance plot saved to results/models/xgboost/feature_importance.png")
         except Exception as e:
             print(f"Error creating feature importance plot: {e}")
     
     def save(self, path=None):
         """Save the trained model with feature importance information."""
+        # Update default save path to use results folder
+        if path is None:
+            path = f"results/models/{self.model_name}_model.pkl"
+        
         super().save(path)
         
         # Also save feature importance
@@ -290,7 +299,7 @@ class XGBoostModel(BaseModel):
             import numpy as np
             
             if path is None:
-                importance_path = f"models/{self.model_name}_importance.json"
+                importance_path = f"results/models/{self.model_name}_importance.json"
             else:
                 importance_path = path.replace('.pkl', '_importance.json')
             

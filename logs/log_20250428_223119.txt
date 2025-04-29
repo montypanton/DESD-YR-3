@@ -1,0 +1,67 @@
+2025-04-28 22:31:19,568 - settlement_prediction - INFO - Starting the settlement value prediction pipeline
+2025-04-28 22:31:19,575 - settlement_prediction - INFO - Using configuration:
+2025-04-28 22:31:19,576 - settlement_prediction - INFO -   data:
+2025-04-28 22:31:19,576 - settlement_prediction - INFO -     input_path: data/Synthetic_Data_For_Students.csv
+2025-04-28 22:31:19,576 - settlement_prediction - INFO -     target_column: SettlementValue
+2025-04-28 22:31:19,577 - settlement_prediction - INFO -     test_size: 0.2
+2025-04-28 22:31:19,577 - settlement_prediction - INFO -     random_state: 42
+2025-04-28 22:31:19,577 - settlement_prediction - INFO -   models:
+2025-04-28 22:31:19,577 - settlement_prediction - INFO -     mlp: {'hidden_layers': [100, 50], 'max_iter': 1000}
+2025-04-28 22:31:19,578 - settlement_prediction - INFO -     xgboost: {'n_estimators': 200, 'max_depth': 6, 'learning_rate': 0.1}
+2025-04-28 22:31:19,578 - settlement_prediction - INFO -     lightgbm: {'n_estimators': 200, 'max_depth': 6, 'learning_rate': 0.1, 'num_leaves': 31}
+2025-04-28 22:31:19,578 - settlement_prediction - INFO -     random_forest: {'n_estimators': 200, 'max_depth': 10}
+2025-04-28 22:31:19,579 - settlement_prediction - INFO -   paths:
+2025-04-28 22:31:19,579 - settlement_prediction - INFO -     processed_data: data/processed_data
+2025-04-28 22:31:19,579 - settlement_prediction - INFO -     models: models
+2025-04-28 22:31:19,579 - settlement_prediction - INFO -     results: results
+2025-04-28 22:31:19,580 - settlement_prediction - INFO -   tune:
+2025-04-28 22:31:19,580 - settlement_prediction - INFO -     models: ['lightgbm', 'xgboost', 'mlp', 'random_forest']
+2025-04-28 22:31:19,580 - settlement_prediction - INFO -     n_trials: 50
+2025-04-28 22:31:19,580 - settlement_prediction - INFO -   fairness:
+2025-04-28 22:31:19,580 - settlement_prediction - INFO -     sensitive_attributes: ['Gender', 'AccidentType', 'Dominant injury', 'Whiplash', 'Vehicle Type', 'Weather Conditions', 'Injury_Prognosis']
+2025-04-28 22:31:19,581 - settlement_prediction - INFO -   random_forest:
+2025-04-28 22:31:19,581 - settlement_prediction - INFO -     n_estimators: 200
+2025-04-28 22:31:19,581 - settlement_prediction - INFO -     max_depth: 10
+2025-04-28 22:31:19,581 - settlement_prediction - INFO - Running the following steps: preprocess, train_lgbm, train_xgboost, train_mlp, train_rf, tune, ensemble, evaluate, interpret, fairness, uncertainty
+2025-04-28 22:31:19,582 - settlement_prediction - INFO - Step 1: Preprocessing data
+2025-04-28 22:31:26,698 - settlement_prediction - INFO - Preprocessing complete. Training data shape: (3915, 83)
+2025-04-28 22:31:26,703 - settlement_prediction - INFO - Training LightGBM model
+2025-04-28 22:31:27,280 - settlement_prediction - INFO - LightGBM RMSE: 282.9300, R²: 0.8764
+2025-04-28 22:31:27,280 - settlement_prediction - INFO - Training XGBoost model
+2025-04-28 22:31:28,379 - settlement_prediction - INFO - XGBoost RMSE: 292.8301, R²: 0.8676
+2025-04-28 22:31:28,380 - settlement_prediction - INFO - Training MLP model
+2025-04-28 22:31:37,950 - settlement_prediction - INFO - MLP RMSE: 459.5048, R²: 0.6740
+2025-04-28 22:31:37,950 - settlement_prediction - INFO - Training Random Forest model
+2025-04-28 22:31:39,230 - settlement_prediction - INFO - Random Forest RMSE: 307.6844, R²: 0.8538
+2025-04-28 22:31:39,230 - settlement_prediction - INFO - Hyperparameter tuning
+2025-04-28 22:31:39,230 - settlement_prediction - INFO - Tuning XGBoost model
+2025-04-28 22:35:21,577 - settlement_prediction - INFO - Tuned XGBoost RMSE: 276.2906, R²: 0.8821
+2025-04-28 22:35:21,577 - settlement_prediction - INFO - Tuning MLP model
+2025-04-28 23:06:51,459 - settlement_prediction - INFO - Tuned MLP RMSE: 450.1586, R²: 0.6871
+2025-04-28 23:06:51,459 - settlement_prediction - INFO - Tuning Random Forest model
+2025-04-28 23:08:28,303 - settlement_prediction - INFO - Tuned Random Forest RMSE: 276.2584, R²: 0.8822
+2025-04-28 23:08:28,304 - settlement_prediction - INFO - Creating ensemble models
+2025-04-28 23:08:28,304 - settlement_prediction - INFO - Creating weighted ensemble
+2025-04-28 23:08:29,006 - settlement_prediction - INFO - Weighted Ensemble RMSE: 282.9300, R²: 0.8764
+2025-04-28 23:08:29,006 - settlement_prediction - INFO - Creating stacking ensemble
+2025-04-28 23:08:29,779 - settlement_prediction - INFO - Stacking Ensemble RMSE: 277.5009, R²: 0.8811
+2025-04-28 23:08:29,779 - settlement_prediction - INFO - Creating stacking CV ensemble
+2025-04-28 23:08:30,547 - settlement_prediction - INFO - Stacking CV Ensemble RMSE: 277.5009, R²: 0.8811
+2025-04-28 23:08:30,547 - settlement_prediction - INFO - Creating blending ensemble
+2025-04-28 23:08:36,452 - settlement_prediction - INFO - Blending Ensemble RMSE: 347.2347, R²: 0.8138
+2025-04-28 23:08:36,452 - settlement_prediction - INFO - Comprehensive model evaluation
+2025-04-28 23:08:36,463 - settlement_prediction - INFO - Loaded weighted_ensemble model for evaluation
+2025-04-28 23:08:36,472 - settlement_prediction - INFO - Loaded stacking_ensemble model for evaluation
+2025-04-28 23:08:36,481 - settlement_prediction - INFO - Loaded stacking_cv_ensemble model for evaluation
+2025-04-28 23:08:36,492 - settlement_prediction - INFO - Loaded blending_ensemble model for evaluation
+2025-04-28 23:08:36,782 - settlement_prediction - INFO - lightgbm: RMSE=282.9300, MAE=150.2482, R²=0.8764
+2025-04-28 23:08:36,995 - settlement_prediction - INFO - xgboost: RMSE=276.2906, MAE=140.1231, R²=0.8821
+2025-04-28 23:08:37,170 - settlement_prediction - INFO - mlp: RMSE=450.1586, MAE=285.2485, R²=0.6871
+2025-04-28 23:08:37,450 - settlement_prediction - INFO - random_forest: RMSE=276.2584, MAE=147.7073, R²=0.8822
+2025-04-28 23:08:37,451 - settlement_prediction - WARNING - Error evaluating weighted_ensemble: Model not trained. Call train() first.
+2025-04-28 23:08:37,451 - settlement_prediction - WARNING - Error evaluating stacking_ensemble: Model not trained. Call train() first.
+2025-04-28 23:08:37,451 - settlement_prediction - WARNING - Error evaluating stacking_cv_ensemble: Model not trained. Call train() first.
+2025-04-28 23:08:37,451 - settlement_prediction - WARNING - Error evaluating blending_ensemble: Model not trained. Call train() first.
+2025-04-28 23:08:37,455 - settlement_prediction - INFO - Model comparison saved to results\model_comparison.csv
+2025-04-28 23:08:37,920 - settlement_prediction - INFO - Model comparison visualization saved to results\model_comparison.png
+2025-04-28 23:08:37,921 - settlement_prediction - INFO - Model interpretation

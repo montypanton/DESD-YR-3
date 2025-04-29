@@ -29,7 +29,7 @@ DEFAULT_CONFIG = {
     'paths': {
         'processed_data': 'data/processed_data',
         'models': 'models',
-        'results': 'results2'
+        'results': 'results'
     },
     'random_forest': {
         'n_estimators': 200,
