@@ -31,6 +31,17 @@ const UserDropdown = () => {
     if (!user?.first_name && !user?.last_name) return "U";
     return `${user?.first_name?.charAt(0) || ''}${user?.last_name?.charAt(0) || ''}`;
   };
+  
+  // Determine the profile route based on user's role
+  const getProfileRoute = () => {
+    if (user?.role === 'ADMIN' || user?.is_superuser === true) {
+      return '/admin/profile';
+    } else if (user?.role === 'FINANCE') {
+      return '/finance/profile';
+    } else {
+      return '/profile';
+    }
+  };
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -51,7 +62,7 @@ const UserDropdown = () => {
           </div>
           <div className="border-t border-gray-200 dark:border-gray-600">
             <Link 
-              to="/profile" 
+              to={getProfileRoute()} 
               className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => setIsOpen(false)}
             >

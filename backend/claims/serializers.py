@@ -5,7 +5,7 @@ import uuid
 class MLPredictionSerializer(serializers.ModelSerializer):
     class Meta:
         model = MLPrediction
-        fields = ['id', 'settlement_amount', 'confidence_score', 'created_at']
+        fields = ['id', 'settlement_amount', 'confidence_score', 'created_at', 'processing_time']
 
 
 class ClaimSerializer(serializers.ModelSerializer):
@@ -19,10 +19,7 @@ class ClaimSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data['reference_number'] = f"CLM-{uuid.uuid4().hex[:8].upper()}"
-        print("Creating claim with data:", validated_data)
-        instance = super().create(validated_data)
-        print("Created claim:", instance.id)
-        return instance
+        return super().create(validated_data)
 
 
 class ClaimDashboardSerializer(serializers.ModelSerializer):

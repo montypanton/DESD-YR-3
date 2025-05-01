@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
@@ -15,7 +15,16 @@ const LoginSchema = Yup.object().shape({
 const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [apiError, setApiError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
+
+  // Check for messages passed from other pages (like registration)
+  useEffect(() => {
+    if (location.state?.message) {
+      setSuccessMessage(location.state.message);
+    }
+  }, [location]);
 
   const handleSubmit = async (values, { setSubmitting }) => {
     try {
@@ -26,7 +35,6 @@ const Login = () => {
       // Admin users get a direct, forced navigation
       if (userData.user.role === 'ADMIN' || userData.user.is_superuser === true) {
         console.log('Admin user detected - forcing hard redirect');
-        // Force a complete reload to the admin page
         window.location.href = '/admin';
         return; // Stop execution here for admin users
       }
@@ -34,9 +42,15 @@ const Login = () => {
       // Finance users also get a direct, forced navigation
       if (userData.user.role === 'FINANCE') {
         console.log('Finance user detected - forcing hard redirect');
-        // Force a complete reload to the finance dashboard
         window.location.href = '/finance/dashboard';
         return; // Stop execution here for finance users
+      }
+
+      // ML Engineers get a direct, forced navigation
+      if (userData.user.role === 'ML_ENGINEER') {
+        console.log('ML Engineer detected - forcing hard redirect');
+        window.location.href = '/ml-engineer/dashboard';
+        return; // Stop execution here for ML Engineers
       }
       
       // Regular users use React Router navigation
@@ -96,6 +110,21 @@ const Login = () => {
         >
           {({ isSubmitting, errors, touched }) => (
             <Form className="mt-8 space-y-6">
+              {successMessage && (
+                <div className="bg-green-50 dark:bg-green-900 border-l-4 border-green-500 p-4 mb-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-green-700 dark:text-green-200">{successMessage}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {apiError && (
                 <div className="bg-red-50 dark:bg-red-900 border-l-4 border-red-500 p-4 mb-4">
                   <div className="flex">

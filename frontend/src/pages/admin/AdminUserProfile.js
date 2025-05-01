@@ -489,6 +489,19 @@ const AdminUserProfile = () => {
                       }`}>
                         {user?.is_active ? 'Active' : 'Inactive'}
                       </span>
+                      
+                      {/* Approval status */}
+                      {user?.approval_status && (
+                        <span className={`ml-2 px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          user.approval_status === 'APPROVED' 
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                            : user.approval_status === 'PENDING'
+                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                        }`}>
+                          {user.approval_status}
+                        </span>
+                      )}
                     </dd>
                   </div>
                   
@@ -583,6 +596,59 @@ const AdminUserProfile = () => {
               </h2>
               
               <div className="space-y-4">
+                {/* Approval Actions - Only show for pending users */}
+                {user?.approval_status === 'PENDING' && (
+                  <div className="space-y-4 mb-6">
+                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Approval Actions</h3>
+                    
+                    <button
+                      onClick={async () => {
+                        try {
+                          await apiClient.post(`/account/users/${userId}/approve_user/`);
+                          setUser({
+                            ...user,
+                            approval_status: 'APPROVED'
+                          });
+                          setSuccessMessage('User approved successfully!');
+                          setTimeout(() => setSuccessMessage(null), 3000);
+                        } catch (error) {
+                          console.error('Error approving user:', error);
+                          setError('Failed to approve user. Please try again.');
+                        }
+                      }}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium
+                        text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900 
+                        focus:ring-green-500 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 
+                        focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                    >
+                      Approve User
+                    </button>
+                    
+                    <button
+                      onClick={async () => {
+                        try {
+                          await apiClient.post(`/account/users/${userId}/reject_user/`);
+                          setUser({
+                            ...user,
+                            approval_status: 'REJECTED'
+                          });
+                          setSuccessMessage('User rejected successfully!');
+                          setTimeout(() => setSuccessMessage(null), 3000);
+                        } catch (error) {
+                          console.error('Error rejecting user:', error);
+                          setError('Failed to reject user. Please try again.');
+                        }
+                      }}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium
+                        text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900 
+                        focus:ring-red-500 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 
+                        focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                    >
+                      Reject User
+                    </button>
+                  </div>
+                )}
+
                 <button
                   onClick={async () => {
                     try {

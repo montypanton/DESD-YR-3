@@ -38,10 +38,17 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('FINANCE', 'Finance'),
     )
     
+    APPROVAL_STATUS_CHOICES = (
+        ('APPROVED', 'Approved'),
+        ('PENDING', 'Pending'),
+        ('REJECTED', 'Rejected'),
+    )
+    
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='END_USER')
+    approval_status = models.CharField(max_length=20, choices=APPROVAL_STATUS_CHOICES, default='APPROVED')
     
     profile_picture = models.ImageField(upload_to='profile_pictures/', blank=True, null=True)
     phone_number = models.CharField(max_length=15, blank=True)
@@ -78,6 +85,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_finance(self):
         return self.role == 'FINANCE'
+    
+    @property
+    def needs_approval(self):
+        return self.role in ['ML_ENGINEER', 'FINANCE'] and self.approval_status == 'PENDING'
 
 
 class ActivityLog(models.Model):

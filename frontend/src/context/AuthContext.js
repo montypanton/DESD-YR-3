@@ -31,11 +31,19 @@ const authService = {
   },
   
   login: async (credentials) => {
-    return await apiClient.post('/account/login/', credentials);
+    // Create a clean instance without authorization headers for login
+    const instance = axios.create({
+      baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
+    });
+    return await instance.post('/account/login/', credentials);
   },
   
   register: async (userData) => {
-    return await apiClient.post('/account/register/', userData);
+    // Create a clean instance without authorization headers for registration
+    const instance = axios.create({
+      baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
+    });
+    return await instance.post('/account/register/', userData);
   },
   
   logout: async () => {

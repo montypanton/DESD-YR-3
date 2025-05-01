@@ -37,9 +37,22 @@ const Register = () => {
     try {
       setApiError(null);
       setFieldErrors({});
-      console.log('Registering with data:', values);
-      await register(values);
-      navigate('/login', { state: { message: 'Registration successful! Please log in.' } });
+      
+      // Use the role selected by the user
+      const userData = {
+        ...values
+      };
+      
+      console.log('Registering with data:', userData);
+      await register(userData);
+      
+      // Customize the message based on the role
+      let message = 'Registration successful! Please log in.';
+      if (values.role === 'ML_ENGINEER' || values.role === 'FINANCE') {
+        message = 'Registration submitted! Your account requires approval by an administrator before you can log in.';
+      }
+      
+      navigate('/login', { state: { message } });
     } catch (error) {
       console.error('Registration error:', error);
       
@@ -106,9 +119,8 @@ const Register = () => {
             password2: '', 
             first_name: '', 
             last_name: '',
-            role: 'END_USER',
-            department: '',
-            phone_number: ''
+            phone_number: '',
+            role: 'END_USER'
           }}
           validationSchema={RegisterSchema}
           onSubmit={handleSubmit}
@@ -204,6 +216,19 @@ const Register = () => {
                   </div>
                   
                   <div>
+                    <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Phone (Optional)
+                    </label>
+                    <Field
+                      id="phone_number"
+                      name="phone_number"
+                      type="tel"
+                      autoComplete="tel"
+                      className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                    />
+                  </div>
+                  
+                  <div>
                     <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Role
                     </label>
@@ -211,9 +236,7 @@ const Register = () => {
                       as="select"
                       id="role"
                       name="role"
-                      className={`appearance-none relative block w-full px-3 py-2 border ${
-                        errors.role && touched.role ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
-                      } placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm`}
+                      className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                     >
                       <option value="END_USER">End User</option>
                       <option value="ML_ENGINEER">ML Engineer</option>
@@ -227,33 +250,9 @@ const Register = () => {
                     {fieldErrors.role && (
                       <div className="text-red-500 text-xs mt-1">{fieldErrors.role}</div>
                     )}
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="department" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Department (Optional)
-                      </label>
-                      <Field
-                        id="department"
-                        name="department"
-                        type="text"
-                        className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Phone (Optional)
-                      </label>
-                      <Field
-                        id="phone_number"
-                        name="phone_number"
-                        type="tel"
-                        autoComplete="tel"
-                        className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                      />
-                    </div>
+                    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                      ML Engineer and Finance roles require approval from an administrator before you can log in.
+                    </p>
                   </div>
                   
                   <div>

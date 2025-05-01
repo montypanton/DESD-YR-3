@@ -3,7 +3,10 @@
 from rest_framework import serializers
 from .models import MLModel, Prediction
 from account.serializers import UserSerializer
+from .ml_processor import MLProcessor
+import logging
 
+logger = logging.getLogger('ml_interface')
 
 class MLModelSerializer(serializers.ModelSerializer):
     created_by = UserSerializer(read_only=True)
@@ -36,15 +39,29 @@ class PredictionSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
-        validated_data['status'] = 'PENDING'
+        validated_data['status'] = 'PROCESSING'
         
-        # this needs to trigger a background task 
-        # to process the model prediction, currently it mocks it (ml not ready yet)
-        validated_data['status'] = 'COMPLETED'
-        validated_data['output_data'] = {
-            'result': 'This is a mock prediction result',
-            'confidence': 0.85
-        }
-        validated_data['processing_time'] = 1.2
+        try:
+            # Initialize ML processor
+            processor = MLProcessor()
+            model = validated_data['model']
+            
+            # Load the model
+            processor.load_model(model.model_file.path)
+            
+            # Make prediction
+            prediction_result = processor.predict(validated_data['input_data'])
+            
+            # Update validated data with prediction results
+            validated_data['status'] = 'COMPLETED'
+            validated_data['output_data'] = prediction_result
+            validated_data['processing_time'] = prediction_result['processing_time']
+            
+        except Exception as e:
+            logger.error(f"Prediction failed: {str(e)}")
+            validated_data['status'] = 'FAILED'
+            validated_data['error_message'] = str(e)
+            validated_data['output_data'] = {}
+            validated_data['processing_time'] = 0
         
         return super().create(validated_data)

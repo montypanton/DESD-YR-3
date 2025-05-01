@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Button, Spin, message, Tag, Breadcrumb } from 'antd';
 import { 
@@ -11,14 +11,16 @@ import {
   FileTextOutlined
 } from '@ant-design/icons';
 import { apiClient } from '../../services/authService';
-import { ThemeContext } from '../../context/ThemeContext';
+import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 
 const ClaimDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [claim, setClaim] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { darkMode } = useContext(ThemeContext);
+  const { darkMode } = useTheme();
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchClaimDetails = async () => {

@@ -33,15 +33,20 @@ const UserManagement = () => {
   const [fieldErrors, setFieldErrors] = useState({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  const [activeTab, setActiveTab] = useState('all'); // 'all', 'pending'
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/account/users/');
+      
+      // If on pending tab, fetch only pending approval users
+      let response;
+      if (activeTab === 'pending') {
+        response = await apiClient.get('/account/users/pending_approval/');
+      } else {
+        response = await apiClient.get('/account/users/');
+      }
+      
       setUsers(response.data.results || response.data);
       setError(null);
     } catch (error) {
@@ -51,6 +56,11 @@ const UserManagement = () => {
       setLoading(false);
     }
   };
+  
+  // Update to refetch when tab changes
+  useEffect(() => {
+    fetchUsers();
+  }, [activeTab]);
 
   const handleUserSubmit = async (values, { setSubmitting, resetForm }) => {
     try {
@@ -144,6 +154,38 @@ const UserManagement = () => {
   const cancelDelete = () => {
     setUserToDelete(null);
     setShowDeleteConfirm(false);
+  };
+
+  // Handle approving a user
+  const handleApproveUser = async (userId) => {
+    try {
+      await apiClient.post(`/account/users/${userId}/approve_user/`);
+      
+      setSuccessMessage('User approved successfully!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      
+      // Refresh the list
+      fetchUsers();
+    } catch (error) {
+      console.error('Error approving user:', error);
+      setError(error.response?.data?.error || 'Failed to approve user. Please try again.');
+    }
+  };
+  
+  // Handle rejecting a user
+  const handleRejectUser = async (userId) => {
+    try {
+      await apiClient.post(`/account/users/${userId}/reject_user/`);
+      
+      setSuccessMessage('User registration rejected.');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      
+      // Refresh the list
+      fetchUsers();
+    } catch (error) {
+      console.error('Error rejecting user:', error);
+      setError(error.response?.data?.error || 'Failed to reject user. Please try again.');
+    }
   };
 
   if (loading && users.length === 0) {
@@ -444,6 +486,32 @@ const UserManagement = () => {
         </div>
       )}
 
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('all')}
+            className={`py-4 px-1 ${
+              activeTab === 'all'
+                ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400 border-b-2 font-medium'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 font-medium'
+            }`}
+          >
+            All Users
+          </button>
+          <button
+            onClick={() => setActiveTab('pending')}
+            className={`py-4 px-1 ${
+              activeTab === 'pending'
+                ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400 border-b-2 font-medium'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 font-medium'
+            }`}
+          >
+            Pending Approval
+          </button>
+        </nav>
+      </div>
+
       {/* Users List */}
       <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden transition-colors duration-200">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -452,7 +520,6 @@ const UserManagement = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200">Name</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200">Email</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200">Role</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200">Department</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider transition-colors duration-200">Actions</th>
             </tr>
@@ -470,10 +537,8 @@ const UserManagement = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 transition-colors duration-200">
                     {user.role}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 transition-colors duration-200">
-                    {user.department || '-'}
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap transition-colors duration-200">
+                    {/* Active/Inactive status */}
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       user.is_active 
                         ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
@@ -481,6 +546,19 @@ const UserManagement = () => {
                     }`}>
                       {user.is_active ? 'Active' : 'Inactive'}
                     </span>
+                    
+                    {/* Approval status tag */}
+                    {user.approval_status && (
+                      <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        user.approval_status === 'APPROVED' 
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                          : user.approval_status === 'PENDING'
+                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                            : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                      }`}>
+                        {user.approval_status}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium transition-colors duration-200">
                     <Link
@@ -505,12 +583,28 @@ const UserManagement = () => {
                     >
                       Delete
                     </button>
+                    {user.approval_status === 'PENDING' && (
+                      <>
+                        <button
+                          onClick={() => handleApproveUser(user.id)}
+                          className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 ml-3"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleRejectUser(user.id)}
+                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 ml-3"
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="6" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center transition-colors duration-200">
+                <td colSpan="5" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center transition-colors duration-200">
                   No users found.
                 </td>
               </tr>

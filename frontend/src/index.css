@@ -50,6 +50,17 @@ button:focus {
   outline: none;
 }
 
+/* Dark mode breadcrumbs fixes */
+.dark .ant-breadcrumb a,
+.dark .ant-breadcrumb-separator,
+.dark .ant-breadcrumb span {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.dark .ant-breadcrumb a:hover {
+  color: white !important;
+}
+
 /* Ensure that content height fills viewport */
 html, body, #root {
   height: 100%;

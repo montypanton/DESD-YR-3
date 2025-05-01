@@ -200,6 +200,63 @@ class UserViewSet(viewsets.ModelViewSet):
                 {"error": "An error occurred while deleting the user."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+    
+    @action(detail=True, methods=['post'])
+    def approve_user(self, request, pk=None):
+        user = self.get_object()
+        
+        # Check if user is pending approval
+        if user.approval_status != 'PENDING':
+            return Response(
+                {"error": "This user is not pending approval."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        user.approval_status = 'APPROVED'
+        user.save()
+        
+        # Create activity log for the approval
+        ActivityLog.objects.create(
+            user=request.user,
+            action="approved",
+            resource_type="user",
+            resource_id=user.id,
+            additional_data={"approved_user": user.email, "approved_by": request.user.email}
+        )
+        
+        return Response({"status": "User approved successfully"}, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post'])
+    def reject_user(self, request, pk=None):
+        user = self.get_object()
+        
+        # Check if user is pending approval
+        if user.approval_status != 'PENDING':
+            return Response(
+                {"error": "This user is not pending approval."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        user.approval_status = 'REJECTED'
+        user.save()
+        
+        # Create activity log for the rejection
+        ActivityLog.objects.create(
+            user=request.user,
+            action="rejected",
+            resource_type="user",
+            resource_id=user.id,
+            additional_data={"rejected_user": user.email, "rejected_by": request.user.email}
+        )
+        
+        return Response({"status": "User rejected successfully"}, status=status.HTTP_200_OK)
+        
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsAdminUser])
+    def pending_approval(self, request):
+        """Returns a list of users pending approval"""
+        queryset = User.objects.filter(approval_status='PENDING')
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):

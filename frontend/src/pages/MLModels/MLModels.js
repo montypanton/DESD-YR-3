@@ -5,12 +5,7 @@ import { apiClient } from '../../services/authService';
 
 const ModelSchema = Yup.object().shape({
   name: Yup.string().required('Model name is required'),
-  version: Yup.string().required('Version is required'),
-  description: Yup.string(),
-  model_type: Yup.string().required('Model type is required'),
   model_file: Yup.mixed().required('Model file is required'),
-  input_format: Yup.object().required('Input format is required'),
-  output_format: Yup.object().required('Output format is required'),
 });
 
 const MLModels = () => {
@@ -19,6 +14,11 @@ const MLModels = () => {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
+
+  const initialFormState = {
+    name: '',
+    model_file: null,
+  };
 
   useEffect(() => {
     fetchModels();
@@ -30,9 +30,9 @@ const MLModels = () => {
       const response = await apiClient.get('/ml/models/');
       setModels(response.data.results || response.data);
       setError(null);
-    } catch (error) {
-      console.error('Error fetching models:', error);
-      setError('Failed to load ML models. Please try again later.');
+    } catch (err) {
+      console.error('Error fetching models:', err);
+      setError('Failed to load models. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -40,28 +40,23 @@ const MLModels = () => {
 
   const handleModelSubmit = async (values, { setSubmitting, resetForm }) => {
     try {
-      // Create FormData object for file upload
       const formData = new FormData();
       formData.append('name', values.name);
-      formData.append('version', values.version);
-      formData.append('description', values.description);
-      formData.append('model_type', values.model_type);
       formData.append('model_file', values.model_file);
-      formData.append('input_format', JSON.stringify(values.input_format));
-      formData.append('output_format', JSON.stringify(values.output_format));
+      formData.append('version', '1.0');
+      formData.append('model_type', 'classifier');
+      formData.append('input_format', JSON.stringify({}));
+      formData.append('output_format', JSON.stringify({}));
 
-      // Set content type to multipart/form-data and submit
-      const response = await apiClient.post('/ml/models/', formData, {
+      await apiClient.post('/ml/models/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
 
-      // Handle success
       setSuccessMessage('Model uploaded successfully!');
       setTimeout(() => setSuccessMessage(null), 3000);
-      
-      // Reset form and refresh model list
+
       resetForm();
       setShowForm(false);
       fetchModels();
@@ -78,93 +73,90 @@ const MLModels = () => {
       const action = isActive ? 'deactivate' : 'activate';
       await apiClient.post(`/ml/models/${modelId}/${action}/`);
       fetchModels();
-      
-      // Show success message after toggling status
-      setSuccessMessage(`Model ${action}d successfully!`);
+      setSuccessMessage(`Model ${isActive ? 'deactivated' : 'activated'} successfully!`);
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (error) {
-      console.error(`Error ${isActive ? 'deactivating' : 'activating'} model:`, error);
-      setError(`Failed to ${isActive ? 'deactivate' : 'activate'} model. Please try again.`);
+      console.error('Error toggling model status:', error);
+      setError('Failed to update model status. Please try again.');
+    }
+  };
+
+  const deleteModel = async (modelId) => {
+    if (window.confirm('Are you sure you want to delete this model? This action cannot be undone.')) {
+      try {
+        await apiClient.delete(`/ml/models/${modelId}/`);
+        fetchModels();
+        setSuccessMessage('Model deleted successfully!');
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } catch (error) {
+        console.error('Error deleting model:', error);
+        setError('Failed to delete model. Please try again.');
+      }
     }
   };
 
   if (loading && models.length === 0) {
     return (
-      <div className="page-container flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
   return (
-    <div className="page-container">
-      <div className="mb-6 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">ML Models</h1>
-          <p className="text-gray-600">Manage machine learning models</p>
-        </div>
-        
-        <button 
-          onClick={() => setShowForm(!showForm)} 
-          className="btn btn-primary"
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Model Management</h1>
+        <button
+          onClick={() => setShowForm(true)}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          {showForm ? 'Cancel' : 'Upload New Model'}
+          Upload New Model
         </button>
       </div>
 
       {error && (
-        <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
+        <div className="mb-4 bg-red-50 dark:bg-red-900 border-l-4 border-red-500 p-4">
           <div className="flex">
             <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
               </svg>
             </div>
             <div className="ml-3">
-              <p className="text-sm text-red-700">{error}</p>
+              <p className="text-sm text-red-700 dark:text-red-200">{error}</p>
             </div>
           </div>
         </div>
       )}
 
       {successMessage && (
-        <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
+        <div className="mb-4 bg-green-50 dark:bg-green-900 border-l-4 border-green-500 p-4">
           <div className="flex">
             <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
             </div>
             <div className="ml-3">
-              <p className="text-sm text-green-700">{successMessage}</p>
+              <p className="text-sm text-green-700 dark:text-green-200">{successMessage}</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Upload Model Form */}
       {showForm && (
-        <div className="bg-white shadow-md rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Upload New Model</h2>
-          
-          <Formik
-            initialValues={{
-              name: '',
-              version: '',
-              description: '',
-              model_type: '',
-              model_file: null,
-              input_format: { example: 'input format' },
-              output_format: { example: 'output format' },
-            }}
-            validationSchema={ModelSchema}
-            onSubmit={handleModelSubmit}
-          >
-            {({ isSubmitting, setFieldValue, errors, touched }) => (
-              <Form>
-                <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-                  <div className="sm:col-span-3">
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+        <div className="mb-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <Formik
+              initialValues={initialFormState}
+              validationSchema={ModelSchema}
+              onSubmit={handleModelSubmit}
+            >
+              {({ errors, touched, setFieldValue }) => (
+                <Form className="space-y-6">
+                  <div>
+                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Model Name
                     </label>
                     <div className="mt-1">
@@ -172,198 +164,118 @@ const MLModels = () => {
                         type="text"
                         name="name"
                         id="name"
-                        className={`form-input ${errors.name && touched.name ? 'border-red-300' : ''}`}
+                        className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
                       />
                       <ErrorMessage name="name" component="div" className="mt-1 text-sm text-red-600" />
                     </div>
                   </div>
 
-                  <div className="sm:col-span-3">
-                    <label htmlFor="version" className="block text-sm font-medium text-gray-700">
-                      Version
-                    </label>
-                    <div className="mt-1">
-                      <Field
-                        type="text"
-                        name="version"
-                        id="version"
-                        className={`form-input ${errors.version && touched.version ? 'border-red-300' : ''}`}
-                      />
-                      <ErrorMessage name="version" component="div" className="mt-1 text-sm text-red-600" />
-                    </div>
-                  </div>
-
-                  <div className="sm:col-span-6">
-                    <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                      Description
-                    </label>
-                    <div className="mt-1">
-                      <Field
-                        as="textarea"
-                        name="description"
-                        id="description"
-                        rows="3"
-                        className="form-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="sm:col-span-3">
-                    <label htmlFor="model_type" className="block text-sm font-medium text-gray-700">
-                      Model Type
-                    </label>
-                    <div className="mt-1">
-                      <Field
-                        type="text"
-                        name="model_type"
-                        id="model_type"
-                        className={`form-input ${errors.model_type && touched.model_type ? 'border-red-300' : ''}`}
-                      />
-                      <ErrorMessage name="model_type" component="div" className="mt-1 text-sm text-red-600" />
-                    </div>
-                  </div>
-
-                  <div className="sm:col-span-3">
-                    <label htmlFor="model_file" className="block text-sm font-medium text-gray-700">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Model File
                     </label>
                     <div className="mt-1">
                       <input
                         type="file"
-                        id="model_file"
-                        name="model_file"
-                        className={`form-input ${errors.model_file && touched.model_file ? 'border-red-300' : ''}`}
                         onChange={(event) => {
                           setFieldValue("model_file", event.currentTarget.files[0]);
                         }}
+                        className="block w-full text-sm text-gray-500
+                          file:mr-4 file:py-2 file:px-4
+                          file:rounded-md file:border-0
+                          file:text-sm file:font-semibold
+                          file:bg-indigo-50 file:text-indigo-700
+                          hover:file:bg-indigo-100"
+                        accept=".h5,.pkl,.pt,.onnx,.pb"
                       />
-                      <ErrorMessage name="model_file" component="div" className="mt-1 text-sm text-red-600" />
+                      <p className="mt-2 text-sm text-gray-500">
+                        Supported formats: .h5, .pkl, .pt, .onnx, .pb
+                      </p>
                     </div>
                   </div>
 
-                  <div className="sm:col-span-3">
-                    <label htmlFor="input_format" className="block text-sm font-medium text-gray-700">
-                      Input Format (JSON)
-                    </label>
-                    <div className="mt-1">
-                      <Field
-                        as="textarea"
-                        name="input_format"
-                        id="input_format"
-                        rows="3"
-                        className={`form-input ${errors.input_format && touched.input_format ? 'border-red-300' : ''}`}
-                        onChange={(e) => {
-                          try {
-                            const parsed = JSON.parse(e.target.value);
-                            setFieldValue("input_format", parsed);
-                          } catch (error) {
-                            // Let Formik validation handle the error
-                            setFieldValue("input_format", e.target.value);
-                          }
-                        }}
-                        defaultValue={JSON.stringify({ example: "value" }, null, 2)}
-                      />
-                      <ErrorMessage name="input_format" component="div" className="mt-1 text-sm text-red-600" />
+                  <div className="pt-5">
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setShowForm(false)}
+                        className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        Upload Model
+                      </button>
                     </div>
                   </div>
-
-                  <div className="sm:col-span-3">
-                    <label htmlFor="output_format" className="block text-sm font-medium text-gray-700">
-                      Output Format (JSON)
-                    </label>
-                    <div className="mt-1">
-                      <Field
-                        as="textarea"
-                        name="output_format"
-                        id="output_format"
-                        rows="3"
-                        className={`form-input ${errors.output_format && touched.output_format ? 'border-red-300' : ''}`}
-                        onChange={(e) => {
-                          try {
-                            const parsed = JSON.parse(e.target.value);
-                            setFieldValue("output_format", parsed);
-                          } catch (error) {
-                            // Let Formik validation handle the error
-                            setFieldValue("output_format", e.target.value);
-                          }
-                        }}
-                        defaultValue={JSON.stringify({ example: "value" }, null, 2)}
-                      />
-                      <ErrorMessage name="output_format" component="div" className="mt-1 text-sm text-red-600" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="btn btn-primary"
-                  >
-                    {isSubmitting ? 'Uploading...' : 'Upload Model'}
-                  </button>
-                </div>
-              </Form>
-            )}
-          </Formik>
+                </Form>
+              )}
+            </Formik>
+          </div>
         </div>
       )}
 
-      {/* Models List */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Version</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Name
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Upload Date
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Status
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {models.length > 0 ? (
-              models.map((model) => (
-                <tr key={model.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {model.name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {model.version}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {model.model_type}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {model.created_by?.email || 'Unknown'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      model.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {model.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {models.map((model) => (
+              <tr key={model.id}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                  {model.name}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  {new Date(model.created_at).toLocaleDateString()}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                    model.is_active
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                  }`}>
+                    {model.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <div className="flex space-x-2">
                     <button
                       onClick={() => toggleModelStatus(model.id, model.is_active)}
-                      className={`text-sm mr-3 ${
-                        model.is_active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'
+                      className={`inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md ${
+                        model.is_active
+                          ? 'text-red-700 bg-red-100 hover:bg-red-200 dark:bg-red-900 dark:text-red-200'
+                          : 'text-green-700 bg-green-100 hover:bg-green-200 dark:bg-green-900 dark:text-green-200'
                       }`}
                     >
                       {model.is_active ? 'Deactivate' : 'Activate'}
                     </button>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="6" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                  No models found. Upload your first model!
+                    <button
+                      onClick={() => deleteModel(model.id)}
+                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
-            )}
+            ))}
           </tbody>
         </table>
       </div>

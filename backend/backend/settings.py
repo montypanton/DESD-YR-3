@@ -28,6 +28,8 @@ INSTALLED_APPS = [
     # third-party apps
     'rest_framework',
     'corsheaders',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     
     # local apps
     'core',
@@ -122,6 +124,10 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# Ensure model files are copied to media directory
+if not os.path.exists(os.path.join(MEDIA_ROOT, 'ml_models')):
+    os.makedirs(os.path.join(MEDIA_ROOT, 'ml_models'), exist_ok=True)
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
@@ -168,6 +174,10 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+# ML Model Settings
+ML_MODELS_DIR = os.path.join(BASE_DIR.parent, 'DESD-YR-3', 'models')
+DEFAULT_MODEL_PATH = os.path.join(ML_MODELS_DIR, 'random_forest_model.pkl')
+
 # log-in configuration
 LOGGING = {
     'version': 1,
@@ -177,6 +187,10 @@ LOGGING = {
             'format': '{levelname} {asctime} {module} {message}',
             'style': '{',
         },
+        'ml_verbose': {
+            'format': '[ML] {levelname} {asctime} {message}',
+            'style': '{',
+        },
     },
     'handlers': {
         'file': {
@@ -184,6 +198,12 @@ LOGGING = {
             'class': 'logging.FileHandler',
             'filename': os.path.join(BASE_DIR, 'logs/django.log'),
             'formatter': 'verbose',
+        },
+        'ml_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/ml.log'),
+            'formatter': 'ml_verbose',
         },
     },
     'loggers': {
@@ -195,6 +215,11 @@ LOGGING = {
         'user_activity': {
             'handlers': ['file'],
             'level': 'INFO',
+            'propagate': False,
+        },
+        'ml_processor': {
+            'handlers': ['ml_file', 'file'],
+            'level': 'DEBUG',
             'propagate': False,
         },
     },

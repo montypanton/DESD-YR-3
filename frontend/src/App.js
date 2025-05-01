@@ -7,6 +7,7 @@ import Layout from './components/Layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import FinanceRoute from './components/FinanceRoute';
+import MLEngineerRoute from './components/MLEngineerRoute';
 
 // Pages
 import Login from './pages/auth/Login';
@@ -16,6 +17,8 @@ import Profile from './pages/profile/Profile';
 import MLModels from './pages/MLModels/MLModels';
 import PredictionHistory from './pages/MLModels/PredictionHistory';
 import SubmitClaim from './pages/MLModels/SubmitClaim';
+import MLEngineerDashboard from './pages/MLModels/MLEngineerDashboard';
+import MLPerformance from './pages/MLModels/MLPerformance';
 import FinanceDashboard from './pages/finance/FinanceDashboard';
 import FinanceClaims from './pages/finance/FinanceClaims';
 import FinanceReports from './pages/finance/FinanceReports';
@@ -33,6 +36,10 @@ import NotFound from './pages/NotFound';
 import ClaimsList from './components/Claims/ClaimsList';
 import ClaimForm from './components/Claims/ClaimForm';
 import ClaimDetail from './components/Claims/ClaimDetail';
+
+// Import the new components
+// import UserInteractions from './pages/MLModels/UserInteractions';
+import UserInteractionData from './pages/MLModels/UserInteractionData';
 
 const AuthLayout = ({ children }) => (
   <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
@@ -53,6 +60,8 @@ function App() {
                 <Navigate to="/admin" /> : 
                 user.role === 'FINANCE' ?
                 <Navigate to="/finance/dashboard" /> :
+                user.role === 'ML_ENGINEER' ?
+                <Navigate to="/ml-engineer/dashboard" /> :
                 <Navigate to="/dashboard" />
             )}
           </AuthLayout>
@@ -65,6 +74,8 @@ function App() {
                 <Navigate to="/admin" /> : 
                 user.role === 'FINANCE' ?
                 <Navigate to="/finance/dashboard" /> :
+                user.role === 'ML_ENGINEER' ?
+                <Navigate to="/ml-engineer/dashboard" /> :
                 <Navigate to="/dashboard" />
             )}
           </AuthLayout>
@@ -77,13 +88,30 @@ function App() {
                 <Navigate to="/admin" replace /> : 
                 user.role === 'FINANCE' ?
                 <Navigate to="/finance/dashboard" replace /> :
+                user.role === 'ML_ENGINEER' ?
+                <Navigate to="/ml-engineer/dashboard" replace /> :
                 <Navigate to="/dashboard" replace />
               ) : 
               <Navigate to="/login" replace />
           } />
           
           <Route path="dashboard" element={<Dashboard />} />
-          <Route path="profile" element={<Profile />} />
+          
+          {/* Generic profile route - redirects based on user role */}
+          <Route path="profile" element={
+            user?.role === 'ADMIN' || user?.is_superuser === true ? 
+              <Navigate to="/admin/profile" replace /> : 
+              user?.role === 'FINANCE' ?
+              <Navigate to="/finance/profile" replace /> :
+              user?.role === 'ML_ENGINEER' ?
+              <Navigate to="/ml-engineer/profile" replace /> :
+              <Profile />
+          } />
+          
+          {/* Claims routes - now moved inside the Layout wrapper */}
+          <Route path="claims" element={<ClaimsList />} />
+          <Route path="claims/new" element={<ClaimForm />} />
+          <Route path="claims/:id" element={<ClaimDetail />} />
           
           {/* ML Engineer & Admin Routes */}
           <Route 
@@ -92,6 +120,43 @@ function App() {
               <ProtectedRoute roles={['ADMIN', 'ML_ENGINEER']}>
                 <MLModels />
               </ProtectedRoute>
+            } 
+          />
+          
+          {/* ML Engineer Routes */}
+          <Route 
+            path="ml-engineer/dashboard" 
+            element={
+              <MLEngineerRoute>
+                <MLEngineerDashboard />
+              </MLEngineerRoute>
+            } 
+          />
+          
+          <Route 
+            path="ml-engineer/model-management" 
+            element={
+              <MLEngineerRoute>
+                <MLModels />
+              </MLEngineerRoute>
+            } 
+          />
+
+          <Route 
+            path="ml-engineer/user-interactions" 
+            element={
+              <MLEngineerRoute>
+                <UserInteractionData />
+              </MLEngineerRoute>
+            } 
+          />
+
+          <Route 
+            path="ml-engineer/model-performance" 
+            element={
+              <MLEngineerRoute>
+                <MLPerformance />
+              </MLEngineerRoute>
             } 
           />
           
@@ -146,6 +211,16 @@ function App() {
             } 
           />
           
+          {/* Finance profile route */}
+          <Route 
+            path="finance/profile" 
+            element={
+              <FinanceRoute>
+                <Profile />
+              </FinanceRoute>
+            } 
+          />
+          
           {/* Admin Only Routes - Now using AdminRoute component */}
           <Route 
             path="admin" 
@@ -193,6 +268,16 @@ function App() {
               </AdminRoute>
             } 
           />
+          
+          {/* Admin profile route */}
+          <Route 
+            path="admin/profile" 
+            element={
+              <AdminRoute>
+                <Profile />
+              </AdminRoute>
+            } 
+          />
 
           <Route 
             path="admin/claims" 
@@ -212,11 +297,6 @@ function App() {
             } 
           />
         </Route>
-        
-      {/* Claims routes */}
-      <Route path="/claims" element={<ProtectedRoute><ClaimsList /></ProtectedRoute>} />
-      <Route path="/claims/new" element={<ProtectedRoute><ClaimForm /></ProtectedRoute>} />
-      <Route path="/claims/:id" element={<ProtectedRoute><ClaimDetail /></ProtectedRoute>} />
         
         {/* 404 Not Found */}
         <Route path="*" element={

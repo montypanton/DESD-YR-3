@@ -11,7 +11,8 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'email', 'first_name', 'last_name', 'role', 'profile_picture', 
-                 'phone_number', 'department', 'date_joined', 'last_login', 'is_superuser', 'is_staff']
+                 'phone_number', 'department', 'date_joined', 'last_login', 'is_superuser', 
+                 'is_staff', 'approval_status']
         read_only_fields = ['id', 'date_joined', 'last_login', 'is_superuser', 'is_staff']
 
 
@@ -19,7 +20,8 @@ class UserDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'email', 'first_name', 'last_name', 'role', 'profile_picture', 
-                 'phone_number', 'department', 'date_joined', 'last_login', 'is_active', 'is_staff', 'is_superuser']
+                 'phone_number', 'department', 'date_joined', 'last_login', 'is_active', 
+                 'is_staff', 'is_superuser', 'approval_status']
         read_only_fields = ['id', 'date_joined', 'last_login', 'is_staff', 'is_superuser']
 
 
@@ -44,6 +46,14 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('password2')
+        
+        # Set approval status based on role
+        role = validated_data.get('role')
+        if role in ['ML_ENGINEER', 'FINANCE']:
+            validated_data['approval_status'] = 'PENDING'
+        else:
+            validated_data['approval_status'] = 'APPROVED'
+            
         user = User.objects.create_user(**validated_data)
         return user
 
@@ -64,6 +74,10 @@ class LoginSerializer(serializers.Serializer):
                 raise serializers.ValidationError(msg, code='authorization')
             if not user.is_active:
                 raise serializers.ValidationError('Account is disabled.', code='authorization')
+            if user.approval_status == 'PENDING':
+                raise serializers.ValidationError('Your account is pending approval. Please wait for an administrator to approve your account.', code='authorization')
+            if user.approval_status == 'REJECTED':
+                raise serializers.ValidationError('Your account registration has been rejected. Please contact an administrator for more information.', code='authorization')
         else:
             msg = 'Must include "email" and "password".'
             raise serializers.ValidationError(msg, code='authorization')

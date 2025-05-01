@@ -6,21 +6,30 @@ const Sidebar = () => {
   const location = useLocation();
   const { user } = useAuth();
 
-  // Check if we're in the admin or finance section
+  // Check if we're in the admin, finance, or ml-engineer section
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isFinanceRoute = location.pathname.startsWith('/finance');
+  const isMLEngineerRoute = location.pathname.startsWith('/ml-engineer') || location.pathname.startsWith('/user-interactions');
+  
   const isAdmin = user?.role === 'ADMIN' || user?.is_superuser === true;
   const isFinance = user?.role === 'FINANCE';
+  const isMLEngineer = user?.role === 'ML_ENGINEER';
 
   const isActive = (path) => {
+    // Handle partial path matching for nested routes
+    if (path === '/user-interactions' && location.pathname.startsWith(path)) {
+      return 'bg-indigo-700';
+    }
     return location.pathname === path ? 'bg-indigo-700' : '';
   };
 
-  // Different styling for admin and finance sidebar
+  // Different styling for admin, finance, and ml-engineer sidebar
   const sidebarClass = isAdminRoute 
     ? "w-64 bg-purple-900 text-white h-screen hidden md:block"
     : isFinanceRoute
     ? "w-64 bg-green-800 text-white h-screen hidden md:block" 
+    : isMLEngineerRoute
+    ? "w-64 bg-indigo-900 text-white h-screen hidden md:block"
     : "w-64 bg-gray-800 text-white h-screen hidden md:block";
 
   // If in admin routes, show only admin navigation
@@ -144,6 +153,82 @@ const Sidebar = () => {
       </aside>
     );
   }
+  
+  // If in ML Engineer routes, show only ML Engineer navigation
+  if (isMLEngineerRoute && (isMLEngineer || isAdmin)) {
+    return (
+      <aside className={sidebarClass}>
+        <div className="p-4">
+          <div className="mb-8 px-4">
+            <svg className="h-12 w-12 mx-auto mb-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5.25 13.5L8.25 16.5L12.75 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M14.25 3.75H19.5V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M19.5 4.5L12.75 11.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <h2 className="text-center font-bold text-lg">ML Engineer Portal</h2>
+          </div>
+          
+          <nav>
+            <ul className="space-y-2">
+            <li>
+                <Link 
+                  to="/ml-engineer/dashboard" 
+                  className={`block py-2.5 px-4 rounded transition ${isActive('/ml-engineer/dashboard')} hover:bg-indigo-700`}
+                >
+                  <div className="flex items-center">
+                    <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
+                    </svg>
+                    <span>Dashboard</span>
+                  </div>
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  to="/ml-engineer/model-management" 
+                  className={`block py-2.5 px-4 rounded transition ${isActive('/ml-engineer/model-management')} hover:bg-indigo-700`}
+                >
+                  <div className="flex items-center">
+                    <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
+                    </svg>
+                    <span>Model Management</span>
+                  </div>
+                </Link>
+              </li>
+              
+              <li>
+                <Link 
+                  to="/ml-engineer/user-interactions" 
+                  className={`block py-2.5 px-4 rounded transition ${isActive('/ml-engineer/user-interactions')} hover:bg-indigo-700`}
+                >
+                  <div className="flex items-center">
+                    <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                    </svg>
+                    <span>User Interactions</span>
+                  </div>
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  to="/ml-engineer/model-performance" 
+                  className={`block py-2.5 px-4 rounded transition ${isActive('/ml-engineer/model-performance')} hover:bg-indigo-700`}
+                >
+                  <div className="flex items-center">
+                    <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span>Model Performance</span>
+                  </div>
+                </Link>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      </aside>
+    );
+  }
 
   // Regular sidebar for non-admin and non-finance routes
   return (
@@ -168,20 +253,56 @@ const Sidebar = () => {
               </Link>
             </li>
             
-            {/* ML Engineer routes */}
-            {(user?.role === 'ADMIN' || user?.role === 'ML_ENGINEER') && (
-              <li>
-                <Link 
-                  to="/ml-models" 
-                  className={`block py-2.5 px-4 rounded transition ${isActive('/ml-models')} hover:bg-gray-700`}
-                >
-                  ML Models
-                </Link>
-              </li>
+            {/* ML Engineer section */}
+            {isMLEngineer && (
+              <>
+                <li className="pt-4 pb-2">
+                  <span className="px-4 text-xs font-semibold text-gray-400 uppercase">ML Engineer</span>
+                </li>
+                <li>
+                  <Link 
+                    to="/ml-engineer/dashboard" 
+                    className={`block py-2.5 px-4 rounded transition ${isActive('/ml-engineer/dashboard')} hover:bg-indigo-700`}
+                  >
+                    <div className="flex items-center">
+                      <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z" />
+                      </svg>
+                      <span>Dashboard</span>
+                    </div>
+                  </Link>
+                </li>
+                <li>
+                  <Link 
+                    to="/ml-engineer/model-management" 
+                    className={`block py-2.5 px-4 rounded transition ${isActive('/ml-engineer/model-management')} hover:bg-indigo-700`}
+                  >
+                    <div className="flex items-center">
+                      <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span>Model Management</span>
+                    </div>
+                  </Link>
+                </li>
+                <li>
+                  <Link 
+                    to="/ml-engineer/user-interactions" 
+                    className={`block py-2.5 px-4 rounded transition ${isActive('/ml-engineer/user-interactions')} hover:bg-indigo-700`}
+                  >
+                    <div className="flex items-center">
+                      <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                      </svg>
+                      <span>User Interactions</span>
+                    </div>
+                  </Link>
+                </li>
+              </>
             )}
             
             {/* Finance section link */}
-            {(user?.role === 'ADMIN' || user?.role === 'FINANCE') && (
+            {(isAdmin || isFinance) && (
               <>
                 <li className="pt-4 pb-2">
                   <span className="px-4 text-xs font-semibold text-gray-400 uppercase">Finance</span>

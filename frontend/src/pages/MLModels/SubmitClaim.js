@@ -4,6 +4,7 @@ import { DatePicker, Select, Upload, Input, Form, message, Steps, Button, Radio,
 import { UploadOutlined, CheckCircleOutlined, FileDoneOutlined, FileTextOutlined, InfoCircleOutlined, CarOutlined, MedicineBoxOutlined, DollarOutlined } from '@ant-design/icons';
 import { ThemeContext } from '../../context/ThemeContext';
 import { apiClient } from '../../services/authService';
+import { useAuth } from '../../context/AuthContext';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -17,6 +18,7 @@ const SubmitClaim = () => {
   const [formValues, setFormValues] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const { darkMode } = useContext(ThemeContext);
+  const { user } = useAuth();
 
   const steps = [
     {
@@ -66,10 +68,12 @@ const SubmitClaim = () => {
     try {
       const allValues = { ...formValues, ...await form.validateFields() };
       
+      // Convert Moment.js objects to formatted strings for API submission
       const claimData = {
         title: `${allValues.AccidentType} Claim - ${allValues.AccidentDate?.format('MMM D, YYYY')}`,
-        description: allValues.AccidentDescription,
+        description: allValues.AccidentDescription || "Single Vehicle Incident",
         amount: allValues.TotalClaimEstimate || 0,
+        user: user?.id,
         claim_data: {
           // Personal & General Info
           Gender: allValues.Gender,
@@ -78,8 +82,8 @@ const SubmitClaim = () => {
           
           // Accident Info
           AccidentType: allValues.AccidentType,
-          AccidentDate: allValues.AccidentDate,
-          ClaimDate: allValues.ClaimDate,
+          AccidentDate: allValues.AccidentDate ? allValues.AccidentDate.format('YYYY-MM-DD') : null,
+          ClaimDate: allValues.ClaimDate ? allValues.ClaimDate.format('YYYY-MM-DD') : null,
           AccidentDescription: allValues.AccidentDescription,
           PoliceReportFiled: allValues.PoliceReportFiled,
           WitnessPresent: allValues.WitnessPresent,
@@ -97,43 +101,50 @@ const SubmitClaim = () => {
           MinorPsychologicalInjury: allValues.Minor_Psychological_Injury,
           
           // Special Damages
-          SpecialHealthExpenses: allValues.SpecialHealthExpenses,
-          SpecialMedications: allValues.SpecialMedications,
-          SpecialRehabilitation: allValues.SpecialRehabilitation,
-          SpecialTherapy: allValues.SpecialTherapy,
-          SpecialEarningsLoss: allValues.SpecialEarningsLoss,
-          SpecialUsageLoss: allValues.SpecialUsageLoss,
-          SpecialAssetDamage: allValues.SpecialAssetDamage,
-          SpecialLoanerVehicle: allValues.SpecialLoanerVehicle,
-          SpecialTripCosts: allValues.SpecialTripCosts,
-          SpecialJourneyExpenses: allValues.SpecialJourneyExpenses,
-          SpecialAdditionalInjury: allValues.SpecialAdditionalInjury,
-          SpecialFixes: allValues.SpecialFixes,
+          SpecialHealthExpenses: allValues.SpecialHealthExpenses || 0,
+          SpecialMedications: allValues.SpecialMedications || 0,
+          SpecialRehabilitation: allValues.SpecialRehabilitation || 0,
+          SpecialTherapy: allValues.SpecialTherapy || 0,
+          SpecialEarningsLoss: allValues.SpecialEarningsLoss || 0,
+          SpecialUsageLoss: allValues.SpecialUsageLoss || 0,
+          SpecialAssetDamage: allValues.SpecialAssetDamage || 0,
+          SpecialLoanerVehicle: allValues.SpecialLoanerVehicle || 0,
+          SpecialTripCosts: allValues.SpecialTripCosts || 0,
+          SpecialJourneyExpenses: allValues.SpecialJourneyExpenses || 0,
+          SpecialAdditionalInjury: allValues.SpecialAdditionalInjury || "",
+          SpecialFixes: allValues.SpecialFixes || 0,
           
           // Adjustments
-          SpecialReduction: allValues.SpecialReduction,
-          SpecialOverage: allValues.SpecialOverage,
+          SpecialReduction: allValues.SpecialReduction || 0,
+          SpecialOverage: allValues.SpecialOverage || 0,
           
           // General Damages
-          GeneralRest: allValues.GeneralRest,
-          GeneralFixed: allValues.GeneralFixed,
-          GeneralUplift: allValues.GeneralUplift,
+          GeneralRest: allValues.GeneralRest || 0,
+          GeneralFixed: allValues.GeneralFixed || 0,
+          GeneralUplift: allValues.GeneralUplift || 0,
           
           // Other
-          ExceptionalCircumstances: allValues.Exceptional_Circumstances
+          ExceptionalCircumstances: allValues.Exceptional_Circumstances || ""
         }
       };
 
-      await apiClient.post('/claims/', claimData);
-      message.success('Insurance claim submitted successfully!');
-      setSubmitted(true);
+      const response = await apiClient.post('/claims/', claimData);
       
-      setTimeout(() => {
-        form.resetFields();
-        navigate('/predictions');
-      }, 2000);
+      if (response.data) {
+        message.success('Insurance claim submitted successfully!');
+        setSubmitted(true);
+        
+        // Delay navigation to show success message
+        setTimeout(() => {
+          form.resetFields();
+          navigate('/predictions');
+        }, 2000);
+      } else {
+        throw new Error('Failed to submit claim: No response data');
+      }
     } catch (error) {
-      message.error('Failed to submit claim: ' + (error.response?.data?.message || error.message));
+      console.error('Failed to submit claim:', error);
+      message.error(error.response?.data?.detail || error.response?.data?.message || error.message || 'Failed to submit claim');
     } finally {
       setLoading(false);
     }
@@ -151,15 +162,15 @@ const SubmitClaim = () => {
               rules={[{ required: true, message: 'Please select accident type' }]}
             >
               <Select placeholder="Select accident type" className="text-gray-800 dark:text-gray-100">
-                <Option value="Collision">Vehicle Collision</Option>
-                <Option value="SingleVehicle">Single Vehicle Accident</Option>
-                <Option value="PedestrianAccident">Pedestrian Accident</Option>
-                <Option value="RearEnd">Rear-End Collision</Option>
-                <Option value="SideImpact">Side Impact/T-Bone</Option>
-                <Option value="RollOver">Vehicle Rollover</Option>
-                <Option value="HeadOn">Head-On Collision</Option>
-                <Option value="MultipleCar">Multiple Vehicle Accident</Option>
-                <Option value="HitAndRun">Hit and Run</Option>
+                <Option value="Rear end">Rear End</Option>
+                <Option value="Rear end - Clt pushed into next vehicle">Rear End - Client Pushed into Next Vehicle</Option>
+                <Option value="Rear end - 3 car - Clt at front">Rear End - 3 Car - Client at Front</Option>
+                <Option value="Other side pulled out of side road">Other Side Pulled Out of Side Road</Option>
+                <Option value="Other side turned across Clt's path">Other Side Turned Across Client's Path</Option>
+                <Option value="Other side changed lanes and collided with clt's vehicle">Other Side Changed Lanes and Collided</Option>
+                <Option value="Other side reversed into Clt's vehicle">Other Side Reversed into Client's Vehicle</Option>
+                <Option value="Other side pulled on to roundabout">Other Side Pulled onto Roundabout</Option>
+                <Option value="Other side drove on wrong side of the road">Other Side Drove on Wrong Side</Option>
                 <Option value="Other">Other</Option>
               </Select>
             </Form.Item>
@@ -248,21 +259,14 @@ const SubmitClaim = () => {
         return (
           <div className="text-gray-800 dark:text-gray-100">
             <Form.Item
-              name="VehicleType"
+              name="Vehicle_Type"
               label="Vehicle Type"
               rules={[{ required: true, message: 'Please select vehicle type' }]}
             >
-              <Select placeholder="Select vehicle type" className="text-gray-800 dark:text-gray-100">
-                <Option value="Sedan">Sedan</Option>
-                <Option value="SUV">SUV</Option>
-                <Option value="Truck">Truck</Option>
-                <Option value="Van">Van/Minivan</Option>
-                <Option value="Compact">Compact/Hatchback</Option>
-                <Option value="Luxury">Luxury Vehicle</Option>
-                <Option value="Sports">Sports Car</Option>
+              <Select placeholder="Select vehicle type">
+                <Option value="Car">Car</Option>
                 <Option value="Motorcycle">Motorcycle</Option>
-                <Option value="Commercial">Commercial Vehicle</Option>
-                <Option value="Other">Other</Option>
+                <Option value="Truck">Truck</Option>
               </Select>
             </Form.Item>
 
@@ -275,59 +279,50 @@ const SubmitClaim = () => {
             </Form.Item>
 
             <Form.Item
-              name="WeatherConditions"
+              name="Weather_Conditions"
               label="Weather Conditions"
               rules={[{ required: true, message: 'Please select weather conditions' }]}
             >
-              <Select placeholder="Select weather conditions" className="dark:bg-gray-700 dark:text-gray-100">
-                <Option value="Clear">Clear</Option>
-                <Option value="Rain">Rain</Option>
-                <Option value="Snow">Snow</Option>
-                <Option value="Fog">Fog</Option>
-                <Option value="Sleet">Sleet/Hail</Option>
-                <Option value="Wind">Strong Winds</Option>
-                <Option value="Stormy">Thunderstorm</Option>
-                <Option value="Icy">Icy Conditions</Option>
-                <Option value="Other">Other</Option>
+              <Select placeholder="Select weather conditions">
+                <Option value="Sunny">Sunny</Option>
+                <Option value="Rainy">Rainy</Option>
+                <Option value="Snowy">Snowy</Option>
               </Select>
             </Form.Item>
 
             <Form.Item
               name="SpecialAssetDamage"
-              label="Value of Vehicle Damage ($)"
+              label="Value of Vehicle Damage (£)"
               rules={[{ required: true, message: 'Please estimate vehicle damage value' }]}
             >
               <InputNumber 
                 min={0}
                 step={100}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
 
             <Form.Item
               name="SpecialFixes"
-              label="Estimated Repair Costs ($)"
+              label="Estimated Repair Costs (£)"
             >
               <InputNumber 
                 min={0}
                 step={100}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
 
             <Form.Item
               name="SpecialLoanerVehicle"
-              label="Rental/Loaner Vehicle Costs ($)"
+              label="Rental/Loaner Vehicle Costs (£)"
             >
               <InputNumber 
                 min={0}
                 step={10}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
@@ -335,12 +330,12 @@ const SubmitClaim = () => {
             <Form.Item
               name="Exceptional_Circumstances"
               label="Exceptional Circumstances"
+              rules={[{ required: true }]}
             >
-              <TextArea 
-                rows={3} 
-                placeholder="Describe any exceptional circumstances related to the vehicle or accident scene"
-                className="dark:bg-gray-700 dark:text-gray-100"
-              />
+              <Select placeholder="Select yes/no">
+                <Option value="Yes">Yes</Option>
+                <Option value="No">No</Option>
+              </Select>
             </Form.Item>
           </div>
         );
@@ -348,22 +343,15 @@ const SubmitClaim = () => {
         return (
           <div className="text-gray-800 dark:text-gray-100">
             <Form.Item
-              name="DominantInjury"
-              label="Dominant Injury"
-              rules={[{ required: true, message: 'Please select the dominant injury' }]}
+              name="Dominant_injury"
+              label="Dominant Injury Location"
+              rules={[{ required: true, message: 'Please select dominant injury location' }]}
             >
-              <Select placeholder="Select main injury type" className="dark:bg-gray-700 dark:text-gray-100">
-                <Option value="Whiplash">Whiplash</Option>
-                <Option value="Fracture">Bone Fracture</Option>
-                <Option value="Sprain">Sprain/Strain</Option>
-                <Option value="Concussion">Concussion/Head Injury</Option>
-                <Option value="Laceration">Cuts/Lacerations</Option>
-                <Option value="SoftTissue">Soft Tissue Injury</Option>
-                <Option value="Bruising">Bruising/Contusion</Option>
-                <Option value="Burn">Burns</Option>
-                <Option value="SpinalCord">Spinal Cord Injury</Option>
-                <Option value="None">No Physical Injury</Option>
-                <Option value="Other">Other</Option>
+              <Select placeholder="Select injury location">
+                <Option value="Arms">Arms</Option>
+                <Option value="Legs">Legs</Option>
+                <Option value="Hips">Hips</Option>
+                <Option value="Multiple">Multiple</Option>
               </Select>
             </Form.Item>
 
@@ -381,38 +369,47 @@ const SubmitClaim = () => {
 
             <Form.Item
               name="Injury_Prognosis"
-              label="Injury Prognosis/Recovery Outlook"
-              rules={[{ required: true, message: 'Please select the prognosis' }]}
+              label="Injury Prognosis"
+              rules={[{ required: true, message: 'Please select injury prognosis' }]}
             >
-              <Select placeholder="Select recovery outlook" className="dark:bg-gray-700 dark:text-gray-100">
-                <Option value="Full">Full Recovery Expected</Option>
-                <Option value="Partial">Partial Recovery Expected</Option>
-                <Option value="Ongoing">Ongoing Treatment Required</Option>
-                <Option value="Permanent">Permanent Disability</Option>
-                <Option value="Unknown">Unknown/Still Being Evaluated</Option>
+              <Select placeholder="Select prognosis" className="text-gray-800 dark:text-gray-100">
+                <Option value="A. 1 month">1 month</Option>
+                <Option value="B. 2 months">2 months</Option>
+                <Option value="C. 3 months">3 months</Option>
+                <Option value="D. 4 months">4 months</Option>
+                <Option value="E. 5 months">5 months</Option>
+                <Option value="F. 6 months">6 months</Option>
+                <Option value="G. 7 months">7 months</Option>
+                <Option value="H. 8 months">8 months</Option>
+                <Option value="I. 9 months">9 months</Option>
+                <Option value="J. 10 months">10 months</Option>
+                <Option value="K. 11 months">11 months</Option>
+                <Option value="L. 12 months">12 months</Option>
+                <Option value="O. 15 months">15 months</Option>
+                <Option value="R. 18 months">18 months</Option>
               </Select>
             </Form.Item>
 
             <Form.Item
               name="Whiplash"
-              label="Whiplash Injury"
-              rules={[{ required: true, message: 'Please indicate if whiplash was sustained' }]}
+              label="Whiplash"
+              rules={[{ required: true }]}
             >
-              <Radio.Group className="dark:text-gray-100">
-                <Radio value={true}>Yes</Radio>
-                <Radio value={false}>No</Radio>
-              </Radio.Group>
+              <Select placeholder="Select yes/no">
+                <Option value="Yes">Yes</Option>
+                <Option value="No">No</Option>
+              </Select>
             </Form.Item>
 
             <Form.Item
               name="Minor_Psychological_Injury"
               label="Minor Psychological Injury"
-              rules={[{ required: true, message: 'Please indicate if psychological injury was sustained' }]}
+              rules={[{ required: true }]}
             >
-              <Radio.Group className="dark:text-gray-100">
-                <Radio value={true}>Yes</Radio>
-                <Radio value={false}>No</Radio>
-              </Radio.Group>
+              <Select placeholder="Select yes/no">
+                <Option value="Yes">Yes</Option>
+                <Option value="No">No</Option>
+              </Select>
             </Form.Item>
 
             <Form.Item
@@ -434,53 +431,49 @@ const SubmitClaim = () => {
             
             <Form.Item
               name="SpecialHealthExpenses"
-              label="Medical Treatment Costs ($)"
+              label="Medical Treatment Costs (£)"
               rules={[{ required: true, message: 'Please enter medical treatment costs' }]}
             >
               <InputNumber 
                 min={0}
                 step={100}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
 
             <Form.Item
               name="SpecialMedications"
-              label="Medication Costs ($)"
+              label="Medication Costs (£)"
             >
               <InputNumber 
                 min={0}
                 step={10}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
 
             <Form.Item
               name="SpecialRehabilitation"
-              label="Rehabilitation Costs ($)"
+              label="Rehabilitation Costs (£)"
             >
               <InputNumber 
                 min={0}
                 step={100}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
 
             <Form.Item
               name="SpecialTherapy"
-              label="Therapy Costs ($)"
+              label="Therapy Costs (£)"
             >
               <InputNumber 
                 min={0}
                 step={100}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
@@ -489,27 +482,25 @@ const SubmitClaim = () => {
 
             <Form.Item
               name="SpecialEarningsLoss"
-              label="Lost Earnings ($)"
+              label="Lost Earnings (£)"
             >
               <InputNumber 
                 min={0}
                 step={100}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
 
             <Form.Item
               name="SpecialUsageLoss"
-              label="Usage Loss ($)"
+              label="Usage Loss (£)"
               tooltip="Value of inability to use property or vehicle"
             >
               <InputNumber 
                 min={0}
                 step={100}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
@@ -518,26 +509,24 @@ const SubmitClaim = () => {
 
             <Form.Item
               name="SpecialTripCosts"
-              label="Trip Cancellation Costs ($)"
+              label="Trip Cancellation Costs (£)"
             >
               <InputNumber 
                 min={0}
                 step={100}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
 
             <Form.Item
               name="SpecialJourneyExpenses"
-              label="Travel Expenses for Medical Treatment ($)"
+              label="Travel Expenses for Medical Treatment (£)"
             >
               <InputNumber 
                 min={0}
                 step={10}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
@@ -546,83 +535,77 @@ const SubmitClaim = () => {
 
             <Form.Item
               name="SpecialReduction"
-              label="Cost Reductions/Deductions ($)"
+              label="Cost Reductions/Deductions (£)"
               tooltip="Amount that should be deducted from total claim (e.g., covered by other insurance)"
             >
               <InputNumber 
                 min={0}
                 step={100}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
 
             <Form.Item
               name="SpecialOverage"
-              label="Additional Costs Not Listed ($)"
+              label="Additional Costs Not Listed (£)"
             >
               <InputNumber 
                 min={0}
                 step={100}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
 
             <Form.Item
               name="GeneralRest"
-              label="Pain and Suffering Estimate ($)"
+              label="Pain and Suffering Estimate (£)"
               tooltip="Non-economic damages for pain, suffering, and emotional distress"
             >
               <InputNumber 
                 min={0}
                 step={1000}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
 
             <Form.Item
               name="GeneralFixed"
-              label="Fixed Compensation Claim ($)"
+              label="Fixed Compensation Claim (£)"
               tooltip="Standard compensation amount for your type of claim (if applicable)"
             >
               <InputNumber 
                 min={0}
                 step={1000}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
 
             <Form.Item
               name="GeneralUplift"
-              label="General Damages Uplift ($)"
+              label="General Damages Uplift (£)"
               tooltip="Additional compensation for exceptional circumstances"
             >
               <InputNumber 
                 min={0}
                 step={500}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
 
             <Form.Item
               name="TotalClaimEstimate"
-              label="Total Claim Estimate ($)"
+              label="Total Claim Estimate (£)"
               rules={[{ required: true, message: 'Please enter the total claim estimate' }]}
             >
               <InputNumber 
                 min={0}
                 step={1000}
-                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                prefix="£"
                 className="w-full dark:bg-gray-700 dark:text-gray-100"
               />
             </Form.Item>
@@ -699,7 +682,7 @@ const SubmitClaim = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Medical Expenses:</span>
                   <span className="text-gray-900 dark:text-white font-medium">
-                    ${((formValues.SpecialHealthExpenses || 0) + 
+                    £{((formValues.SpecialHealthExpenses || 0) + 
                        (formValues.SpecialMedications || 0) + 
                        (formValues.SpecialRehabilitation || 0) + 
                        (formValues.SpecialTherapy || 0)).toLocaleString()}
@@ -708,20 +691,20 @@ const SubmitClaim = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Vehicle Damage:</span>
                   <span className="text-gray-900 dark:text-white font-medium">
-                    ${((formValues.SpecialAssetDamage || 0) + 
+                    £{((formValues.SpecialAssetDamage || 0) + 
                        (formValues.SpecialFixes || 0)).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Lost Income:</span>
                   <span className="text-gray-900 dark:text-white font-medium">
-                    ${(formValues.SpecialEarningsLoss || 0).toLocaleString()}
+                    £{(formValues.SpecialEarningsLoss || 0).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Other Expenses:</span>
                   <span className="text-gray-900 dark:text-white font-medium">
-                    ${((formValues.SpecialLoanerVehicle || 0) + 
+                    £{((formValues.SpecialLoanerVehicle || 0) + 
                        (formValues.SpecialJourneyExpenses || 0) + 
                        (formValues.SpecialTripCosts || 0) + 
                        (formValues.SpecialUsageLoss || 0) + 
@@ -731,7 +714,7 @@ const SubmitClaim = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">General Damages:</span>
                   <span className="text-gray-900 dark:text-white font-medium">
-                    ${((formValues.GeneralRest || 0) + 
+                    £{((formValues.GeneralRest || 0) + 
                        (formValues.GeneralFixed || 0) + 
                        (formValues.GeneralUplift || 0)).toLocaleString()}
                   </span>
@@ -739,14 +722,14 @@ const SubmitClaim = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Reductions:</span>
                   <span className="text-gray-900 dark:text-white font-medium">
-                    ${(formValues.SpecialReduction || 0).toLocaleString()}
+                    £{(formValues.SpecialReduction || 0).toLocaleString()}
                   </span>
                 </div>
                 <Divider className="my-2" />
                 <div className="flex justify-between text-base font-bold">
                   <span className="text-gray-700 dark:text-gray-300">TOTAL CLAIM:</span>
                   <span className="text-green-600 dark:text-green-400">
-                    ${(formValues.TotalClaimEstimate || 0).toLocaleString()}
+                    £{(formValues.TotalClaimEstimate || 0).toLocaleString()}
                   </span>
                 </div>
               </div>
@@ -954,7 +937,7 @@ const SubmitClaim = () => {
                   <span>Save receipts and documentation for all expenses related to your claim</span>
                 </li>
                 <li className="flex">
-                  <svg className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                   </svg>
                   <span>Include both current expenses and reasonable estimates for future costs</span>
