@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework import viewsets, status, permissions, filters
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from django.http import HttpResponse
 import uuid
@@ -19,6 +19,17 @@ from .serializers import (
 )
 from account.permissions import IsAdminUser, IsFinanceUser
 from account.models import User
+
+# Public view for insurance companies - no authentication required
+class PublicInsuranceCompanyList(APIView):
+    """Public API endpoint to list active insurance companies without authentication."""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        # Only return active companies for public access
+        companies = InsuranceCompany.objects.filter(is_active=True).order_by('name')
+        serializer = InsuranceCompanySerializer(companies, many=True)
+        return Response(serializer.data)
 
 
 class InsuranceCompanyViewSet(viewsets.ModelViewSet):

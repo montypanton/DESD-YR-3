@@ -53,8 +53,7 @@ const PredictionHistory = () => {
   };
 
   const filteredPredictions = predictions.filter(claim => {
-    if (activeTab === 'approved' && claim.status !== 'APPROVED') return false;
-    if (activeTab === 'rejected' && claim.status !== 'REJECTED') return false;
+    if (activeTab === 'completed' && claim.status !== 'COMPLETED') return false;
     if (activeTab === 'pending' && claim.status !== 'PENDING') return false;
     
     if (searchQuery) {
@@ -76,22 +75,18 @@ const PredictionHistory = () => {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Prediction History</h1>
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
             <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Total Claims</h3>
             <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{stats.totalClaims}</p>
           </div>
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Approved Claims</h3>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.approvedClaims}</p>
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Completed Predictions</h3>
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{predictions.filter(claim => claim.status === 'COMPLETED').length}</p>
           </div>
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Rejected Claims</h3>
-            <p className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.rejectedClaims}</p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Total Predicted</h3>
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">£{totalPredicted.toFixed(2)}</p>
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Pending Predictions</h3>
+            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{predictions.filter(claim => claim.status === 'PENDING').length}</p>
           </div>
         </div>
 
@@ -108,24 +103,14 @@ const PredictionHistory = () => {
               All
             </button>
             <button
-              onClick={() => setActiveTab('approved')}
+              onClick={() => setActiveTab('completed')}
               className={`px-4 py-2 rounded-md ${
-                activeTab === 'approved'
-                  ? 'bg-green-600 text-white'
+                activeTab === 'completed'
+                  ? 'bg-blue-600 text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              Approved
-            </button>
-            <button
-              onClick={() => setActiveTab('rejected')}
-              className={`px-4 py-2 rounded-md ${
-                activeTab === 'rejected'
-                  ? 'bg-red-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Rejected
+              Completed
             </button>
             <button
               onClick={() => setActiveTab('pending')}
@@ -163,9 +148,6 @@ const PredictionHistory = () => {
                 Status
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Amount Claimed
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Settlement Amount
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -188,24 +170,43 @@ const PredictionHistory = () => {
                       ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                       : claim.status === 'REJECTED'
                       ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                      : claim.status === 'COMPLETED'
+                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                       : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
                   }`}>
                     {claim.status}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  £{typeof claim.amount === 'number' 
-                     ? claim.amount.toFixed(2) 
-                     : typeof claim.amount === 'string'
-                     ? parseFloat(claim.amount).toFixed(2)
-                     : '0.00'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  £{typeof claim.ml_prediction?.settlement_amount === 'number' 
-                     ? claim.ml_prediction.settlement_amount.toFixed(2) 
-                     : typeof claim.ml_prediction?.settlement_amount === 'string'
-                     ? parseFloat(claim.ml_prediction.settlement_amount).toFixed(2)
-                     : '0.00'}
+                  {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? (
+                    <div>
+                      <div className="flex items-center">
+                        <span className="line-through mr-1">
+                          £{typeof claim.ml_prediction?.settlement_amount === 'number' 
+                            ? claim.ml_prediction.settlement_amount.toFixed(2) 
+                            : typeof claim.ml_prediction?.settlement_amount === 'string'
+                            ? parseFloat(claim.ml_prediction.settlement_amount).toFixed(2)
+                            : '0.00'}
+                        </span>
+                        <span className="text-green-600 dark:text-green-400 font-medium">
+                          £{typeof claim.decided_settlement_amount === 'number'
+                            ? claim.decided_settlement_amount.toFixed(2)
+                            : typeof claim.decided_settlement_amount === 'string'
+                            ? parseFloat(claim.decided_settlement_amount).toFixed(2)
+                            : '0.00'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-400 italic">Adjusted</div>
+                    </div>
+                  ) : (
+                    <span>
+                      £{typeof claim.ml_prediction?.settlement_amount === 'number' 
+                        ? claim.ml_prediction.settlement_amount.toFixed(2) 
+                        : typeof claim.ml_prediction?.settlement_amount === 'string'
+                        ? parseFloat(claim.ml_prediction.settlement_amount).toFixed(2)
+                        : '0.00'}
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <Link 

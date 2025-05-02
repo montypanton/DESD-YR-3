@@ -1,170 +1,113 @@
-# README.md for everyone 
+# DESD-YR-3 Insurance Claims ML Project
 
-#### Things to add / do / keep in mind
-- main.py file that: (automating the set up process)
-	- check dependencies 
-	- sets up environment
-	- initialises database
-	- starts backend and frontend servers 
-	- (for this we need subprocess management in Python to run npm/Django commands)
-- Docker compatibility needs doing 
-- Project currently has a React structure but minimal implementation 
-- Test cases
-- Ticket system
+## Quick Start with Docker
 
+The easiest way to get started is to use Docker Compose, which will set up the entire environment for you:
 
-
-
-
-#### features that need fixing: / looking into 
-
-- adding / changing billing records 
-- changing usage statistics 
-- changing ml models 
-- adding / changing predictions 
-- view site button 
-- deleting user breaks webpage 
-
-
-
-
-
-
-#### Instructions / things to keep in mind:
-
-- keep .env and requirement files separate 
-	- frontend/ doesn't have requirement instead it has .json file (same thing)
-
-
-### Set-up instructions:
-
-1. Clone repository:
-```
-git clone <repo-url>
-cd DESD-YR-3
+```bash
+docker-compose up --build -d
 ```
 
-2. Create .env files:
-   
-   **For backend (create file at `backend/.env`):**
-   ```
-   SECRET_KEY=2jSD9r2-KTldmeaVwm1QQx7qVyf4sRgJ8o2k7-Y1m6DZW5eoVcNIDJsEDpiPttz3c7g
-   DEBUG=True
-   DB_NAME=desd_db
-   DB_USER=desd_user
-   DB_PASSWORD=desd_pass_123
-   DB_ROOT_PASSWORD=rootpassword
-   DB_HOST=db
-   DB_PORT=3306
-   ```
-   
-   **For frontend (create file at `frontend/.env`):**
-   ```
-   REACT_APP_API_URL=http://localhost:8000/api
-   NODE_ENV=development
-   CHOKIDAR_USEPOLLING=true
-   ```
+This will:
+1. Build and start the MySQL database
+2. Build and start the Django backend
+3. Start the React frontend development server
 
-3. Build and run containers:
-   ```
-   docker-compose up --build
-   ```
-   This will:
-   - Build the backend Docker image
-   - Start the MySQL database service
-   - Start the Django backend service
-   - Start the React frontend service
-   
-   You can run in detached mode with:
-   ```
-   docker-compose up --build -d
-   ```
+Once everything is running:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000/api/
+- Admin interface: http://localhost:8000/admin/
 
-4. Database Setup and Migrations:
-   
-   The basic migration command is run automatically when starting the containers. However, if you encounter migration errors or need to ensure migrations run in the correct order, use these commands:
-   
-   ```
-   # Run specific migrations in the correct order to resolve dependencies
-   docker-compose exec backend python manage.py makemigrations ml_interface
-   docker-compose exec backend python manage.py migrate ml_interface
-   docker-compose exec backend python manage.py makemigrations claims
-   docker-compose exec backend python manage.py migrate
-   
-   # Create necessary directories for media uploads
-   docker-compose exec backend mkdir -p media/ml_models
-   docker-compose exec backend mkdir -p media/profile_pictures
-   
-   # Create a superuser account (write down these credentials)
-   docker-compose exec backend python manage.py createsuperuser
-   ```
+### Default Admin Credentials
+Username: admin@example.com
+Password: adminpassword
 
-5. Access the application:
-   - Backend Admin Panel: [http://localhost:8000/admin](http://localhost:8000/admin)
-   - Frontend Application: [http://localhost:3000](http://localhost:3000)
+## Services
 
-6. Useful commands for development:
-   - View container logs:
-     ```
-     docker-compose logs -f
-     ```
-   - View logs for a specific service:
-     ```
-     docker-compose logs -f backend
-     docker-compose logs -f frontend
-     docker-compose logs -f db
-     ```
-   - Restart a specific service:
-     ```
-     docker-compose restart backend
-     docker-compose restart frontend
-     ```
-   - Stop all services:
-     ```
-     docker-compose down
-     ```
-   - Stop all services and remove volumes (will delete database data):
-     ```
-     docker-compose down -v
-     ```
+The application consists of three main services:
 
-7. Troubleshooting:
-   - If the database connection fails, ensure the MySQL service is healthy:
-     ```
-     docker-compose exec db mysqladmin ping -h localhost
-     ```
-   - To reset the database completely:
-     ```
-     docker-compose down -v
-     docker-compose up --build
-     docker-compose exec backend python manage.py migrate
-     docker-compose exec backend python manage.py createsuperuser
-     ```
-   - If frontend dependencies aren't installing correctly, you can manually run:
-     ```
-     docker-compose exec frontend npm install
-     ```
+### Database (MySQL)
+- Port: 3307 (mapped to 3306 internally)
+- Pre-configured with necessary tables and initial data
 
-### Currently in backend/: 
-	- folders for containing:
-	- user management 
-	- billings records
-	- shared functionalities used across the app 
-	- coordinator for all API endpoints 
-	- backend/ for main project settings and URL configurations 
-	- logs of all application actions 
-	- machine learning model handling / management and prediction handling 
+### Backend (Django)
+- Port: 8000
+- Automatic migrations
+- API endpoints for managing claims and ML predictions
 
-		Each folder is a Django 'app' that handles specific functionalities. 
-		.Env and requirements.txt files for handling required libraries and 
-		database connection. 
+### Frontend (React)
+- Port: 3000
+- Modern UI for interacting with the system
 
-		Manage.py file handles Django commands that allows us to run server commands like creating database migrations, apply them and etc... 
+## Development Workflow
 
-### Currently in frontend/:
-	- pages: page components organised by feature 
-	- sevices: API connection logic 
-	- utils + components: reusable elements and functions that are shared 
+### Viewing Logs
+To see the logs from all services:
+```bash
+docker-compose logs -f
+```
 
-		Public/ will be filled with React's build process.
-		Apps.js handles routing.
+For a specific service:
+```bash
+docker-compose logs -f backend
+```
+
+### Stopping the Application
+```bash
+docker-compose down
+```
+
+To remove volumes (will delete database data):
+```bash
+docker-compose down -v
+```
+
+### Restarting Services
+To restart just one service:
+```bash
+docker-compose restart backend
+```
+
+## Project Structure
+
+- `/backend` - Django backend application
+- `/frontend` - React frontend application
+
+## Troubleshooting
+
+### If the backend fails to start
+The backend depends on the database being ready. If it fails, check:
+```bash
+docker-compose logs db
+docker-compose logs backend
+```
+
+Then try restarting just the backend:
+```bash
+docker-compose restart backend
+```
+
+### If the frontend fails to start
+The frontend depends on the backend. Check the logs:
+```bash
+docker-compose logs frontend
+```
+
+Then try restarting just the frontend:
+```bash
+docker-compose restart frontend
+```
+
+### If you need to reset the database
+```bash
+docker-compose down -v
+docker-compose up --build -d
+```
+
+### If npm install fails in the frontend
+Try running:
+```bash
+docker-compose down
+docker volume rm desd-yr-3_frontend_node_modules
+docker-compose up --build -d
+```

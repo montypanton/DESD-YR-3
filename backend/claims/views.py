@@ -152,9 +152,13 @@ class ClaimViewSet(viewsets.ModelViewSet):
                 logger.debug(f"Stack trace: {traceback.format_exc()}")
                 raise serializers.ValidationError(f"Error saving prediction: {str(e)}")
             
-            # Update claim with new prediction
+            # Update claim with new prediction and change status to COMPLETED
             try:
                 claim.ml_prediction = prediction
+                # Update status from PENDING to COMPLETED once prediction is available
+                if claim.status == 'PENDING':
+                    claim.status = 'COMPLETED'
+                    logger.info(f"Updated claim status from PENDING to COMPLETED")
                 claim.save()
                 logger.info(f"Updated claim {claim.reference_number} with new prediction")
             except Exception as e:
@@ -213,15 +217,28 @@ class ClaimViewSet(viewsets.ModelViewSet):
         approved_claims = queryset.filter(status='APPROVED').count()
         rejected_claims = queryset.filter(status='REJECTED').count()
         pending_claims = queryset.filter(Q(status='PENDING') | Q(status='PROCESSING')).count()
+        completed_claims = queryset.filter(status='COMPLETED').count()
         
         total_claimed = queryset.aggregate(sum=Sum('amount'))['sum'] or 0
         
-        approved_settlements = queryset.filter(
-            ml_prediction__isnull=False,
-            status='APPROVED'
+        # Calculate total settlements including both decided amounts and ML predictions
+        # First, get claims with decided settlement amounts
+        decided_settlements = queryset.filter(
+            decided_settlement_amount__isnull=False
+        ).aggregate(
+            sum=Sum('decided_settlement_amount')
+        )['sum'] or 0
+        
+        # Then get claims with ML predictions but no decided amount
+        ml_settlements = queryset.filter(
+            decided_settlement_amount__isnull=True,
+            ml_prediction__isnull=False
         ).aggregate(
             sum=Sum('ml_prediction__settlement_amount')
         )['sum'] or 0
+        
+        # Total settlements is the sum of both
+        total_settlements = decided_settlements + ml_settlements
         
         recent_claims = queryset.order_by('-created_at')[:5]
         recent_serializer = ClaimSerializer(recent_claims, many=True)
@@ -231,8 +248,9 @@ class ClaimViewSet(viewsets.ModelViewSet):
             'approved_claims': approved_claims,
             'rejected_claims': rejected_claims,
             'pending_claims': pending_claims,
+            'completed_claims': completed_claims,
             'total_claimed': total_claimed,
-            'approved_settlements': approved_settlements,
+            'approved_settlements': total_settlements,  # Renamed this to be more accurate
             'recent_claims': recent_serializer.data
         })
 
@@ -396,6 +414,10 @@ class ClaimViewSet(viewsets.ModelViewSet):
             # Update claim with new prediction
             try:
                 claim.ml_prediction = prediction
+                # Update status from PENDING to COMPLETED if applicable
+                if claim.status == 'PENDING':
+                    claim.status = 'COMPLETED'
+                    logger.info(f"Updated claim status from PENDING to COMPLETED")
                 claim.save()
                 logger.info(f"Updated claim {claim.reference_number} with new prediction")
             except Exception as e:
@@ -416,5 +438,49 @@ class ClaimViewSet(viewsets.ModelViewSet):
             logger.debug(f"Stack trace: {traceback.format_exc()}")
             return Response(
                 {'error': f"Failed to re-run prediction: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['put'])
+    def settlement(self, request, pk=None):
+        """Update the decided settlement amount for a claim"""
+        try:
+            claim = self.get_object()
+            
+            # Validate the settlement amount
+            settlement_amount = request.data.get('settlement_amount')
+            if settlement_amount is None:
+                return Response(
+                    {'error': 'Settlement amount is required'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            try:
+                # Convert to decimal and validate
+                settlement_amount = float(settlement_amount)
+                if settlement_amount < 0:
+                    return Response(
+                        {'error': 'Settlement amount must be a positive number'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except (ValueError, TypeError):
+                return Response(
+                    {'error': 'Settlement amount must be a valid number'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Update the decided settlement amount
+            claim.decided_settlement_amount = settlement_amount
+            claim.save()
+            
+            # Return the updated claim
+            serializer = self.get_serializer(claim)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error updating settlement amount: {str(e)}")
+            logger.debug(f"Stack trace: {traceback.format_exc()}")
+            return Response(
+                {'error': f"Failed to update settlement amount: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

@@ -54,6 +54,15 @@ class User(AbstractBaseUser, PermissionsMixin):
     phone_number = models.CharField(max_length=15, blank=True)
     department = models.CharField(max_length=100, blank=True)
     
+    # Add insurance company relationship - optional 
+    insurance_company = models.ForeignKey(
+        'finance.InsuranceCompany', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='users'
+    )
+    
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Button, Input, Card, InputNumber, message, Select, Upload, DatePicker } from 'antd';
+import { Form, Button, Input, Card, message, Select, Upload, DatePicker } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -34,7 +34,6 @@ const ClaimForm = () => {
       const claimData = {
         title: values.title,
         description: values.description,
-        amount: values.claimAmount, // This is the amount being claimed, not the settlement
         claim_data: {
           // Store all the form fields that aren't part of the main fields
           incidentDate: values.incidentDate,
@@ -84,21 +83,6 @@ const ClaimForm = () => {
             <Option value="medical">Medical</Option>
             <Option value="other">Other</Option>
           </Select>
-        </Form.Item>
-
-        <Form.Item
-          name="claimAmount"
-          label="Claimed Amount (Estimate)"
-          rules={[{ required: true, message: 'Please estimate the claim amount' }]}
-          extra="This is your estimated damage value. The actual settlement will be determined by our system."
-        >
-          <InputNumber
-            style={{ width: '100%' }}
-            formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-            parser={value => value.replace(/\$\s?|(,*)/g, '')}
-            min={0}
-            placeholder="0.00"
-          />
         </Form.Item>
 
         <Form.Item

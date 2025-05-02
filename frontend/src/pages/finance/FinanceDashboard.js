@@ -112,16 +112,18 @@ const FinanceDashboard = () => {
 
   // Helper function to determine status badge color
   const getStatusBadgeClass = (status) => {
-    switch (status?.toUpperCase()) {
+    switch (status) {
       case 'APPROVED':
-        return 'bg-green-100 text-green-800 dark:bg-green-700 dark:text-green-100';
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
       case 'REJECTED':
-        return 'bg-red-100 text-red-800 dark:bg-red-700 dark:text-red-100';
+        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+      case 'COMPLETED':
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
       case 'PROCESSING':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-700 dark:text-blue-100';
+        return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200';
       case 'PENDING':
       default:
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-700 dark:text-yellow-100';
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
     }
   };
 

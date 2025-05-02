@@ -72,7 +72,6 @@ const SubmitClaim = () => {
       const claimData = {
         title: `${allValues.AccidentType} Claim - ${allValues.AccidentDate?.format('MMM D, YYYY')}`,
         description: allValues.AccidentDescription || "Single Vehicle Incident",
-        amount: allValues.TotalClaimEstimate || 0,
         user: user?.id,
         claim_data: {
           // Personal & General Info

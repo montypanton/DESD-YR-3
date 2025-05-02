@@ -2,24 +2,34 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../services/authService';
+import { Card, Spin, Statistic, Row, Col, Button, Divider, Tag } from 'antd';
+import { 
+  FileAddOutlined, 
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  FileTextOutlined,
+  PieChartOutlined,
+  ExclamationCircleOutlined 
+} from '@ant-design/icons';
+import { useTheme } from '../../context/ThemeContext';
 
 // Utility function to format currency
 const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-GB', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'GBP',
     minimumFractionDigits: 2
   }).format(amount);
 };
 
 // Component for Recent Claims
 const RecentClaimsList = ({ claims, loading }) => {
+  const { darkMode } = useTheme();
+  
   if (loading) {
     return (
-      <div className="animate-pulse space-y-4">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="bg-gray-200 dark:bg-gray-700 h-16 rounded"></div>
-        ))}
+      <div className="flex justify-center items-center h-40">
+        <Spin size="large" />
       </div>
     );
   }
@@ -41,29 +51,45 @@ const RecentClaimsList = ({ claims, loading }) => {
   return (
     <div className="space-y-4">
       {claims.map((claim) => (
-        <div key={claim.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <div key={claim.id} className={`p-4 rounded-lg shadow-sm border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
           <div className="flex justify-between">
             <div>
-              <h3 className="font-medium text-gray-900 dark:text-white">{claim.title}</h3>
+              <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                {claim.title}
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Ref: {claim.reference_number}
+              </p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                {new Date(claim.created_at).toLocaleDateString()}
+                {new Date(claim.created_at).toLocaleDateString('en-GB', { 
+                  year: 'numeric', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
               </p>
             </div>
             <div>
-              <span className={`px-2 py-1 text-xs rounded-full ${
+              <Tag className={`px-2 py-1 text-xs rounded-full ${
                 claim.status === 'APPROVED' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 
-                claim.status === 'REJECTED' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 
+                claim.status === 'REJECTED' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                claim.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
                 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
               }`}>
                 {claim.status}
-              </span>
+              </Tag>
             </div>
           </div>
           <div className="mt-2 flex justify-between items-center">
             <div className="text-sm">
-              <span className="text-gray-500 dark:text-gray-400">Amount: </span>
-              <span className="font-medium text-gray-900 dark:text-white">
-                {formatCurrency(claim.amount)}
+              <span className="text-gray-500 dark:text-gray-400">Settlement: </span>
+              <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? (
+                  <span className="text-green-600 dark:text-green-400">{formatCurrency(claim.decided_settlement_amount)}</span>
+                ) : claim.ml_prediction?.settlement_amount ? (
+                  formatCurrency(claim.ml_prediction.settlement_amount)
+                ) : (
+                  'Pending'
+                )}
               </span>
             </div>
             <Link 
@@ -90,6 +116,7 @@ const RecentClaimsList = ({ claims, loading }) => {
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { darkMode } = useTheme();
   const [dashboardData, setDashboardData] = useState({
     total_claims: 0,
     approved_claims: 0,
@@ -98,11 +125,6 @@ const Dashboard = () => {
     total_claimed: 0,
     approved_settlements: 0,
     recent_claims: []
-  });
-  const [statisticsData, setStatisticsData] = useState({
-    monthly_claims: [],
-    status_distribution: [],
-    avg_processing_time: 0
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -113,15 +135,6 @@ const Dashboard = () => {
         setLoading(true);
         const dashboardResponse = await apiClient.get('/claims/dashboard/');
         setDashboardData(dashboardResponse.data);
-        
-        try {
-          const statsResponse = await apiClient.get('/claims/statistics/');
-          setStatisticsData(statsResponse.data);
-        } catch (statsError) {
-          console.warn('Could not load statistics data:', statsError);
-          // Don't set the error state here to avoid blocking the whole dashboard
-        }
-        
         setError(null);
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
@@ -134,84 +147,27 @@ const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
-  // Render status distribution chart using CSS instead of recharts
-  const renderStatusChart = () => {
-    if (loading) {
-      return <div className="h-64 flex items-center justify-center">Loading chart...</div>;
-    }
-    
-    const data = [
-      { name: 'Approved', value: dashboardData.approved_claims, color: '#10B981' },
-      { name: 'Rejected', value: dashboardData.rejected_claims, color: '#EF4444' },
-      { name: 'Pending', value: dashboardData.pending_claims, color: '#F59E0B' },
-    ];
-    
-    // Only show chart if we have claims
-    if (dashboardData.total_claims === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
-          <svg className="w-16 h-16 mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <p>No claims data available</p>
-        </div>
-      );
-    }
-
-    // Simple bar chart using CSS
-    const total = data.reduce((sum, item) => sum + item.value, 0);
-    
-    return (
-      <div className="h-64 flex flex-col justify-center">
-        {data.map((item, index) => (
-          item.value > 0 && (
-            <div key={index} className="mb-4">
-              <div className="flex justify-between mb-1">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{item.name}</span>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {item.value} ({total > 0 ? Math.round((item.value / total) * 100) : 0}%)
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
-                <div 
-                  className="h-4 rounded-full" 
-                  style={{ 
-                    width: `${total > 0 ? (item.value / total) * 100 : 0}%`,
-                    backgroundColor: item.color
-                  }}
-                ></div>
-              </div>
-            </div>
-          )
-        ))}
-        <div className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
-          Total Claims: {total}
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="space-y-8 max-w-6xl mx-auto">
+    <div className={`space-y-8 max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
       {/* Error message */}
       {error && (
-        <div className="bg-red-50 dark:bg-red-900 border-l-4 border-red-500 p-4 rounded-md">
+        <div className={`p-4 rounded-md border-l-4 ${darkMode ? 'bg-red-900 text-red-200 border-red-500' : 'bg-red-50 text-red-700 border-red-500'}`}>
           <div className="flex">
             <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
+              <ExclamationCircleOutlined className="h-5 w-5 text-red-500" />
             </div>
             <div className="ml-3">
-              <p className="text-sm text-red-700 dark:text-red-200">{error}</p>
+              <p className="text-sm">{error}</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Welcome Banner */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden transition-colors duration-200">
-        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-8 py-6">
+      <Card 
+        className={`rounded-xl shadow-md overflow-hidden transition-colors duration-200 ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'}`}
+      >
+        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 -m-6 p-6 mb-6">
           <h1 className="text-2xl font-bold text-white">
             Welcome, {user?.first_name || 'User'}!
           </h1>
@@ -219,232 +175,152 @@ const Dashboard = () => {
             Insurance Claims Dashboard
           </p>
         </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 transition-colors duration-200">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-blue-500 bg-opacity-10">
-              <svg className="h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Total Claims</h2>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {loading ? (
-                  <span className="animate-pulse">...</span>
-                ) : (
-                  dashboardData.total_claims
-                )}
-              </p>
-            </div>
-          </div>
-          <Link to="/predictions" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center mt-4">
-            View all claims
-            <svg className="w-4 h-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </Link>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 transition-colors duration-200">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-green-500 bg-opacity-10">
-              <svg className="h-8 w-8 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Approved Claims</h2>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {loading ? (
-                  <span className="animate-pulse">...</span>
-                ) : (
-                  dashboardData.approved_claims
-                )}
-              </p>
-            </div>
+        <div className="pt-2">
+          <p className={darkMode ? 'text-gray-300' : 'text-gray-600'}>
+            Here's a summary of your claims activity. Submit new claims or check the status of existing ones.
+          </p>
+          <div className="mt-4 flex space-x-4">
+            <Button 
+              type="primary" 
+              icon={<FileAddOutlined />} 
+              size="large"
+              className={darkMode ? 'bg-indigo-600 hover:bg-indigo-700 border-indigo-600' : ''}
+            >
+              <Link to="/submit-claim">Submit New Claim</Link>
+            </Button>
+            <Button 
+              icon={<FileTextOutlined />} 
+              size="large"
+            >
+              <Link to="/predictions">View All Claims</Link>
+            </Button>
           </div>
         </div>
+      </Card>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 transition-colors duration-200">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-red-500 bg-opacity-10">
-              <svg className="h-8 w-8 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Rejected Claims</h2>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {loading ? (
-                  <span className="animate-pulse">...</span>
-                ) : (
-                  dashboardData.rejected_claims
-                )}
-              </p>
-            </div>
+      {/* Claims Statistics */}
+      <Card 
+        className={`rounded-xl shadow-md ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'}`}
+        title={
+          <div className={`text-lg font-medium flex items-center ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+            <PieChartOutlined className="mr-2" /> Claims Statistics
           </div>
-        </div>
-      </div>
-
-      {/* Main Dashboard Content - Two columns on larger screens */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Status chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 transition-colors duration-200">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Claims by Status</h2>
-          {renderStatusChart()}
-        </div>
-
-        {/* Financial summary */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 transition-colors duration-200">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Financial Summary</h2>
-          
-          {loading ? (
-            <div className="animate-pulse space-y-4">
-              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
-              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
-              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <span className="text-gray-600 dark:text-gray-300">Total Claimed</span>
-                <span className="text-xl font-semibold text-gray-900 dark:text-white">
-                  {formatCurrency(dashboardData.total_claimed)}
-                </span>
-              </div>
-              
-              <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900 bg-opacity-50 rounded-lg">
-                <span className="text-green-600 dark:text-green-300">Approved Settlements</span>
-                <span className="text-xl font-semibold text-green-700 dark:text-green-200">
-                  {formatCurrency(dashboardData.approved_settlements)}
-                </span>
-              </div>
-              
-              {dashboardData.total_claimed > 0 && (
-                <div className="flex justify-between items-center p-3 bg-indigo-50 dark:bg-indigo-900 bg-opacity-50 rounded-lg">
-                  <span className="text-indigo-600 dark:text-indigo-300">Approval Rate</span>
-                  <span className="text-xl font-semibold text-indigo-700 dark:text-indigo-200">
-                    {dashboardData.total_claims > 0 ? 
-                      `${((dashboardData.approved_claims / dashboardData.total_claims) * 100).toFixed(1)}%` : 
-                      'N/A'}
-                  </span>
-                </div>
-              )}
-              
-              {statisticsData.avg_processing_time > 0 && (
-                <div className="flex justify-between items-center p-3 bg-yellow-50 dark:bg-yellow-900 bg-opacity-50 rounded-lg">
-                  <span className="text-yellow-600 dark:text-yellow-300">Avg. Processing Time</span>
-                  <span className="text-xl font-semibold text-yellow-700 dark:text-yellow-200">
-                    {statisticsData.avg_processing_time.toFixed(1)} days
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+        }
+        loading={loading}
+      >
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={12} md={6}>
+            <Statistic
+              title={<span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Total Claims</span>}
+              value={dashboardData.total_claims}
+              valueStyle={{ color: darkMode ? '#a5b4fc' : '#4f46e5' }}
+              prefix={<FileTextOutlined />}
+            />
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Statistic
+              title={<span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Completed Claims</span>}
+              value={dashboardData.recent_claims.filter(claim => claim.status === 'COMPLETED').length}
+              valueStyle={{ color: darkMode ? '#93c5fd' : '#3b82f6' }}
+              prefix={<CheckCircleOutlined />}
+            />
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Statistic
+              title={<span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Pending Claims</span>}
+              value={dashboardData.pending_claims}
+              valueStyle={{ color: darkMode ? '#fcd34d' : '#f59e0b' }}
+              prefix={<ClockCircleOutlined />}
+            />
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Statistic
+              title={<span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Total Settlements</span>}
+              value={formatCurrency(dashboardData.approved_settlements)}
+              valueStyle={{ color: darkMode ? '#86efac' : '#10b981' }}
+            />
+          </Col>
+        </Row>
+      </Card>
 
       {/* Recent Claims */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 transition-colors duration-200">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Recent Claims</h2>
+      <Card 
+        className={`rounded-xl shadow-md ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'}`}
+        title={
+          <div className={`text-lg font-medium flex items-center ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+            <FileTextOutlined className="mr-2" /> Recent Claims
+          </div>
+        }
+      >
         <RecentClaimsList claims={dashboardData.recent_claims} loading={loading} />
-      </div>
-
-      {/* Quick Actions */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 transition-colors duration-200">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Quick Actions</h2>
-        <div className="grid md:grid-cols-2 gap-4">
-          <Link to="/submit-claim" className="flex items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200">
-            <div className="flex-shrink-0 h-12 w-12 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-              <svg className="h-6 w-6 text-indigo-600 dark:text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Submit New Claim</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">File an insurance claim for processing</p>
-            </div>
-          </Link>
-          
-          <Link to="/predictions" className="flex items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200">
-            <div className="flex-shrink-0 h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-              <svg className="h-6 w-6 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">View Claims</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Check status of your existing claims</p>
-            </div>
-          </Link>
-        </div>
-      </div>
+      </Card>
 
       {/* How to Submit a Claim */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden transition-colors duration-200">
-        <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+      <Card 
+        className={`rounded-xl shadow-md ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'}`}
+        title={
+          <div className={`text-lg font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
             How to Submit a Claim
-          </h2>
-        </div>
-        <div className="p-6">
-          <div className="space-y-6">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400">
-                  <span className="text-lg font-bold">1</span>
-                </div>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">Start a New Claim</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Click the "Submit New Claim" button to begin the claims process. You'll need to provide details about the incident.
-                </p>
+          </div>
+        }
+      >
+        <div className="space-y-6">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <div className={`flex items-center justify-center h-10 w-10 rounded-full ${darkMode ? 'bg-indigo-900 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
+                <span className="text-lg font-bold">1</span>
               </div>
             </div>
-            
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400">
-                  <span className="text-lg font-bold">2</span>
-                </div>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">Describe the Incident</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Provide a clear and detailed description of what happened. Include when, where, and how the incident occurred, along with any relevant details.
-                </p>
+            <div className="ml-4">
+              <h3 className={`text-lg font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>Start a New Claim</h3>
+              <p className={`mt-1 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                Click the "Submit New Claim" button to begin the claims process. You'll need to provide details about the incident.
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <div className={`flex items-center justify-center h-10 w-10 rounded-full ${darkMode ? 'bg-indigo-900 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
+                <span className="text-lg font-bold">2</span>
               </div>
             </div>
-            
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400">
-                  <span className="text-lg font-bold">3</span>
-                </div>
+            <div className="ml-4">
+              <h3 className={`text-lg font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>Describe the Incident</h3>
+              <p className={`mt-1 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                Provide a clear and detailed description of what happened. Include when, where, and how the incident occurred, along with any relevant details.
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <div className={`flex items-center justify-center h-10 w-10 rounded-full ${darkMode ? 'bg-indigo-900 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
+                <span className="text-lg font-bold">3</span>
               </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">Wait for Assessment</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Our system will analyze your claim and provide an initial assessment. You may be asked to provide additional information if needed.
-                </p>
-              </div>
+            </div>
+            <div className="ml-4">
+              <h3 className={`text-lg font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>Wait for Assessment</h3>
+              <p className={`mt-1 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                Our AI system will analyze your claim and provide an initial settlement recommendation. You can then review and adjust if needed.
+              </p>
             </div>
           </div>
         </div>
-        <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 text-center">
-          <Link
-            to="/submit-claim"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            Submit a Claim Now
+        <Divider className={darkMode ? 'border-gray-700' : 'border-gray-200'} />
+        <div className="text-center">
+          <Link to="/submit-claim">
+            <Button 
+              type="primary" 
+              size="large"
+              icon={<FileAddOutlined />}
+              className={darkMode ? 'bg-indigo-600 hover:bg-indigo-700 border-indigo-600' : ''}
+            >
+              Submit a Claim Now
+            </Button>
           </Link>
         </div>
-      </div>
+      </Card>
     </div>
   );
 };

@@ -8,21 +8,31 @@ from .models import User, ActivityLog
 
 
 class UserSerializer(serializers.ModelSerializer):
+    insurance_company_name = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
         fields = ['id', 'email', 'first_name', 'last_name', 'role', 'profile_picture', 
                  'phone_number', 'department', 'date_joined', 'last_login', 'is_superuser', 
-                 'is_staff', 'approval_status']
+                 'is_staff', 'approval_status', 'insurance_company', 'insurance_company_name']
         read_only_fields = ['id', 'date_joined', 'last_login', 'is_superuser', 'is_staff']
+    
+    def get_insurance_company_name(self, obj):
+        return obj.insurance_company.name if obj.insurance_company else None
 
 
 class UserDetailSerializer(serializers.ModelSerializer):
+    insurance_company_name = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
         fields = ['id', 'email', 'first_name', 'last_name', 'role', 'profile_picture', 
                  'phone_number', 'department', 'date_joined', 'last_login', 'is_active', 
-                 'is_staff', 'is_superuser', 'approval_status']
+                 'is_staff', 'is_superuser', 'approval_status', 'insurance_company', 'insurance_company_name']
         read_only_fields = ['id', 'date_joined', 'last_login', 'is_staff', 'is_superuser']
+    
+    def get_insurance_company_name(self, obj):
+        return obj.insurance_company.name if obj.insurance_company else None
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -34,10 +44,16 @@ class RegisterSerializer(serializers.ModelSerializer):
         write_only=True, required=True, validators=[validate_password]
     )
     password2 = serializers.CharField(write_only=True, required=True)
+    insurance_company = serializers.PrimaryKeyRelatedField(
+        required=False, 
+        allow_null=True, 
+        queryset=User._meta.get_field('insurance_company').remote_field.model.objects.all()
+    )
 
     class Meta:
         model = User
-        fields = ['email', 'password', 'password2', 'first_name', 'last_name', 'role', 'phone_number', 'department']
+        fields = ['email', 'password', 'password2', 'first_name', 'last_name', 
+                 'role', 'phone_number', 'department', 'insurance_company']
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:

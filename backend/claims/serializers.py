@@ -27,7 +27,8 @@ class ClaimSerializer(serializers.ModelSerializer):
     class Meta:
         model = Claim
         fields = ['id', 'title', 'description', 'amount', 'claim_data', 'status', 
-                 'created_at', 'updated_at', 'reference_number', 'ml_prediction', 'user']
+                 'created_at', 'updated_at', 'reference_number', 'ml_prediction', 'user',
+                 'decided_settlement_amount']
         read_only_fields = ['id', 'status', 'created_at', 'updated_at', 'reference_number', 'ml_prediction']
 
     def create(self, validated_data):
@@ -40,9 +41,14 @@ class ClaimDashboardSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Claim
-        fields = ['id', 'reference_number', 'title', 'amount', 'status', 'created_at', 'settlement_amount', 'user']
+        fields = ['id', 'reference_number', 'title', 'amount', 'status', 'created_at', 
+                  'settlement_amount', 'user', 'decided_settlement_amount']
         
     def get_settlement_amount(self, obj):
+        # First check if there's a decided settlement amount
+        if obj.decided_settlement_amount is not None:
+            return obj.decided_settlement_amount
+        # Fall back to ML prediction if available
         if obj.ml_prediction:
             return obj.ml_prediction.settlement_amount
         return None

@@ -1,5 +1,9 @@
 // financeService.js - Handles API requests for Finance user functionality
 import { apiClient } from './authService';
+import axios from 'axios';
+
+// Base URL for API requests
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
 /**
  * Get all claims for finance dashboard
@@ -94,6 +98,19 @@ export const getFinancialInsights = async (params = {}) => {
 export const processClaim = async (claimId, actionData) => {
   // Use the claims endpoint directly instead of finance-specific endpoint
   return await apiClient.post(`/claims/${claimId}/process/`, actionData);
+};
+
+/* 
+ * PUBLIC API METHODS (NO AUTHENTICATION REQUIRED)
+ */
+
+/**
+ * Get all active insurance companies without authentication
+ * @returns {Promise} API response with insurance companies data
+ */
+export const getPublicInsuranceCompanies = async () => {
+  // Create a clean instance that doesn't include auth headers
+  return await axios.get(`${API_BASE_URL}/finance/public/insurance-companies/`);
 };
 
 /* 
@@ -307,6 +324,8 @@ export default {
   exportClaims,
   getFinancialInsights,
   processClaim,
+  // Public API methods
+  getPublicInsuranceCompanies,
   // Insurance company methods
   getInsuranceCompanies,
   getInsuranceCompany,

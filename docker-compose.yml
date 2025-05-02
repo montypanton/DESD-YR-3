@@ -15,9 +15,13 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u${DB_USER:-desd_user}", "-p${DB_PASSWORD:-desd_pass_123}"]
+      interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 30s
+    networks:
+      - desd-network
 
   # Backend
   backend:
@@ -40,9 +44,17 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app/backend
-    command: >
-      sh -c "python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8000 --insecure"
+      - backend_data:/app/backend/media
+      - backend_static:/app/backend/staticfiles
+    command: ./start.sh
+    networks:
+      - desd-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Frontend
   frontend:
@@ -53,13 +65,7 @@ services:
       - frontend_node_modules:/app/node_modules
     ports:
       - "3000:3000"
-    command: >
-      sh -c "echo '#!/bin/sh' > ./start.sh &&
-            echo 'npm install' >> ./start.sh &&
-            echo 'export WATCHPACK_POLLING=true' >> ./start.sh &&
-            echo 'npm start -- --polling' >> ./start.sh &&
-            chmod +x ./start.sh && 
-            ./start.sh"
+    command: sh -c "chmod +x ./start.sh && ./start.sh"
     environment:
       - REACT_APP_API_URL=http://localhost:8000/api
       - NODE_ENV=development
@@ -68,8 +74,17 @@ services:
       - FAST_REFRESH=true
       - CI=false
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    networks:
+      - desd-network
 
 volumes:
   mysql_data:
   frontend_node_modules:
+  backend_data:
+  backend_static:
+
+networks:
+  desd-network:
+    driver: bridge

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
+import { getPublicInsuranceCompanies } from '../../services/financeService';
 
 const RegisterSchema = Yup.object().shape({
   email: Yup.string()
@@ -24,7 +25,14 @@ const RegisterSchema = Yup.object().shape({
     .required('Last name is required'),
   role: Yup.string()
     .oneOf(['END_USER', 'ML_ENGINEER', 'FINANCE'], 'Invalid role')
-    .required('Role is required')
+    .required('Role is required'),
+  insurance_company: Yup.number()
+    .nullable()
+    .transform((value) => (isNaN(value) ? null : value))
+    .when('role', {
+      is: 'END_USER',
+      then: (schema) => schema,
+    })
 });
 
 const Register = () => {
@@ -32,15 +40,35 @@ const Register = () => {
   const navigate = useNavigate();
   const [apiError, setApiError] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [companies, setCompanies] = useState([]);
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
+
+  // Fetch insurance companies when component mounts using the public endpoint
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      try {
+        setLoadingCompanies(true);
+        const response = await getPublicInsuranceCompanies();
+        setCompanies(response.data);
+      } catch (error) {
+        console.error('Error fetching insurance companies:', error);
+      } finally {
+        setLoadingCompanies(false);
+      }
+    };
+
+    fetchCompanies();
+  }, []);
 
   const handleSubmit = async (values, { setSubmitting }) => {
     try {
       setApiError(null);
       setFieldErrors({});
       
-      // Use the role selected by the user
+      // Transform insurance_company to number if it's a string
       const userData = {
-        ...values
+        ...values,
+        insurance_company: values.insurance_company ? Number(values.insurance_company) : null
       };
       
       console.log('Registering with data:', userData);
@@ -120,12 +148,13 @@ const Register = () => {
             first_name: '', 
             last_name: '',
             phone_number: '',
-            role: 'END_USER'
+            role: 'END_USER',
+            insurance_company: ''
           }}
           validationSchema={RegisterSchema}
           onSubmit={handleSubmit}
         >
-          {({ isSubmitting, errors, touched }) => (
+          {({ isSubmitting, errors, touched, values, setFieldValue }) => (
             <Form className="mt-8 space-y-6">
               {apiError && (
                 <div className="bg-red-50 dark:bg-red-900 border-l-4 border-red-500 p-4">
@@ -237,6 +266,13 @@ const Register = () => {
                       id="role"
                       name="role"
                       className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                      onChange={(e) => {
+                        // Clear insurance company when role changes (keep it only for END_USER)
+                        if (e.target.value !== 'END_USER') {
+                          setFieldValue('insurance_company', '');
+                        }
+                        setFieldValue('role', e.target.value);
+                      }}
                     >
                       <option value="END_USER">End User</option>
                       <option value="ML_ENGINEER">ML Engineer</option>
@@ -254,6 +290,39 @@ const Register = () => {
                       ML Engineer and Finance roles require approval from an administrator before you can log in.
                     </p>
                   </div>
+                  
+                  {values.role === 'END_USER' && (
+                    <div>
+                      <label htmlFor="insurance_company" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Insurance Company
+                      </label>
+                      <Field
+                        as="select"
+                        id="insurance_company"
+                        name="insurance_company"
+                        className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                      >
+                        <option value="">-- Select Insurance Company --</option>
+                        {loadingCompanies ? (
+                          <option value="" disabled>Loading companies...</option>
+                        ) : (
+                          companies.map(company => (
+                            <option key={company.id} value={company.id}>
+                              {company.name}
+                            </option>
+                          ))
+                        )}
+                      </Field>
+                      <ErrorMessage 
+                        name="insurance_company" 
+                        component="div" 
+                        className="text-red-500 text-xs mt-1" 
+                      />
+                      {fieldErrors.insurance_company && (
+                        <div className="text-red-500 text-xs mt-1">{fieldErrors.insurance_company}</div>
+                      )}
+                    </div>
+                  )}
                   
                   <div>
                     <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
