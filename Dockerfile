@@ -16,18 +16,19 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir mysql-connector-python gunicorn
 
-# Copy project files
+# Ensure proper script permissions with explicit path and multiple checks
 COPY backend/ ./backend/
+RUN chmod +x /app/backend/start.sh && \
+    ls -la /app/backend/start.sh && \
+    # Convert possible CRLF line endings to LF
+    sed -i 's/\r$//' /app/backend/start.sh
 
-# Make the startup script executable
-RUN chmod +x ./backend/start.sh
+WORKDIR /app/backend
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DJANGO_SETTINGS_MODULE=backend.settings
-
-WORKDIR /app/backend
 
 EXPOSE 8000
 

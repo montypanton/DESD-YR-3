@@ -31,7 +31,11 @@ echo "Database is ready!"
 
 # Apply database migrations
 echo "Applying database migrations..."
-python manage.py migrate
+python manage.py migrate --noinput
+
+# Collect static files
+echo "Collecting static files..."
+python manage.py collectstatic --noinput
 
 # Create superuser if needed
 echo "Checking if superuser needs to be created..."
@@ -68,8 +72,4 @@ fi
 
 # Start server
 echo "Starting server..."
-if [ "$DEBUG" = "True" ]; then
-    python manage.py runserver 0.0.0.0:8000
-else
-    gunicorn backend.wsgi:application --bind 0.0.0.0:8000
-fi
+python manage.py runserver 0.0.0.0:8000

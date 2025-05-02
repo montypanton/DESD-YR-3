@@ -46,7 +46,14 @@ services:
       - ./backend:/app/backend
       - backend_data:/app/backend/media
       - backend_static:/app/backend/staticfiles
-    command: ./start.sh
+    command: >
+      sh -c "
+        echo 'Making start.sh executable...' &&
+        chmod +x ./start.sh &&
+        ls -la ./start.sh &&
+        echo 'Running start script...' &&
+        ./start.sh
+      "
     networks:
       - desd-network
     healthcheck:
