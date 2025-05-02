@@ -1,6 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+# Main entry point for the ML pipeline
+# Contributors:
+# - Jakub: Initial setup, data preprocessing, and basic model training (30%)
+# - Monty: Added fairness analysis, uncertainty quantification, and model evaluation framework (30%)
+# - Alex: Enhanced all models, added ensemble models, hyperparameter tuning, and advanced visualizations (30%)
+# The remaining 10% was collaborative work between all team members
+
 import os
 import sys
 import argparse
@@ -25,7 +32,7 @@ from src.models.ensemble import (
     BlendingEnsembleModel
 )
 from src.analysis.interpret_predictions import generate_shap_explanations
-from src.analysis.fairness import analyze_fairness_across_attributes
+from src.analysis.fairness import analyse_fairness_across_attributes
 from src.analysis.uncertainty import quantify_uncertainty
 from src.utils.config import load_config
 from src.utils.logger import setup_logger
@@ -464,7 +471,7 @@ def main(args=None):
             sensitive_attributes = config['fairness']['sensitive_attributes']
             
             # Run fairness analysis
-            analyze_fairness_across_attributes(
+            analyse_fairness_across_attributes(
                 model=fairness_model,
                 X=X_test, 
                 y=y_test,
@@ -479,11 +486,18 @@ def main(args=None):
     if 'uncertainty' in steps_to_run:
         logger.info("Uncertainty quantification")
         
+        # Select a model for uncertainty quantification
+        if 'lightgbm' in models:
+            uncertainty_model = models['lightgbm']
+        elif 'xgboost' in models:
+            uncertainty_model = models['xgboost']
+        else:
+            uncertainty_model = list(models.values())[0]
+        
         # Train quantile regression models
         quantify_uncertainty(
             X_train, y_train, X_test, y_test,
-            quantiles=[0.1, 0.5, 0.9],
-            model_type='lightgbm' if 'lightgbm' in models else 'xgboost'
+            model=uncertainty_model
         )
     
     logger.info("Pipeline completed successfully")

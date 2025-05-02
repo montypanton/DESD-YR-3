@@ -1,3 +1,19 @@
+"""
+Data preprocessing module for the insurance claim settlement value prediction project.
+
+This module handles all data preprocessing steps including:
+- Feature engineering
+- Missing value imputation
+- Categorical encoding
+- Feature selection
+- Train/test splitting
+
+Contributors:
+- Jakub: Initial implementation with basic preprocessing and feature engineering (60%)
+- Monty: Enhanced feature engineering, date features, and polynomial features (20%)
+- Alex: Advanced preprocessing pipeline with target encoding and feature selection (20%)
+"""
+
 import pandas as pd
 import numpy as np
 import os
@@ -147,11 +163,28 @@ def calculate_feature_importance(X, y, n_features=20):
     return avg_ranks.sort_values().index[:n_features].tolist()
 
 def extract_injury_prognosis_months(prognosis):
-    """Extract the number of months from injury prognosis text"""
+    """
+    Extract the numeric month value from injury prognosis text format.
+    
+    Handles categorical prognosis formats like "A. 1 month", "B. 2 months", etc.,
+    extracting just the numeric value for regression modeling.
+    
+    Parameters:
+    -----------
+    prognosis : str or nan
+        The injury prognosis text string
+        
+    Returns:
+    --------
+    int or nan
+        The extracted number of months, or NaN if extraction fails
+    """
+    # Handle missing values and non-string inputs
     if pd.isna(prognosis) or not isinstance(prognosis, str):
         return np.nan
     
     # Extract numbers from strings like "A. 1 month", "B. 2 months", etc.
+    # Using regex to capture one or more digits
     match = re.search(r'(\d+)', prognosis)
     if match:
         return int(match.group(1))
@@ -159,22 +192,39 @@ def extract_injury_prognosis_months(prognosis):
 
 def load_and_preprocess_data(file_path, target_column='SettlementValue', test_size=0.2, random_state=42):
     """
-    Load and preprocess data from CSV file with enhanced feature engineering.
+    Load and preprocess insurance claims data with comprehensive feature engineering.
+    
+    This function performs several key preprocessing steps:
+    1. Loads data and handles outliers in target variable
+    2. Creates domain-specific features for insurance claims
+    3. Handles categorical, numerical, and date features appropriately
+    4. Applies different encoding strategies based on cardinality
+    5. Creates interaction features to capture joint effects
+    6. Performs advanced feature selection
     
     Parameters:
     -----------
     file_path : str
-        Path to the input CSV file
+        Path to the input CSV file containing claims data
     target_column : str
-        Name of the target column
+        Name of the settlement value column to predict
     test_size : float
-        Proportion of data to use for testing
+        Proportion of data to use for testing (0.0-1.0)
     random_state : int
-        Random seed for reproducibility
+        Random seed for reproducible train/test splits
     
     Returns:
     --------
-    X_train, X_test, y_train, y_test, preprocessor
+    X_train : ndarray
+        Processed training features
+    X_test : ndarray
+        Processed test features  
+    y_train : ndarray
+        Training target values
+    y_test : ndarray
+        Test target values
+    preprocessor : ColumnTransformer
+        Fitted preprocessor for transforming new data
     """
     
     print(f"Loading data from {file_path}...")

@@ -1,4 +1,23 @@
-# src/analysis/uncertainty.py
+"""
+Uncertainty quantification module for settlement prediction models.
+
+This module implements advanced techniques to quantify model uncertainty:
+- Quantile regression for prediction intervals
+- Calibration methods for ensuring correct coverage
+- Uncertainty visualisation and analysis
+- Correlation between uncertainty and error
+
+Understanding prediction uncertainty is crucial for high-stakes decision-making,
+such as insurance settlement value predictions. This module generates calibrated
+prediction intervals that communicate the model's confidence in each prediction,
+helping users distinguish between confident predictions and those with higher
+uncertainty that may require additional review.
+
+Contributors:
+- Monty: Designed and implemented core uncertainty quantification methods (70%)
+- Alex: Added visualisation and reporting functionality (20%)
+- Jakub: Contributed to model calibration and evaluation (10%)
+"""
 
 import joblib
 import numpy as np
@@ -37,6 +56,7 @@ def quantify_uncertainty(X_train, y_train, X_test, y_test, model, base_predictio
         Dictionary containing uncertainty metrics and predictions with intervals
     """
     print("Quantifying prediction uncertainty...")
+    # Ensure output directory exists first
     os.makedirs(output_dir, exist_ok=True)
     
     # Get point predictions from the model
@@ -66,8 +86,11 @@ def quantify_uncertainty(X_train, y_train, X_test, y_test, model, base_predictio
     print(f"{target_coverage}% Prediction interval coverage: {coverage:.2f}%")
     print(f"Average interval width: £{avg_interval_width:.2f}")
     
-    # Create visualization of intervals
-    visualize_intervals(y_test, point_predictions, calibrated_lower, calibrated_upper, output_dir)
+    # Save models first
+    os.makedirs(os.path.join(output_dir, '../..', 'models'), exist_ok=True)
+    joblib.dump(lower_model, os.path.join(output_dir, '../..', 'models', 'quantile_lower_model.pkl'))
+    joblib.dump(median_model, os.path.join(output_dir, '../..', 'models', 'quantile_median_model.pkl'))
+    joblib.dump(upper_model, os.path.join(output_dir, '../..', 'models', 'quantile_upper_model.pkl'))
     
     # Create DataFrame with predictions and intervals
     predictions_df = pd.DataFrame({
@@ -82,19 +105,21 @@ def quantify_uncertainty(X_train, y_train, X_test, y_test, model, base_predictio
     # Save predictions with intervals
     predictions_df.to_csv(os.path.join(output_dir, 'predictions_with_intervals.csv'), index=False)
     
-    # Save models
-    joblib.dump(lower_model, os.path.join(output_dir, '../..', 'models', 'quantile_lower_model.pkl'))
-    joblib.dump(median_model, os.path.join(output_dir, '../..', 'models', 'quantile_median_model.pkl'))
-    joblib.dump(upper_model, os.path.join(output_dir, '../..', 'models', 'quantile_upper_model.pkl'))
-    
-    # Create reliability diagram
-    create_reliability_diagram(y_test, point_predictions, calibrated_lower, calibrated_upper, output_dir)
-    
-    # Analyze uncertainty vs error and get correlation
-    correlation = analyze_uncertainty_vs_error(point_predictions, calibrated_lower, calibrated_upper, y_test, output_dir)
-    
-    # Create uncertainty analysis report with correlation
-    create_uncertainty_report(predictions_df, coverage, avg_interval_width, target_coverage, output_dir, correlation)
+    try:
+        # Create visualisation of intervals - skip if this causes issues
+        visualise_intervals(y_test, point_predictions, calibrated_lower, calibrated_upper, output_dir)
+        
+        # Create reliability diagram
+        create_reliability_diagram(y_test, point_predictions, calibrated_lower, calibrated_upper, output_dir)
+        
+        # Analyze uncertainty vs error and get correlation
+        correlation = analyze_uncertainty_vs_error(point_predictions, calibrated_lower, calibrated_upper, y_test, output_dir)
+        
+        # Create uncertainty analysis report with correlation
+        create_uncertainty_report(predictions_df, coverage, avg_interval_width, target_coverage, output_dir, correlation)
+    except Exception as e:
+        print(f"Warning: Some visualizations failed with error: {str(e)}")
+        correlation = None
     
     # Return results
     results = {
@@ -160,80 +185,122 @@ def calibrate_prediction_intervals(y_true, y_pred, lower_bound, upper_bound):
     return blended_lower, blended_upper
 
 def train_quantile_models(X_train, y_train):
-    """Train quantile regression models for lower, median, and upper bounds."""
+    """
+    Train a set of quantile regression models to estimate prediction intervals.
+    
+    This function trains three separate XGBoost models targeting different quantiles:
+    - Lower bound (10th percentile): Captures the lower end of the prediction interval
+    - Median (50th percentile): Provides the central tendency prediction
+    - Upper bound (90th percentile): Captures the upper end of the prediction interval
+    
+    Together, these models create an 80% prediction interval (from 10th to 90th percentile)
+    which helps quantify the uncertainty in individual predictions.
+    
+    Parameters:
+    -----------
+    X_train : array-like
+        Training feature data, shape (n_samples, n_features)
+    y_train : array-like
+        Training target values, shape (n_samples,)
+        
+    Returns:
+    --------
+    tuple
+        (lower_model, median_model, upper_model) - The three trained quantile models
+        
+    Notes:
+    ------
+    - Uses early stopping with validation data to prevent overfitting
+    - Employs XGBoost's quantile regression capability ('reg:quantileerror')
+    - Model hyperparameters are tuned for balance between fitting and generalization
+    """
     print("Training quantile regression models...")
     
-    # Split data for validation
+    # Create a validation split for early stopping
+    # This helps prevent overfitting while ensuring good model performance
     X_train_split, X_val, y_train_split, y_val = train_test_split(
         X_train, y_train, test_size=0.2, random_state=42)
     
-    # Train model for lower bound (10th percentile)
-    lower_model = xgb.XGBRegressor(
-        objective='reg:quantileerror',
-        quantile_alpha=0.1,  # 10th percentile
-        n_estimators=300,
-        learning_rate=0.05,
-        max_depth=6,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=42
-    )
-    lower_model.fit(
-        X_train_split, 
-        y_train_split,
-        eval_set=[(X_val, y_val)],
-        early_stopping_rounds=30,
-        verbose=False
-    )
+    # Common hyperparameters for all quantile models
+    # These settings provide a good balance between model complexity and generalization
+    base_params = {
+        'n_estimators': 300,        # Maximum number of trees (early stopping may use fewer)
+        'learning_rate': 0.05,      # Conservative learning rate to prevent overfitting
+        'max_depth': 6,             # Moderate tree depth for balance between bias and variance
+        'subsample': 0.8,           # Use 80% of data for each tree to reduce overfitting
+        'colsample_bytree': 0.8,    # Use 80% of features for each tree to improve generalization
+        'random_state': 42          # Fixed seed for reproducibility
+    }
     
-    # Train model for median (50th percentile)
+    # Train model for the lower bound (10th percentile)
+    # This model intentionally underestimates to create the lower interval boundary
+    lower_model = xgb.XGBRegressor(
+        objective='reg:quantileerror',  # Quantile regression objective
+        quantile_alpha=0.1,             # Target the 10th percentile
+        **base_params
+    )
+    try:
+        # Try with early stopping
+        lower_model.fit(
+            X_train_split, 
+            y_train_split,
+            eval_set=[(X_val, y_val)],      # Validation data for early stopping
+            early_stopping_rounds=30,       # Stop if no improvement after 30 rounds
+            verbose=False                   # Suppress verbose output
+        )
+    except TypeError:
+        # Fall back if early stopping is not supported
+        print("Warning: Early stopping not supported. Falling back to standard training.")
+        lower_model.fit(X_train_split, y_train_split)
+    
+    # Train model for the median (50th percentile)
+    # This provides the central prediction (similar to standard regression)
     median_model = xgb.XGBRegressor(
         objective='reg:quantileerror',
-        quantile_alpha=0.5,  # 50th percentile
-        n_estimators=300,
-        learning_rate=0.05,
-        max_depth=6,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=42
+        quantile_alpha=0.5,             # Target the median (50th percentile)
+        **base_params
     )
-    median_model.fit(
-        X_train_split, 
-        y_train_split,
-        eval_set=[(X_val, y_val)],
-        early_stopping_rounds=30,
-        verbose=False
-    )
+    try:
+        median_model.fit(
+            X_train_split, 
+            y_train_split,
+            eval_set=[(X_val, y_val)],
+            early_stopping_rounds=30,
+            verbose=False
+        )
+    except TypeError:
+        median_model.fit(X_train_split, y_train_split)
     
-    # Train model for upper bound (90th percentile)
+    # Train model for the upper bound (90th percentile)
+    # This model intentionally overestimates to create the upper interval boundary
     upper_model = xgb.XGBRegressor(
         objective='reg:quantileerror',
-        quantile_alpha=0.9,  # 90th percentile
-        n_estimators=300,
-        learning_rate=0.05,
-        max_depth=6,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=42
+        quantile_alpha=0.9,             # Target the 90th percentile
+        **base_params
     )
-    upper_model.fit(
-        X_train_split, 
-        y_train_split,
-        eval_set=[(X_val, y_val)],
-        early_stopping_rounds=30,
-        verbose=False
-    )
+    try:
+        upper_model.fit(
+            X_train_split, 
+            y_train_split,
+            eval_set=[(X_val, y_val)],
+            early_stopping_rounds=30,
+            verbose=False
+        )
+    except TypeError:
+        upper_model.fit(X_train_split, y_train_split)
     
-    # Evaluate quantile models
+    # Evaluate the quality of our quantile predictions on validation data
     lower_val_preds = lower_model.predict(X_val)
     median_val_preds = median_model.predict(X_val)
     upper_val_preds = upper_model.predict(X_val)
     
-    # Calculate quantile coverage
-    lower_coverage = np.mean(y_val >= lower_val_preds) * 100
-    upper_coverage = np.mean(y_val <= upper_val_preds) * 100
-    interval_coverage = np.mean((y_val >= lower_val_preds) & (y_val <= upper_val_preds)) * 100
+    # Calculate empirical coverage statistics
+    # Ideally, these should match the theoretical quantiles (10%, 90%, 80% interval)
+    lower_coverage = np.mean(y_val >= lower_val_preds) * 100  # Should be close to 90%
+    upper_coverage = np.mean(y_val <= upper_val_preds) * 100  # Should be close to 90%
+    interval_coverage = np.mean((y_val >= lower_val_preds) & (y_val <= upper_val_preds)) * 100  # Should be close to 80%
     
+    # Report coverage statistics to evaluate interval quality
     print(f"Validation coverage: Lower bound: {lower_coverage:.2f}%, Upper bound: {upper_coverage:.2f}%")
     print(f"Validation interval coverage: {interval_coverage:.2f}%")
     
@@ -241,9 +308,20 @@ def train_quantile_models(X_train, y_train):
 
 # src/analysis/uncertainty.py (continuation)
 
-def visualize_intervals(y_test, y_pred, lower_bound, upper_bound, output_dir):
-    """Visualize prediction intervals."""
-    # Sample a subset for clearer visualization
+def visualise_intervals(y_test, y_pred, lower_bound, upper_bound, output_dir):
+    """
+    Visualise prediction intervals for model uncertainty assessment.
+    
+    This function creates two main visualisations:
+    1. A sample of predictions with intervals showing actual vs. predicted values
+    2. A scatter plot showing prediction intervals on the actual vs. predicted space
+    
+    These visualisations help users understand the uncertainty in different predictions
+    and assess whether the prediction intervals properly capture the true values.
+    """
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+    # Sample a subset for clearer visualisation
     np.random.seed(42)
     sample_size = min(100, len(y_test))
     indices = np.random.choice(len(y_test), sample_size, replace=False)
@@ -295,15 +373,16 @@ def visualize_intervals(y_test, y_pred, lower_bound, upper_bound, output_dir):
     lower_bound_subset = lower_bound[subset_indices]
     upper_bound_subset = upper_bound[subset_indices]
     
-    # Draw vertical error bars
+    # Draw error bars for prediction intervals
     for i in range(len(y_test_subset)):
         actual = y_test_subset[i]
         predicted = y_pred_subset[i]
         lower = lower_bound_subset[i]
         upper = upper_bound_subset[i]
         
-        # Draw vertical line from lower to upper bound
-        plt.plot([actual, actual], [lower, upper], 'r-', alpha=0.3)
+        # Draw vertical error bars on the prediction plot
+        # X coordinate is the actual value, Y coordinate ranges from lower to upper interval bounds
+        plt.vlines(x=actual, ymin=lower, ymax=upper, color='r', alpha=0.3)
         
         # Draw a circle to mark the prediction point
         plt.plot(actual, predicted, 'ro', alpha=0.5, markersize=4)
@@ -358,6 +437,9 @@ def create_reliability_diagram(y_true, y_pred, lower_bound, upper_bound, output_
                                           (y_true[mask] <= upper_bound[mask]))
             bin_counts[i] = np.sum(mask)
     
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+    
     # Create reliability diagram
     plt.figure(figsize=(10, 6))
     
@@ -389,6 +471,9 @@ def create_reliability_diagram(y_true, y_pred, lower_bound, upper_bound, output_
 
 def analyze_uncertainty_vs_error(y_pred, lower_bound, upper_bound, y_true, output_dir):
     """Analyze relationship between uncertainty and prediction error."""
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+    
     # Calculate absolute error
     abs_error = np.abs(y_true - y_pred)
     
@@ -462,6 +547,9 @@ def analyze_uncertainty_vs_error(y_pred, lower_bound, upper_bound, y_true, outpu
 
 def create_uncertainty_report(predictions_df, coverage, avg_width, target_coverage, output_dir, correlation=None):
     """Create comprehensive uncertainty analysis report."""
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+    
     # Calculate additional metrics
     try:
         coverage_by_value = predictions_df.groupby(pd.qcut(predictions_df['Actual'], 4))['Within_Interval'].mean() * 100

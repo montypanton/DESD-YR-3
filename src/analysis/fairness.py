@@ -1,51 +1,127 @@
+"""
+Fairness analysis module for assessing model bias across demographic groups.
+
+This module implements comprehensive fairness analysis including:
+- Per-attribute bias detection
+- Statistical disparity measurement
+- Visualisation of model performance across groups
+- Detailed fairness reports with recommendations
+
+The fairness assessment helps identify if the model performs differently across
+demographic groups, which could indicate bias. It analyses performance metrics
+such as prediction error and bias across different categories (e.g., gender,
+accident type) to ensure the model is fair to all demographic groups.
+
+Contributors:
+- Monty: Designed and implemented the core fairness analysis framework (80%)
+- Alex: Added visualisation components and enhanced reporting (20%)
+"""
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
 
-def analyze_fairness_across_attributes(y_true, y_pred, df, sensitive_attributes, 
-                                      output_dir='results/fairness'):
-    """Analyze model fairness across demographic groups."""
+def analyse_fairness_across_attributes(model, X, y, raw_data, sensitive_attributes, 
+                                      preprocessor=None, output_dir='results/fairness'):
+    """
+    Analyse model fairness across multiple demographic and sensitive attributes.
+    
+    This function evaluates prediction bias and error distributions across 
+    different demographic groups to detect potential disparities in model 
+    performance. For each sensitive attribute (like gender, age group, etc.),
+    it calculates metrics and creates visualisations to highlight any 
+    fairness concerns.
+    
+    The fairness assessment is crucial for ensuring the model doesn't 
+    systematically disadvantage or favour certain demographic groups, which 
+    could lead to unfair outcomes or potential legal concerns when deployed.
+    
+    Parameters:
+    -----------
+    model : BaseModel
+        Trained model to evaluate for fairness
+    X : array-like
+        Test set features
+    y : array-like
+        True target values from test set
+    raw_data : DataFrame
+        Original dataset containing demographic information
+    sensitive_attributes : list
+        List of column names to analyse for fairness concerns
+    preprocessor : ColumnTransformer, optional
+        Preprocessor used to transform the data
+    output_dir : str
+        Directory to save fairness analysis results
+        
+    Returns:
+    --------
+    dict
+        Dictionary containing fairness metrics for each attribute, with keys
+        corresponding to attribute names and values containing performance metrics
+        
+    Notes:
+    ------
+    The function creates a comprehensive fairness report including:
+    - Bias analysis by demographic group
+    - Error distribution across groups
+    - Statistical significance tests for bias
+    - Visualisations highlighting disparities
+    """
+    # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
-    # Create a df with test data and predictions
-    # This resolves the index mismatch issue
+    # Generate predictions from the model
+    y_pred = model.predict(X)
+    y_true = y
+    
+    # Create a dataframe with test data and predictions
+    # This resolves potential index mismatch issues between predictions and attributes
     results_df = pd.DataFrame({
         'y_true': y_true,
         'y_pred': y_pred
     })
     
-    # Add a sequential index to match with original dataset
+    # Add a sequential index to match with original dataset attributes
     results_df['seq_idx'] = range(len(results_df))
     
+    # Process each sensitive attribute
     results = {}
     for attribute in sensitive_attributes:
-        if attribute not in df.columns:
+        # Verify the attribute exists in the dataset
+        if attribute not in raw_data.columns:
             print(f"Attribute {attribute} not found in dataset. Skipping.")
             continue
         
-        # Create a copy of the attribute column
-        attribute_values = df[attribute].reset_index(drop=True)
+        # Create a copy of the attribute column with reset index for alignment
+        attribute_values = raw_data[attribute].reset_index(drop=True)
         
-        # Check if we have enough values
+        # Ensure we have sufficient attribute values for the test set
         if len(attribute_values) < len(results_df):
             print(f"Warning: Attribute {attribute} has fewer values than test data. Skipping.")
             continue
             
-        # Add it to our results dataframe
+        # Add attribute values to results dataframe for analysis
         results_df[attribute] = attribute_values[:len(results_df)]
         
-        # Analyze this attribute
-        results[attribute] = analyze_single_attribute(
+        # Analyse fairness for this specific attribute
+        results[attribute] = analyse_single_attribute(
             results_df, attribute, output_dir)
     
-    # Generate summary report
+    # Generate comprehensive summary report with recommendations
     generate_fairness_report(results, output_dir)
     
     return results
 
-def analyze_single_attribute(results_df, attribute, output_dir):
-    """Analyze model fairness across values of a single attribute."""
+def analyse_single_attribute(results_df, attribute, output_dir):
+    """
+    Analyse model fairness across values of a single attribute.
+    
+    This function breaks down performance metrics for each unique value of the
+    attribute (e.g., "Male"/"Female"/"Other" for gender). It calculates error
+    metrics, bias measurements, and relative performance differences to identify
+    if the model treats any particular group unfairly.
+    """
     # Create directory for this attribute
     attr_dir = os.path.join(output_dir, attribute)
     os.makedirs(attr_dir, exist_ok=True)
@@ -105,13 +181,24 @@ def analyze_single_attribute(results_df, attribute, output_dir):
     # Save metrics to CSV
     metrics_df.to_csv(os.path.join(attr_dir, f'{attribute}_metrics.csv'))
     
-    # Create visualizations
-    create_fairness_visualizations(metrics_df, attribute, attr_dir)
+    # Create visualisations
+    create_fairness_visualisations(metrics_df, attribute, attr_dir)
     
     return metrics_df
 
-def create_fairness_visualizations(metrics_df, attribute, output_dir):
-    """Create visualizations for fairness analysis."""
+def create_fairness_visualisations(metrics_df, attribute, output_dir):
+    """
+    Create visualisations for fairness analysis.
+    
+    This function generates several charts to visualise fairness metrics:
+    1. Bar chart of relative bias by attribute value
+    2. Comparison of error metrics (RMSE, MAE) across attribute values
+    3. Mean Absolute Percentage Error (MAPE) distribution
+    4. Sample count distribution to identify potential data imbalance
+    
+    The visualisations help identify patterns that might indicate bias or
+    unfairness in model predictions across different demographic groups.
+    """
     # 1. Bias comparison
     plt.figure(figsize=(12, 6))
     ax = metrics_df['relative_bias'].plot(kind='bar', color='skyblue')
@@ -173,7 +260,21 @@ def create_fairness_visualizations(metrics_df, attribute, output_dir):
     plt.close()
 
 def generate_fairness_report(results, output_dir):
-    """Generate a summary report of fairness analysis."""
+    """
+    Generate a comprehensive summary report of fairness analysis.
+    
+    This function creates a detailed Markdown report that summarises the fairness 
+    analysis results for all attributes. The report includes:
+    
+    1. Overall summary of findings with key metrics
+    2. Detailed per-attribute analysis with insights on bias and error patterns
+    3. Visualisations for each attribute showing performance differences
+    4. Specific recommendations based on identified issues
+    5. Conclusion with overall fairness assessment
+    
+    The report helps stakeholders understand any fairness concerns and provides
+    actionable recommendations for addressing them.
+    """
     # Skip if no results to report
     if not results:
         print("No fairness results to report.")
@@ -184,10 +285,10 @@ def generate_fairness_report(results, output_dir):
         f.write("# Model Fairness Analysis Report\n\n")
         
         f.write("## Overview\n\n")
-        f.write(f"This report analyzes the fairness of the settlement value prediction model ")
+        f.write(f"This report analyses the fairness of the settlement value prediction model ")
         f.write(f"across different demographic and case-type groups.\n\n")
         
-        f.write(f"Number of attributes analyzed: {len(results)}\n\n")
+        f.write(f"Number of attributes analysed: {len(results)}\n\n")
         
         # Summary table
         f.write("## Summary of Findings\n\n")
@@ -255,8 +356,8 @@ def generate_fairness_report(results, output_dir):
             
             if min_count < 20:
                 f.write(f"WARNING: Low sample count ({min_count}) for {min_count_idx}. Results may not be reliable.\n\n")            
-            # Include visualizations
-            f.write("#### Visualizations\n\n")
+            # Include visualisations
+            f.write("#### Visualisations\n\n")
             f.write(f"![Bias by {attribute}]({attribute}/{attribute}_bias.png)\n\n")
             f.write(f"![Error Metrics by {attribute}]({attribute}/{attribute}_errors.png)\n\n")
             f.write(f"![MAPE by {attribute}]({attribute}/{attribute}_mape.png)\n\n")

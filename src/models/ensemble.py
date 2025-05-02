@@ -1,3 +1,18 @@
+"""
+Advanced ensemble modeling module for insurance claim settlement prediction.
+
+This module implements various ensemble techniques:
+- Weighted ensemble (weighted average of base models)
+- Stacking ensemble (meta-model trained on base model predictions)
+- Stacking CV ensemble (uses cross-validation to prevent data leakage)
+- Blending ensemble (trains base models on different subsets of data)
+
+Contributors:
+- Alex: Implemented core ensemble framework, stacking and weighted ensembles (60%)
+- Monty: Added blending ensemble and visualization components (30%)
+- Jakub: Implemented model saving/loading functionality (10%)
+"""
+
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import Ridge, Lasso, ElasticNet
@@ -9,70 +24,133 @@ import os
 import matplotlib.pyplot as plt
 
 class EnsembleModel(BaseModel):
-    """Enhanced ensemble model combining multiple base models with advanced stacking."""
+    """
+    Enhanced ensemble model combining multiple base models with advanced stacking.
+    
+    This class provides a unified interface for different ensemble techniques:
+    - Weighted ensemble: Optimizes weights for combining model predictions
+    - Stacking ensemble: Trains a meta-model on base model predictions
+    - Stacking CV ensemble: Uses cross-validation to prevent data leakage
+    - Blending ensemble: Trains base models on different data subsets
+    
+    The implementation handles model persistence, weight optimization,
+    and provides robust fallbacks in case of model errors.
+    """
     
     def __init__(self, base_models=None, ensemble_type='weighted', random_state=42):
         """
-        Initialize ensemble model.
+        Initialize ensemble model with the specified configuration.
         
         Parameters:
         -----------
         base_models : dict
-            Dictionary of base models {name: model}
+            Dictionary of base models {name: model} where each model
+            implements the predict() method. May be None initially and
+            set later during train().
+            
         ensemble_type : str
-            Type of ensemble: 'weighted', 'stacking', 'blending', or 'stacking_cv'
+            Type of ensemble method to use:
+            - 'weighted': Optimized weighted average of base models
+            - 'stacking': Meta-model trained on base model predictions
+            - 'blending': Base models trained on different data subsets
+            - 'stacking_cv': Cross-validated stacking to prevent data leakage
+            
+        random_state : int
+            Random seed for reproducibility across runs
         """
         super().__init__(model_name=f"{ensemble_type}_ensemble", random_state=random_state)
+        
         # Initialize base_models as an empty dict if None
         self.base_models = {}
         if base_models is not None:
-            # Filter out any EnsembleModel instances to prevent recursion
+            # Filter out any EnsembleModel instances to prevent recursive ensembling
+            # which could lead to infinite loops and poor generalization
             self.base_models = {name: model for name, model in base_models.items() 
                             if not isinstance(model, EnsembleModel)}
             
+            # Log warning if any models were filtered out
             if len(self.base_models) < len(base_models):
                 print(f"Warning: Removed {len(base_models) - len(self.base_models)} ensemble models from base_models to prevent recursion")
         
+        # Store configuration
         self.ensemble_type = ensemble_type
-        self.weights = None
-        self.meta_model = None
-        self.model_info = None  # Store ensemble information separately
-        self.cv_metadata = None  # Store cross-validation metadata
+        self.weights = None  # Will store weights for weighted ensemble
+        self.meta_model = None  # Will store meta-learner for stacking/blending
+        self.model_info = None  # Store ensemble information separately for serialization
+        self.cv_metadata = None  # Store cross-validation metadata for analysis
     
     def train(self, X_train=None, y_train=None, X_val=None, y_val=None):
-        """Train the ensemble model."""
-        # If first parameter is a dictionary, it's the base_models
+        """
+        Train the ensemble model using the specified ensemble technique.
+        
+        This method is flexible and handles two different call patterns:
+        1. train(base_models_dict, X_train, y_train, X_val=None, y_val=None)
+        2. train(X_train, y_train, X_val=None, y_val=None) when base_models already set
+        
+        Parameters:
+        -----------
+        X_train : array-like or dict
+            Either training data features or dictionary of base models if first argument
+        y_train : array-like or array-like
+            Either training data targets or X_train if first argument is base_models
+        X_val : array-like or array-like, optional
+            Either validation data features or y_train if first argument is base_models
+        y_val : array-like or None, optional
+            Validation data targets, ignored if first argument is base_models
+            
+        Returns:
+        --------
+        self : EnsembleModel
+            Trained model instance for method chaining
+            
+        Raises:
+        -------
+        ValueError
+            If no base models are provided or ensemble type is unknown
+        """
+        # Handle alternative call pattern: train(base_models_dict, X_train, y_train)
+        # This provides a more intuitive API for the user
         if isinstance(X_train, dict):
+            # First parameter is actually base_models dictionary
             self.base_models = {name: model for name, model in X_train.items() 
                           if not isinstance(model, EnsembleModel)}
+            # Shift parameters to their correct positions
             X_train = y_train
             y_train = X_val
             X_val = y_val
             y_val = None
             
+        # Validate we have base models to ensemble
         if self.base_models is None or len(self.base_models) == 0:
             raise ValueError("No base models provided for ensemble")
             
+        # Create validation split if not provided
+        # This is important for optimization and evaluation
         if X_val is None or y_val is None:
             from sklearn.model_selection import train_test_split
             X_train, X_val, y_train, y_val = train_test_split(
                 X_train, y_train, test_size=0.2, random_state=self.random_state
             )
         
+        # Train the appropriate ensemble type
         if self.ensemble_type == 'weighted':
+            # Weighted ensemble optimizes weights using validation data
             self._train_weighted_ensemble(X_val, y_val)
         elif self.ensemble_type == 'stacking':
+            # Stacking trains meta-model on base model predictions
             self._train_stacking_ensemble(X_train, y_train)
         elif self.ensemble_type == 'blending':
+            # Blending uses different data subsets to prevent overfitting
             self._train_blending_ensemble(X_train, y_train, X_val, y_val)
         elif self.ensemble_type == 'stacking_cv':
+            # Stacking with cross-validation to prevent data leakage
             self._train_stacking_cv_ensemble(X_train, y_train)
         else:
             raise ValueError(f"Unknown ensemble type: {self.ensemble_type}")
         
         # Set self.model for BaseModel compatibility
-        # The actual model logic is handled in self.model_info
-        self.model = True  # Just a placeholder
+        # The actual model logic is implemented in predict() using self.model_info
+        self.model = True  # Just a placeholder to indicate model is trained
         
         return self
     

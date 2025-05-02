@@ -1,3 +1,16 @@
+"""
+Base model abstract class defining the interface for all regression models.
+
+This module provides a common interface for all predictive models including:
+- Training and prediction methods
+- Model evaluation with standardized metrics
+- Model persistence (save/load functionality)
+
+Contributors:
+- Monty: Initial implementation with evaluation metrics and visualization (70%) 
+- Alex: Extended functionality with hyperparameter tuning and model persistence (30%)
+"""
+
 from abc import ABC, abstractmethod
 import numpy as np
 import joblib
