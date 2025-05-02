@@ -5,7 +5,20 @@ import uuid
 class MLPredictionSerializer(serializers.ModelSerializer):
     class Meta:
         model = MLPrediction
-        fields = ['id', 'settlement_amount', 'confidence_score', 'created_at', 'processing_time']
+        fields = ['id', 'settlement_amount', 'confidence_score', 
+                 'created_at', 'processing_time', 'input_data', 'output_data']
+
+    def to_representation(self, instance):
+        """Convert the prediction output to a more user-friendly format"""
+        data = super().to_representation(instance)
+        if instance.output_data:
+            # Extract the main prediction details
+            data['prediction'] = {
+                'amount': float(instance.output_data.get('settlement_amount', 0)),
+                'confidence': float(instance.output_data.get('confidence_score', 0)),
+                'processing_time': float(instance.output_data.get('processing_time', 0))
+            }
+        return data
 
 
 class ClaimSerializer(serializers.ModelSerializer):

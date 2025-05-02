@@ -122,7 +122,7 @@ const FinanceReports = () => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
           <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase mb-2">Total Expenses</h3>
           <div className="flex items-baseline">
-            <span className="text-3xl font-bold text-gray-900 dark:text-white">$139,352.00</span>
+            <span className="text-3xl font-bold text-gray-900 dark:text-white">£139,352.00</span>
           </div>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {reportType === 'monthly' ? 'April 2025' : 
@@ -134,7 +134,7 @@ const FinanceReports = () => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
           <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase mb-2">Average Per Claim</h3>
           <div className="flex items-baseline">
-            <span className="text-3xl font-bold text-gray-900 dark:text-white">$487.25</span>
+            <span className="text-3xl font-bold text-gray-900 dark:text-white">£487.25</span>
           </div>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Across {reportType === 'monthly' ? '47' : reportType === 'quarterly' ? '148' : '286'} claims</p>
         </div>
@@ -179,7 +179,7 @@ const FinanceReports = () => {
                     {dept.department}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    ${dept.amount.toFixed(2)}
+                    £{dept.amount.toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                     {dept.percentage}%
@@ -226,7 +226,7 @@ const FinanceReports = () => {
                     {cat.category}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    ${cat.amount.toFixed(2)}
+                    £{cat.amount.toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                     {cat.percentage}%

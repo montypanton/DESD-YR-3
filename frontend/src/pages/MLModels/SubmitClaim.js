@@ -77,8 +77,8 @@ const SubmitClaim = () => {
         claim_data: {
           // Personal & General Info
           Gender: allValues.Gender,
-          DriverAge: allValues.DriverAge,
-          NumberOfPassengers: allValues.NumberOfPassengers,
+          DriverAge: parseInt(allValues.DriverAge) || 0,
+          NumberOfPassengers: parseInt(allValues.NumberOfPassengers) || 0,
           
           // Accident Info
           AccidentType: allValues.AccidentType,
@@ -87,21 +87,21 @@ const SubmitClaim = () => {
           AccidentDescription: allValues.AccidentDescription,
           PoliceReportFiled: allValues.PoliceReportFiled,
           WitnessPresent: allValues.WitnessPresent,
-          WeatherConditions: allValues.WeatherConditions,
+          'Weather Conditions': allValues['Weather Conditions'],
           
           // Vehicle Info
-          VehicleType: allValues.VehicleType,
-          VehicleAge: allValues.VehicleAge,
+          'Vehicle Type': allValues['Vehicle Type'],
+          VehicleAge: parseInt(allValues.VehicleAge) || 0,
           
           // Injury Details
-          DominantInjury: allValues.DominantInjury,
+          'Dominant injury': allValues['Dominant injury'],
           InjuryDescription: allValues.InjuryDescription,
-          InjuryPrognosis: allValues.Injury_Prognosis,
-          Whiplash: allValues.Whiplash,
-          MinorPsychologicalInjury: allValues.Minor_Psychological_Injury,
+          'Injury_Prognosis': allValues.Injury_Prognosis,
+          Whiplash: allValues.Whiplash === 'Yes',
+          MinorPsychologicalInjury: allValues.Minor_Psychological_Injury === 'Yes',
           
           // Special Damages
-          SpecialHealthExpenses: allValues.SpecialHealthExpenses || 0,
+          SpecialHealthExpenses: parseFloat(allValues.SpecialHealthExpenses) || 0,
           SpecialMedications: allValues.SpecialMedications || 0,
           SpecialRehabilitation: allValues.SpecialRehabilitation || 0,
           SpecialTherapy: allValues.SpecialTherapy || 0,
@@ -259,7 +259,7 @@ const SubmitClaim = () => {
         return (
           <div className="text-gray-800 dark:text-gray-100">
             <Form.Item
-              name="Vehicle_Type"
+              name="Vehicle Type"
               label="Vehicle Type"
               rules={[{ required: true, message: 'Please select vehicle type' }]}
             >
@@ -279,7 +279,7 @@ const SubmitClaim = () => {
             </Form.Item>
 
             <Form.Item
-              name="Weather_Conditions"
+              name="Weather Conditions"
               label="Weather Conditions"
               rules={[{ required: true, message: 'Please select weather conditions' }]}
             >
@@ -343,7 +343,7 @@ const SubmitClaim = () => {
         return (
           <div className="text-gray-800 dark:text-gray-100">
             <Form.Item
-              name="Dominant_injury"
+              name="Dominant injury"
               label="Dominant Injury Location"
               rules={[{ required: true, message: 'Please select dominant injury location' }]}
             >
@@ -697,9 +697,7 @@ const SubmitClaim = () => {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Lost Income:</span>
-                  <span className="text-gray-900 dark:text-white font-medium">
-                    £{(formValues.SpecialEarningsLoss || 0).toLocaleString()}
-                  </span>
+                  <span className="text-gray-900 dark:text-white">{(formValues.SpecialEarningsLoss || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Other Expenses:</span>

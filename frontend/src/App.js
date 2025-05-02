@@ -24,6 +24,10 @@ import FinanceClaims from './pages/finance/FinanceClaims';
 import FinanceReports from './pages/finance/FinanceReports';
 import FinanceClaimDetail from './pages/finance/FinanceClaimDetail';
 import FinanceUserProfile from './pages/finance/FinanceUserProfile';
+import InsuranceCompanies from './pages/finance/InsuranceCompanies';
+import InsuranceCompanyForm from './pages/finance/InsuranceCompanyForm';
+import Invoices from './pages/finance/Invoices';
+import InvoiceForm from './pages/finance/InvoiceForm';
 import UserManagement from './pages/admin/UserManagement';
 import AdminUserProfile from './pages/admin/AdminUserProfile';
 import ActivityLogs from './pages/admin/ActivityLogs';
@@ -217,6 +221,71 @@ function App() {
             element={
               <FinanceRoute>
                 <Profile />
+              </FinanceRoute>
+            } 
+          />
+          
+          {/* New insurance company routes */}
+          <Route 
+            path="finance/insurance-companies" 
+            element={
+              <FinanceRoute>
+                <InsuranceCompanies />
+              </FinanceRoute>
+            } 
+          />
+          
+          <Route 
+            path="finance/insurance-companies/new" 
+            element={
+              <FinanceRoute>
+                <InsuranceCompanyForm />
+              </FinanceRoute>
+            } 
+          />
+          
+          <Route 
+            path="finance/insurance-companies/:id/edit" 
+            element={
+              <FinanceRoute>
+                <InsuranceCompanyForm />
+              </FinanceRoute>
+            } 
+          />
+          
+          {/* New invoice routes */}
+          <Route 
+            path="finance/invoices" 
+            element={
+              <FinanceRoute>
+                <Invoices />
+              </FinanceRoute>
+            } 
+          />
+          
+          <Route 
+            path="finance/invoices/new" 
+            element={
+              <FinanceRoute>
+                <InvoiceForm />
+              </FinanceRoute>
+            } 
+          />
+          
+          <Route 
+            path="finance/invoices/:id" 
+            element={
+              <FinanceRoute>
+                <InvoiceForm />
+              </FinanceRoute>
+            } 
+          />
+          
+          <Route 
+            path="finance/invoices/:id/edit" 
+            element={
+              <FinanceRoute>
+                <InvoiceForm />
               </FinanceRoute>
             } 
           />

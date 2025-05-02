@@ -47,3 +47,13 @@ class MLPrediction(models.Model):
     
     def __str__(self):
         return f"Prediction {self.id} for Claim {self.claim.reference_number if hasattr(self, 'claim') else 'unknown'}"
+
+    @property
+    def prediction(self):
+        """Return prediction data in a consistent format"""
+        return {
+            'settlement_amount': float(self.settlement_amount),
+            'confidence_score': float(self.confidence_score),
+            'processing_time': float(self.processing_time),
+            'details': self.output_data.get('details', {})
+        }

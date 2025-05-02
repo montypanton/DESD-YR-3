@@ -147,6 +147,46 @@ const Sidebar = () => {
                   </div>
                 </Link>
               </li>
+              <li>
+                <Link 
+                  to="/finance/insurance-companies" 
+                  className={`block py-2.5 px-4 rounded transition ${isActive('/finance/insurance-companies')} hover:bg-green-700`}
+                >
+                  <div className="flex items-center">
+                    <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2h-1.528A6 6 0 004 9.528V4z" />
+                      <path fillRule="evenodd" d="M8 10a4 4 0 00-3.446 6.032l-1.261 1.26a1 1 0 101.414 1.415l1.261-1.261A4 4 0 108 10zm-2 4a2 2 0 114 0 2 2 0 01-4 0z" clipRule="evenodd" />
+                    </svg>
+                    <span>Insurance Companies</span>
+                  </div>
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  to="/finance/invoices" 
+                  className={`block py-2.5 px-4 rounded transition ${isActive('/finance/invoices')} hover:bg-green-700`}
+                >
+                  <div className="flex items-center">
+                    <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                    </svg>
+                    <span>Invoices</span>
+                  </div>
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  to="/finance/reports" 
+                  className={`block py-2.5 px-4 rounded transition ${isActive('/finance/reports')} hover:bg-green-700`}
+                >
+                  <div className="flex items-center">
+                    <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span>Reports</span>
+                  </div>
+                </Link>
+              </li>
             </ul>
           </nav>
         </div>

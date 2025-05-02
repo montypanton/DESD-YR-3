@@ -30,8 +30,11 @@ const PredictionHistory = () => {
       const claimsData = response.data.results || response.data;
       setPredictions(claimsData);
       
+      // Ensure we're adding up numeric values and defaulting to 0 for missing values
       const predictedTotal = claimsData.reduce((sum, claim) => {
-        return sum + (claim.ml_prediction?.settlement_amount || 0);
+        const amount = claim.ml_prediction?.settlement_amount;
+        // Check if amount is a valid number
+        return sum + (typeof amount === 'number' ? amount : 0);
       }, 0);
       
       setStats({
@@ -46,44 +49,6 @@ const PredictionHistory = () => {
       message.error('Failed to load claims');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const rerunPrediction = async (claimId) => {
-    try {
-      setRerunningClaims(prev => ({ ...prev, [claimId]: true }));
-      
-      // First get active model to ensure we have one
-      const modelResponse = await apiClient.get('/ml/models/');
-      const activeModel = modelResponse.data.find(model => model.is_active);
-      
-      if (!activeModel) {
-        message.error('No active model available for prediction');
-        return;
-      }
-
-      // Run the prediction
-      const response = await apiClient.post(`/claims/${claimId}/rerun_prediction/`);
-      
-      if (response.data) {
-        setPredictions(prevPredictions => 
-          prevPredictions.map(claim => 
-            claim.id === claimId 
-              ? { 
-                  ...claim, 
-                  ml_prediction: response.data.prediction 
-                }
-              : claim
-          )
-        );
-        message.success('Prediction re-run successfully');
-        await fetchClaims(); // Refresh all data
-      }
-    } catch (error) {
-      console.error('Error re-running prediction:', error);
-      message.error(error.response?.data?.error || 'Failed to re-run prediction');
-    } finally {
-      setRerunningClaims(prev => ({ ...prev, [claimId]: false }));
     }
   };
 
@@ -192,13 +157,16 @@ const PredictionHistory = () => {
                 Reference
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Title
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Status
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Predicted Amount
+                Amount Claimed
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Confidence
+                Settlement Amount
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Actions
@@ -210,6 +178,9 @@ const PredictionHistory = () => {
               <tr key={claim.id}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                   {claim.reference_number}
+                </td>
+                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                  {claim.title}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -223,21 +194,20 @@ const PredictionHistory = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  £{claim.ml_prediction?.settlement_amount?.toFixed(2) || '0.00'}
+                  £{typeof claim.amount === 'number' 
+                     ? claim.amount.toFixed(2) 
+                     : typeof claim.amount === 'string'
+                     ? parseFloat(claim.amount).toFixed(2)
+                     : '0.00'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  {(claim.ml_prediction?.confidence_score * 100).toFixed(1)}%
+                  £{typeof claim.ml_prediction?.settlement_amount === 'number' 
+                     ? claim.ml_prediction.settlement_amount.toFixed(2) 
+                     : typeof claim.ml_prediction?.settlement_amount === 'string'
+                     ? parseFloat(claim.ml_prediction.settlement_amount).toFixed(2)
+                     : '0.00'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right space-x-4">
-                  <button
-                    onClick={() => rerunPrediction(claim.id)}
-                    disabled={rerunningClaims[claim.id]}
-                    className={`text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 ${
-                      rerunningClaims[claim.id] ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    {rerunningClaims[claim.id] ? 'Running...' : 'Re-run Prediction'}
-                  </button>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <Link 
                     to={`/claims/${claim.id}`} 
                     className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
