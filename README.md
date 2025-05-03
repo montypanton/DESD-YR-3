@@ -147,13 +147,6 @@ settlement-prediction-system/
 
 ## Usage Guide
 
-### Quick Start
-To run the full pipeline from preprocessing to evaluation:
-
-```bash
-python main.py --steps all
-```
-
 ### Step-by-Step Execution
 
 #### 1. Data Preprocessing
