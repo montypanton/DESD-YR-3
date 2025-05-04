@@ -1,0 +1,1197 @@
+{
+	"info": {
+		"_postman_id": "b12e9c2e-5b6a-4c8f-a3d2-f93e9d5f1a76",
+		"name": "Insurance Claims API",
+		"description": "Complete API collection for the Insurance Claims Processing System. This collection provides access to all endpoints including authentication, claims management, finance operations, and ML model integrations.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"description": "Endpoints for user registration, login, and token refresh",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"testuser@example.com\",\n  \"password\": \"secure_password123\",\n  \"first_name\": \"Test\",\n  \"last_name\": \"User\",\n  \"role\": \"CLAIMANT\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/account/register/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"account",
+								"register",
+								""
+							]
+						},
+						"description": "Register a new user in the system"
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.access) {",
+									"    pm.environment.set(\"token\", jsonData.access);",
+									"}",
+									"if (jsonData.refresh) {",
+									"    pm.environment.set(\"refresh_token\", jsonData.refresh);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"testuser\",\n  \"password\": \"secure_password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/account/login/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"account",
+								"login",
+								""
+							]
+						},
+						"description": "Authenticate a user and retrieve JWT tokens"
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.access) {",
+									"    pm.environment.set(\"token\", jsonData.access);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/account/token/refresh/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"account",
+								"token",
+								"refresh",
+								""
+							]
+						},
+						"description": "Refresh an expired JWT access token"
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/account/logout/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"account",
+								"logout",
+								""
+							]
+						},
+						"description": "Invalidate the current JWT token"
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "noauth"
+			}
+		},
+		{
+			"name": "User Management",
+			"description": "Endpoints for user profile and account management",
+			"item": [
+				{
+					"name": "Get User Profile",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/account/profile/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"account",
+								"profile",
+								""
+							]
+						},
+						"description": "Get the current user's profile information"
+					},
+					"response": []
+				},
+				{
+					"name": "Update User Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"first_name\": \"Updated\",\n  \"last_name\": \"Name\",\n  \"email\": \"updated@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/account/profile/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"account",
+								"profile",
+								""
+							]
+						},
+						"description": "Update the current user's profile information"
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"old_password\": \"secure_password123\",\n  \"new_password\": \"new_secure_password\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/account/change-password/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"account",
+								"change-password",
+								""
+							]
+						},
+						"description": "Change the current user's password"
+					},
+					"response": []
+				},
+				{
+					"name": "List All Users (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/account/users/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"account",
+								"users",
+								""
+							]
+						},
+						"description": "List all users (Admin access required)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Specific User (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/account/users/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"account",
+								"users",
+								"1",
+								""
+							]
+						},
+						"description": "Get details for a specific user (Admin access required)"
+					},
+					"response": []
+				},
+				{
+					"name": "Activity Logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/account/activity-logs/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"account",
+								"activity-logs",
+								""
+							]
+						},
+						"description": "View user activity logs (Admin access required)"
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{token}}",
+						"type": "string"
+					}
+				]
+			}
+		},
+		{
+			"name": "Claims",
+			"description": "Endpoints for managing insurance claims",
+			"item": [
+				{
+					"name": "List All Claims",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/claims/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"claims",
+								""
+							]
+						},
+						"description": "Get a list of all claims accessible to the current user"
+					},
+					"response": []
+				},
+				{
+					"name": "Create New Claim",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Car Accident Claim\",\n  \"description\": \"Front bumper damage from minor collision\",\n  \"amount\": 2500.00,\n  \"incident_date\": \"2023-01-15T14:30:00Z\",\n  \"status\": \"SUBMITTED\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/claims/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"claims",
+								""
+							]
+						},
+						"description": "Submit a new insurance claim"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Specific Claim",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/claims/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"claims",
+								"1",
+								""
+							]
+						},
+						"description": "Get details for a specific claim"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Claim",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Updated Claim Title\",\n  \"description\": \"Updated description with more details\",\n  \"amount\": 3000.00,\n  \"incident_date\": \"2023-01-15T14:30:00Z\",\n  \"status\": \"SUBMITTED\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/claims/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"claims",
+								"1",
+								""
+							]
+						},
+						"description": "Update all fields of a specific claim"
+					},
+					"response": []
+				},
+				{
+					"name": "Partial Update Claim",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"UNDER_REVIEW\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/claims/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"claims",
+								"1",
+								""
+							]
+						},
+						"description": "Update specific fields of a claim"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Claim",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/claims/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"claims",
+								"1",
+								""
+							]
+						},
+						"description": "Delete a specific claim"
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{token}}",
+						"type": "string"
+					}
+				]
+			}
+		},
+		{
+			"name": "Finance",
+			"description": "Endpoints for financial operations and insurance companies",
+			"item": [
+				{
+					"name": "List Insurance Companies",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/finance/insurance-companies/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"finance",
+								"insurance-companies",
+								""
+							]
+						},
+						"description": "Get a list of all insurance companies"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Insurance Company",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"ABC Insurance\",\n  \"contact_email\": \"contact@abcinsurance.com\",\n  \"contact_phone\": \"555-123-4567\",\n  \"address\": \"123 Main St, Anytown, AN 12345\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/finance/insurance-companies/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"finance",
+								"insurance-companies",
+								""
+							]
+						},
+						"description": "Create a new insurance company"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Specific Insurance Company",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/finance/insurance-companies/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"finance",
+								"insurance-companies",
+								"1",
+								""
+							]
+						},
+						"description": "Get details for a specific insurance company"
+					},
+					"response": []
+				},
+				{
+					"name": "List Billing Records",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/finance/billing/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"finance",
+								"billing",
+								""
+							]
+						},
+						"description": "Get a list of all billing records"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Billing Record",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"claim\": 1,\n  \"amount\": 500.00,\n  \"description\": \"Processing fee\",\n  \"status\": \"PENDING\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/finance/billing/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"finance",
+								"billing",
+								""
+							]
+						},
+						"description": "Create a new billing record"
+					},
+					"response": []
+				},
+				{
+					"name": "List Invoices",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/finance/invoices/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"finance",
+								"invoices",
+								""
+							]
+						},
+						"description": "Get a list of all invoices"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Invoice",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"insurance_company\": 1,\n  \"billing_period_start\": \"2023-01-01\",\n  \"billing_period_end\": \"2023-01-31\",\n  \"due_date\": \"2023-02-15\",\n  \"amount\": 5000.00,\n  \"status\": \"ISSUED\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/finance/invoices/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"finance",
+								"invoices",
+								""
+							]
+						},
+						"description": "Create a new invoice"
+					},
+					"response": []
+				},
+				{
+					"name": "Finance Dashboard",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/finance/dashboard/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"finance",
+								"dashboard",
+								""
+							]
+						},
+						"description": "Get financial dashboard data"
+					},
+					"response": []
+				},
+				{
+					"name": "User Billing Statistics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/finance/user-stats/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"finance",
+								"user-stats",
+								""
+							]
+						},
+						"description": "Get billing statistics for all users"
+					},
+					"response": []
+				},
+				{
+					"name": "Specific User Billing Statistics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/finance/user-stats/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"finance",
+								"user-stats",
+								"1",
+								""
+							]
+						},
+						"description": "Get billing statistics for a specific user"
+					},
+					"response": []
+				},
+				{
+					"name": "Invoicing Statistics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/finance/invoicing-stats/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"finance",
+								"invoicing-stats",
+								""
+							]
+						},
+						"description": "Get statistics about invoicing"
+					},
+					"response": []
+				},
+				{
+					"name": "Public Insurance Companies",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/finance/public/insurance-companies/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"finance",
+								"public",
+								"insurance-companies",
+								""
+							]
+						},
+						"description": "Get a list of insurance companies (public endpoint, no authentication required)"
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{token}}",
+						"type": "string"
+					}
+				]
+			}
+		},
+		{
+			"name": "ML Interface",
+			"description": "Endpoints for ML model management and predictions",
+			"item": [
+				{
+					"name": "List ML Models",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/ml/models/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ml",
+								"models",
+								""
+							]
+						},
+						"description": "Get a list of all ML models"
+					},
+					"response": []
+				},
+				{
+					"name": "Register ML Model",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Random Forest Classifier\",\n  \"version\": \"1.0.0\",\n  \"model_path\": \"models/random_forest_model.pkl\",\n  \"description\": \"A model for predicting claim approval\",\n  \"accuracy\": 0.85,\n  \"active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ml/models/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ml",
+								"models",
+								""
+							]
+						},
+						"description": "Register a new ML model"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Specific ML Model",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/ml/models/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ml",
+								"models",
+								"1",
+								""
+							]
+						},
+						"description": "Get details for a specific ML model"
+					},
+					"response": []
+				},
+				{
+					"name": "Activate/Deactivate ML Model",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"active\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ml/models/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ml",
+								"models",
+								"1",
+								""
+							]
+						},
+						"description": "Activate or deactivate a specific ML model"
+					},
+					"response": []
+				},
+				{
+					"name": "List Predictions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/ml/predictions/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ml",
+								"predictions",
+								""
+							]
+						},
+						"description": "Get a list of all predictions"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Prediction",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"claim\": 1,\n  \"model\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ml/predictions/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ml",
+								"predictions",
+								""
+							]
+						},
+						"description": "Create a new prediction for a claim"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Specific Prediction",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/ml/predictions/1/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ml",
+								"predictions",
+								"1",
+								""
+							]
+						},
+						"description": "Get details for a specific prediction"
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{token}}",
+						"type": "string"
+					}
+				]
+			}
+		},
+		{
+			"name": "ML Service (External)",
+			"description": "Endpoints for the external ML microservice",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{ml_base_url}}/health",
+							"host": [
+								"{{ml_base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Check if the ML service is running"
+					},
+					"response": []
+				},
+				{
+					"name": "List Models",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{ml_base_url}}/models",
+							"host": [
+								"{{ml_base_url}}"
+							],
+							"path": [
+								"models"
+							]
+						},
+						"description": "Get a list of available ML models"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Model Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{ml_base_url}}/models/random_forest",
+							"host": [
+								"{{ml_base_url}}"
+							],
+							"path": [
+								"models",
+								"random_forest"
+							]
+						},
+						"description": "Get information about a specific ML model"
+					},
+					"response": []
+				},
+				{
+					"name": "Predict",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"model_name\": \"random_forest\",\n  \"data\": {\n    \"claim_amount\": 5000,\n    \"claim_type\": \"car_accident\",\n    \"claim_description\": \"Minor fender bender in parking lot\",\n    \"claimant_age\": 35,\n    \"previous_claims_count\": 2\n  }\n}"
+						},
+						"url": {
+							"raw": "{{ml_base_url}}/predict",
+							"host": [
+								"{{ml_base_url}}"
+							],
+							"path": [
+								"predict"
+							]
+						},
+						"description": "Make a prediction using a specific model"
+					},
+					"response": []
+				},
+				{
+					"name": "Model Performance",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{ml_base_url}}/models/performance/random_forest",
+							"host": [
+								"{{ml_base_url}}"
+							],
+							"path": [
+								"models",
+								"performance",
+								"random_forest"
+							]
+						},
+						"description": "Get performance metrics for a specific model"
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "noauth"
+			}
+		},
+		{
+			"name": "System",
+			"description": "System-level endpoints",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/health/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"health",
+								""
+							]
+						},
+						"description": "Check if the API is running"
+					},
+					"response": []
+				},
+				{
+					"name": "Admin Panel",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/admin/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"admin",
+								""
+							]
+						},
+						"description": "Access the Django admin panel (requires admin credentials)"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{token}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"pm.test(\"Status code is 2XX\", function () {",
+					"    pm.response.to.be.success;",
+					"});",
+					"",
+					"pm.test(\"Response time is less than 1000ms\", function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000"
+		},
+		{
+			"key": "ml_base_url",
+			"value": "http://localhost:5000"
+		}
+	]
+}
