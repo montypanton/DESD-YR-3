@@ -23,12 +23,38 @@ services:
     networks:
       - desd-network
 
+  # ML Service
+  ml-service:
+    build: ./ml-service
+    restart: always
+    ports:
+      - "8001:8001"
+    environment:
+      - DEBUG=True
+      - API_KEY=default-dev-key
+      - ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000,http://localhost:8000,http://backend:8000
+      - MODELS_DIR=/app/models
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=production
+    volumes:
+      - ./ml-service/models:/app/models
+    networks:
+      - desd-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # Backend
   backend:
     build: .
     restart: always
     depends_on:
       db:
+        condition: service_healthy
+      ml-service:
         condition: service_healthy
     environment:
       - SECRET_KEY=2jSD9r2-KTldmeaVwm1QQx7qVyf4sRgJ8o2k7-Y1m6DZW5eoVcNIDJsEDpiPttz3c7g
@@ -40,6 +66,8 @@ services:
       - DB_HOST=db
       - DB_PORT=3306
       - PYTHONUNBUFFERED=1
+      - ML_SERVICE_URL=http://ml-service:8001
+      - ML_SERVICE_API_KEY=default-dev-key
     ports:
       - "8000:8000"
     volumes:
