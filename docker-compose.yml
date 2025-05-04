@@ -37,7 +37,7 @@ services:
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=production
     volumes:
-      - ./ml-service/models:/app/models
+      - ml_models:/app/models
     networks:
       - desd-network
     healthcheck:
@@ -74,6 +74,7 @@ services:
       - ./backend:/app/backend
       - backend_data:/app/backend/media
       - backend_static:/app/backend/staticfiles
+      - ml_models:/app/models
     command: >
       sh -c "
         echo 'Making start.sh executable...' &&
@@ -119,6 +120,7 @@ volumes:
   frontend_node_modules:
   backend_data:
   backend_static:
+  ml_models:
 
 networks:
   desd-network:

@@ -42,7 +42,9 @@ class MLModel(models.Model):
 
     def save(self, *args, **kwargs):
         """Save method with validation of uploaded model"""
-        if self.model_file:
+        skip_validation = kwargs.pop('skip_validation', False)
+        
+        if self.model_file and not skip_validation:
             try:
                 model_path = self.get_model_path()
                 if model_path and os.path.exists(model_path):

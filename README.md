@@ -79,11 +79,56 @@ To restart just one service:
 docker-compose restart backend
 ```
 
-## ML Service Usage
+## ML Service Integration
 
-The ML service provides endpoints for model management and predictions:
+The ML service is a containerized microservice that provides machine learning capabilities to the insurance claims application. It's designed to be scalable, fault-tolerant, and supports hot-swapping models without downtime.
+
+### Architecture
+
+The ML integration consists of three main components:
+
+1. **ML Service Container**:
+   - Runs as a separate service in the Docker Compose stack
+   - Contains pre-trained ML models
+   - Exposes APIs for prediction and model management
+   - Handles all ML-related computation
+
+2. **Django Backend Integration**:
+   - `ml_interface` app connects to the ML service
+   - `MLServiceClient` handles communication with ML service
+   - Automatic model registration and synchronization
+   - ML prediction results are stored with claims
+
+3. **Shared Model Storage**:
+   - Docker volume `ml_models` shared between services
+   - Models can be updated without restarting containers
+   - Both services access the same model files
+
+### Model Hot-Swapping
+
+The system supports changing ML models without restarting services:
+
+1. **Upload New Models**:
+   ```bash
+   # Upload a new model via API
+   curl -X POST -H "X-API-Key: default-dev-key" \
+        -F "model_file=@/path/to/new_model.pkl" \
+        -F "model_name=new_model" \
+        http://localhost:8001/api/v1/upload-model
+   ```
+
+2. **Change Active Model**:
+   - Use Django admin to set a different model as active
+   - New claims will automatically use the active model
+   - Existing claims can be reprocessed with the new model
+
+3. **Direct Volume Access**:
+   - Place model files directly in the `ml-service/models/` directory
+   - They'll be automatically detected by the ML service
+   - Run `python manage.py register_ml_models` to register in Django
 
 ### Testing the ML Service
+
 ```bash
 # Check service health
 curl http://localhost:8001/api/v1/health
@@ -91,15 +136,35 @@ curl http://localhost:8001/api/v1/health
 # List available models
 curl -H "X-API-Key: default-dev-key" http://localhost:8001/api/v1/models
 
-# Make a prediction (requires API key)
+# Make a prediction
 curl -X POST \
   -H "X-API-Key: default-dev-key" \
   -H "Content-Type: application/json" \
-  -d '{"input_data": {"AccidentType": "Rear end", "Driver_Age": 35}}' \
+  -d '{"input_data": {"AccidentType": "Rear end", "Driver_Age": 35, "Vehicle Type": "Car", "GeneralFixed": 1000}}' \
   http://localhost:8001/api/v1/predict
 ```
 
-See the [ML Service Usage Guide](./ml-service/USAGE.md) for more details.
+### Complete Workflow
+
+1. **Startup**: 
+   - ML service starts and scans available models
+   - Django backend connects to ML service and registers models
+   - Default model is set as active
+
+2. **Claim Submission**:
+   - User submits a claim through the frontend
+   - Backend processes the claim and forwards to ML service
+   - ML service makes prediction using the active model
+   - Prediction is stored with the claim
+   - User sees the claim status update
+
+3. **Model Updates**:
+   - New model is uploaded through API or added to volume
+   - Backend registers the new model
+   - Admin sets new model as active
+   - Subsequent claims use the new model
+
+See the [ML Service Usage Guide](./ml-service/USAGE.md) for detailed API documentation.
 
 ## Project Structure
 
@@ -107,6 +172,61 @@ See the [ML Service Usage Guide](./ml-service/USAGE.md) for more details.
 - `/frontend` - React frontend application
 - `/ml-service` - FastAPI ML service
 - `/models` - ML model files (shared with ML service)
+
+## Technical Implementation Details
+
+### Django-ML Service Communication
+
+The Django backend communicates with the ML service through a dedicated client class:
+
+```python
+# backend/ml_interface/ml_client.py
+class MLServiceClient:
+    def __init__(self):
+        self.base_url = os.environ.get("ML_SERVICE_URL", "http://ml-service:8001")
+        self.api_key = os.environ.get("ML_SERVICE_API_KEY", "default-dev-key")
+        # ...
+    
+    def health_check(self):
+        # Check ML service availability
+        
+    def list_models(self):
+        # Get available models
+        
+    def predict(self, input_data, model_name=None):
+        # Send data for prediction
+```
+
+Environment variables in the Docker Compose configuration connect the services:
+
+```yaml
+backend:
+  environment:
+    - ML_SERVICE_URL=http://ml-service:8001
+    - ML_SERVICE_API_KEY=default-dev-key
+```
+
+### Model Registration Flow
+
+During startup, the backend registers ML models through these steps:
+
+1. Django backend waits for ML service to be ready (health check)
+2. `register_ml_models` management command is run
+3. Management command queries ML service for available models
+4. Models are registered in Django's database
+5. One model is set as active for predictions
+
+This registration process synchronizes the models between services and ensures consistency.
+
+### Claim Processing Pipeline
+
+When a claim is processed:
+
+1. Claim data is formatted into ML-ready features (83 feature fields)
+2. Active model is loaded (or cached if already loaded)
+3. Prediction is generated with settlement amount and confidence score
+4. Result is stored with the claim record
+5. Claim status is updated to reflect processing
 
 ## Troubleshooting
 
@@ -128,10 +248,31 @@ The ML service may fail if model files are missing or incorrect:
 docker-compose logs ml-service
 ```
 
+Common ML service issues:
+1. **Missing model files**: Ensure model files exist in the `ml-service/models/` directory
+2. **Invalid model format**: Models must be compatible with scikit-learn and have a `predict` method
+3. **API key mismatch**: Check that API keys match between services
+
 Then try restarting the service:
 ```bash
 docker-compose restart ml-service
 ```
+
+### If models aren't being registered
+Check the Django backend logs for registration issues:
+```bash
+docker-compose logs backend | grep -i "model"
+```
+
+You can manually trigger registration:
+```bash
+docker-compose exec backend python manage.py register_ml_models
+```
+
+### If predictions aren't working
+1. Check ML service is healthy: `curl http://localhost:8001/api/v1/health`
+2. Verify active model in Django admin: http://localhost:8000/admin/ml_interface/mlmodel/
+3. Check claim data formatting in `ClaimViewSet.prepare_ml_input` method
 
 ### If the frontend fails to start
 The frontend depends on the backend. Check the logs:

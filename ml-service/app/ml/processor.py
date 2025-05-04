@@ -103,40 +103,41 @@ class MLProcessor:
             if not os.path.exists(model_path):
                 raise FileNotFoundError(f"Model file not found at {model_path}")
             
-            logger.info(f"Loading model from {model_path}")
+            # Get model name from path
+            model_name = os.path.basename(model_path).split('.')[0]
             
-            # Try to load with joblib first
+            # Store the current model name for caching purposes
+            self.current_model_name = model_name
+            
+            logger.info(f"Loading model '{model_name}' from {model_path}")
+            
+            # First try joblib - faster and more robust
             try:
                 self.model = joblib.load(model_path)
-                logger.info(f"Successfully loaded model with joblib from {model_path}")
+                logger.info(f"Successfully loaded model with joblib")
                 return
             except Exception as joblib_err:
-                logger.warning(f"Failed to load model with joblib: {str(joblib_err)}")
+                logger.warning(f"Joblib loading failed: {str(joblib_err)}")
                 
-            # Try with pickle with different protocols
-            import pickle
-            for protocol in range(5, 0, -1):  # Try pickle protocols from newest to oldest
+            # Fall back to pickle if joblib fails
+            try:
+                with open(model_path, 'rb') as f:
+                    self.model = pickle.load(f, fix_imports=True, encoding='bytes')
+                logger.info(f"Successfully loaded model with pickle")
+                
+                # Convert to joblib for future use (if possible)
                 try:
-                    with open(model_path, 'rb') as f:
-                        self.model = pickle.load(f, fix_imports=True, encoding='bytes')
-                    logger.info(f"Successfully loaded model with pickle protocol {protocol} from {model_path}")
-                    
-                    # If successful, convert to joblib for future use
-                    try:
-                        # Save a converted copy for future use
-                        joblib_path = f"{model_path.rsplit('.', 1)[0]}_converted.joblib"
+                    joblib_path = f"{model_path.rsplit('.', 1)[0]}_converted.joblib"
+                    if not os.path.exists(joblib_path):
                         joblib.dump(self.model, joblib_path)
-                        logger.info(f"Converted pickle model to joblib at {joblib_path}")
-                    except Exception as conv_err:
-                        logger.warning(f"Could not convert model to joblib: {str(conv_err)}")
-                    
-                    return
-                except Exception as pickle_err:
-                    logger.warning(f"Failed to load model with pickle protocol {protocol}: {str(pickle_err)}")
-                    continue
-                    
-            # If we get here, all attempts failed
-            raise ValueError(f"Failed to load model with any protocol. Last error: {str(joblib_err)}")
+                        logger.info(f"Converted pickle model to joblib for future use")
+                except Exception:
+                    pass
+                
+                return
+            except Exception as pickle_err:
+                logger.error(f"Pickle loading failed: {str(pickle_err)}")
+                raise ValueError(f"Could not load model with either joblib or pickle. Ensure the model file is valid.")
             
         except Exception as e:
             logger.error(f"Error loading model: {str(e)}")
