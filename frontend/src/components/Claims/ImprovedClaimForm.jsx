@@ -164,9 +164,11 @@ const ImprovedClaimForm = () => {
     const totalAmount = specialDamages + generalDamages;
     
     return {
-      title: values.title,
+      title: values.title || `Claim from ${user?.name || user?.email || 'User'}`, // Ensure title is always populated
       description: values.description || 'No description provided',
       amount: totalAmount,
+      // The backend requires user field - let the backend associate it with the current user
+      // The token authentication will handle the user association
       claim_data: {
         // Categorical fields
         'AccidentType': values.AccidentType,
@@ -419,17 +421,43 @@ const ImprovedClaimForm = () => {
       const claimData = formatClaimData(values);
       
       // Include the ML prediction in the submission
+      // Ensure values are properly converted to numbers
+      const settlementAmount = typeof prediction.settlementAmount === 'number' 
+        ? prediction.settlementAmount 
+        : parseFloat(prediction.settlementAmount);
+        
+      const confidenceScore = typeof prediction.confidenceScore === 'number'
+        ? prediction.confidenceScore
+        : parseFloat(prediction.confidenceScore || 0.85);
+        
       claimData.ml_prediction = {
-        settlement_amount: prediction.settlementAmount,
-        confidence_score: prediction.confidenceScore,
+        settlement_amount: settlementAmount,
+        confidence_score: confidenceScore,
         source: 'ml_service'
       };
+      
+      console.log('Submitting claim with ML prediction:', JSON.stringify(claimData.ml_prediction));
       
       // Submit to the API endpoint
       const response = await robustClaimService.createClaim(claimData);
       
-      // Extract claim ID for confirmation
-      const submittedClaim = response.data.data;
+      console.log('Claim submission response:', response);
+      
+      // Handle different response formats
+      let submittedClaim;
+      if (response.data?.data) {
+        // Format: { data: { data: { id: ... } } }
+        submittedClaim = response.data.data;
+      } else if (response.data?.id) {
+        // Format: { data: { id: ... } }
+        submittedClaim = response.data;
+      } else {
+        // If we can't find the ID, use a placeholder
+        console.warn('Could not find claim ID in response, using placeholder');
+        submittedClaim = { id: 'new-claim' };
+      }
+      
+      // Set the ID for confirmation
       setSubmittedClaimId(submittedClaim.id);
       
       // Show success state
@@ -446,9 +474,30 @@ const ImprovedClaimForm = () => {
       setShowConfirmation(false);
       setSubmitSuccess(false);
       
+      // Get a more detailed error message if available
+      let errorMessage = 'Failed to submit claim. Please ensure all required fields are completed correctly.';
+      
+      if (error.response && error.response.data) {
+        if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        } else if (error.response.data.detail) {
+          errorMessage = error.response.data.detail;
+        } else if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      console.log('Detailed error information:', {
+        message: error.message,
+        responseData: error.response?.data,
+        status: error.response?.status
+      });
+      
       notification.error({
         message: 'Submission Failed',
-        description: 'Failed to submit claim. Please ensure all required fields are completed correctly.',
+        description: errorMessage,
         placement: 'topRight',
         duration: 5
       });

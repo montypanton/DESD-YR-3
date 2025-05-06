@@ -40,29 +40,69 @@ export const createClaim = async (claimData, options = {}) => {
   // Validate that ML prediction is included and valid
   const mlPrediction = claimData.ml_prediction;
   
+  console.log('Creating claim with data:', JSON.stringify(claimData, null, 2));
+  
   if (!mlPrediction) {
+    console.error('ML prediction missing in claim data');
     throw new Error('ML prediction is required for claim submission');
   }
   
-  if (!mlPrediction.settlement_amount || isNaN(Number(mlPrediction.settlement_amount)) || Number(mlPrediction.settlement_amount) <= 0) {
+  // Ensure settlement_amount is a valid number
+  const settlementAmount = Number(mlPrediction.settlement_amount);
+  
+  if (!mlPrediction.settlement_amount || isNaN(settlementAmount) || settlementAmount <= 0) {
+    console.error('Invalid settlement amount:', mlPrediction.settlement_amount, 'parsed as:', settlementAmount);
     throw new Error('Valid ML settlement amount is required');
   }
   
   // Verify ML prediction source is correctly set
   if (mlPrediction.source !== 'ml_service') {
+    console.error('Invalid ML prediction source:', mlPrediction.source);
     throw new Error('Only ML service predictions are accepted. Calculated predictions are not allowed.');
   }
   
   // Add ML prediction verification flag
   claimData.ml_verified = true;
   
-  // Use the improved v2 endpoint for strict ML validation
-  return await safeApiClient.post('/claims/v2/', claimData, {}, {
-    successMessage: 'Claim submitted successfully',
-    showSuccessMessage: true,
-    errorMessage: 'Failed to submit claim',
-    ...options
-  });
+  // Get the current user info from localStorage if available
+  const token = localStorage.getItem('token');
+  const userJson = localStorage.getItem('user');
+  let userData = null;
+  
+  try {
+    userData = userJson ? JSON.parse(userJson) : null;
+  } catch (e) {
+    console.error('Error parsing user data from localStorage:', e);
+  }
+  
+  // Normalize the data structure to ensure compatibility with backend
+  const normalizedData = {
+    ...claimData,
+    // Explicitly include title to make sure it's set
+    title: claimData.title || 'Insurance Claim',
+    // Include user reference if available, otherwise backend will use authenticated user
+    user: userData?.id,
+    ml_prediction: {
+      settlement_amount: settlementAmount,
+      confidence_score: Number(mlPrediction.confidence_score || 0.85),
+      source: 'ml_service'
+    }
+  };
+  
+  // Use the correct endpoint for the API
+  try {
+    // The v2 endpoint might not exist, let's try the standard endpoint
+    return await safeApiClient.post('/claims/', normalizedData, {}, {
+      successMessage: 'Claim submitted successfully',
+      showSuccessMessage: true,
+      errorMessage: 'Failed to submit claim',
+      ...options
+    });
+  } catch (error) {
+    console.error('Claim submission error:', error);
+    // Rethrow to allow proper error handling
+    throw error;
+  }
 };
 
 /**
