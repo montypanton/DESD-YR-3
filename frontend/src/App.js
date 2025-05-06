@@ -42,8 +42,8 @@ import ClaimForm from './components/Claims/ClaimForm';
 import ClaimDetail from './components/Claims/ClaimDetail';
 
 // Import the new components
-// import UserInteractions from './pages/MLModels/UserInteractions';
 import UserInteractionData from './pages/MLModels/UserInteractionData';
+import ImprovedSubmitClaim from './pages/MLModels/ImprovedSubmitClaim';
 
 const AuthLayout = ({ children }) => (
   <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
@@ -166,7 +166,8 @@ function App() {
           
           {/* Available to all authenticated users */}
           <Route path="predictions" element={<PredictionHistory />} />
-          <Route path="submit-claim" element={<SubmitClaim />} />
+          <Route path="submit-claim" element={<ImprovedSubmitClaim />} />
+          <Route path="submit-claim-legacy" element={<SubmitClaim />} />
           
           {/* Finance Routes - Now using FinanceRoute component */}
           <Route 

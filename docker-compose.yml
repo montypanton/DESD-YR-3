@@ -104,6 +104,7 @@ services:
     command: sh -c "chmod +x ./start.sh && ./start.sh"
     environment:
       - REACT_APP_API_URL=http://localhost:8000/api
+      - REACT_APP_ML_SERVICE_URL=http://localhost:8001
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
       - CHOKIDAR_INTERVAL=500

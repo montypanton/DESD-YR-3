@@ -27,11 +27,18 @@ BACKEND_API_KEY = os.getenv("BACKEND_API_KEY", "default-backend-key")
 
 # CORS
 BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000")
-ALLOWED_ORIGINS = [
-    BACKEND_URL,
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
+# Get allowed origins from environment or use defaults
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+if allowed_origins_env:
+    ALLOWED_ORIGINS = allowed_origins_env.split(",")
+else:
+    ALLOWED_ORIGINS = [
+        BACKEND_URL,
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://frontend:3000",
+    ]
 
 # Configure logging
 logging.basicConfig(
