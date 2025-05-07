@@ -189,7 +189,7 @@ export const getFinancialInsights = async (params = {}) => {
  */
 export const processClaim = async (claimId, actionData) => {
   // Use the claims endpoint directly instead of finance-specific endpoint
-  return await apiClient.post(`/claims/${claimId}/process/`, actionData);
+  return await apiClient.post(`/claims/${claimId}/review/`, actionData);
 };
 
 /* 

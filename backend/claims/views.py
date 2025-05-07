@@ -7,6 +7,7 @@ import logging
 import time
 import traceback
 from datetime import datetime
+from django.utils import timezone
 
 from .models import Claim, MLPrediction
 from .serializers import ClaimSerializer, ClaimDashboardSerializer, MLPredictionSerializer
@@ -19,6 +20,18 @@ logger = logging.getLogger('django')
 class ClaimViewSet(viewsets.ModelViewSet):
     serializer_class = ClaimSerializer
     permission_classes = [permissions.IsAuthenticated]
+    
+    def get_permissions(self):
+        """
+        Override to set specific permissions for different actions.
+        - Only finance users can review claims
+        - Only finance users can access pending_review list
+        """
+        if self.action == 'review':
+            self.permission_classes = [permissions.IsAuthenticated, IsFinanceUser | IsAdminUser]
+        elif self.action == 'pending_review':
+            self.permission_classes = [permissions.IsAuthenticated, IsFinanceUser | IsAdminUser]
+        return super().get_permissions()
 
     def get_queryset(self):
         # Get the base queryset based on user permissions
@@ -272,6 +285,54 @@ class ClaimViewSet(viewsets.ModelViewSet):
             'approved_settlements': total_settlements,  # Renamed this to be more accurate
             'recent_claims': recent_serializer.data
         })
+        
+    @action(detail=False, methods=['get'])
+    def pending_review(self, request):
+        """
+        Returns claims that need to be reviewed by finance team members.
+        Only accessible to finance users and admins.
+        """
+        if not (request.user.is_finance or request.user.is_admin):
+            return Response(
+                {'error': 'Only finance team members can access this endpoint'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        # Get all pending claims that have ML predictions and need review
+        queryset = Claim.objects.filter(
+            status='PENDING',
+            ml_prediction__isnull=False
+        ).order_by('-created_at')
+        
+        # Apply filters if provided
+        user_id = request.query_params.get('user_id')
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+            
+        date_from = request.query_params.get('date_from')
+        if date_from:
+            try:
+                date_from = datetime.strptime(date_from, '%Y-%m-%d').date()
+                queryset = queryset.filter(created_at__date__gte=date_from)
+            except ValueError:
+                pass
+                
+        date_to = request.query_params.get('date_to')
+        if date_to:
+            try:
+                date_to = datetime.strptime(date_to, '%Y-%m-%d').date()
+                queryset = queryset.filter(created_at__date__lte=date_to)
+            except ValueError:
+                pass
+                
+        # Use pagination if it's set up
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = ClaimDashboardSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+            
+        serializer = ClaimDashboardSerializer(queryset, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
@@ -501,5 +562,76 @@ class ClaimViewSet(viewsets.ModelViewSet):
             logger.debug(f"Stack trace: {traceback.format_exc()}")
             return Response(
                 {'error': f"Failed to update settlement amount: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+    @action(detail=True, methods=['post'])
+    def review(self, request, pk=None):
+        """Review a claim (approve or reject) and set final settlement amount"""
+        if not (request.user.is_finance or request.user.is_admin):
+            return Response(
+                {'error': 'Only finance team members can review claims'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        try:
+            claim = self.get_object()
+            
+            # Validate the decision (APPROVED or REJECTED)
+            decision = request.data.get('status')
+            if not decision or decision not in ['APPROVED', 'REJECTED']:
+                return Response(
+                    {'error': 'Status must be APPROVED or REJECTED'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate settlement amount if approving
+            settlement_amount = request.data.get('final_settlement_amount')
+            if decision == 'APPROVED':
+                if settlement_amount is None:
+                    return Response(
+                        {'error': 'Settlement amount is required for approval'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                try:
+                    # Convert to decimal and validate
+                    settlement_amount = float(settlement_amount)
+                    if settlement_amount < 0:
+                        return Response(
+                            {'error': 'Settlement amount must be a positive number'}, 
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                except (ValueError, TypeError):
+                    return Response(
+                        {'error': 'Settlement amount must be a valid number'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            # Update the claim
+            claim.status = decision
+            if decision == 'APPROVED' and settlement_amount is not None:
+                claim.decided_settlement_amount = settlement_amount
+            
+            # Record who reviewed the claim and when
+            claim.reviewed_by = request.user
+            claim.reviewed_at = timezone.now()
+            claim.save()
+            
+            # Log the action
+            logger.info(
+                f"Claim {claim.reference_number} {decision.lower()} by {request.user.email} "
+                f"with settlement amount {settlement_amount if decision == 'APPROVED' else 'N/A'}"
+            )
+            
+            # Return the updated claim
+            serializer = self.get_serializer(claim)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error reviewing claim: {str(e)}")
+            logger.debug(f"Stack trace: {traceback.format_exc()}")
+            return Response(
+                {'error': f"Failed to review claim: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

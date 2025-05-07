@@ -23,13 +23,20 @@ class MLPredictionSerializer(serializers.ModelSerializer):
 
 class ClaimSerializer(serializers.ModelSerializer):
     ml_prediction = MLPredictionSerializer(read_only=True)
+    reviewed_by_email = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Claim
         fields = ['id', 'title', 'description', 'amount', 'claim_data', 'status', 
                  'created_at', 'updated_at', 'reference_number', 'ml_prediction', 'user',
-                 'decided_settlement_amount']
-        read_only_fields = ['id', 'status', 'created_at', 'updated_at', 'reference_number', 'ml_prediction']
+                 'decided_settlement_amount', 'reviewed_by', 'reviewed_at', 'reviewed_by_email']
+        read_only_fields = ['id', 'status', 'created_at', 'updated_at', 'reference_number', 'ml_prediction',
+                           'reviewed_by', 'reviewed_at', 'reviewed_by_email']
+
+    def get_reviewed_by_email(self, obj):
+        if obj.reviewed_by:
+            return obj.reviewed_by.email
+        return None
 
     def create(self, validated_data):
         validated_data['reference_number'] = f"CLM-{uuid.uuid4().hex[:8].upper()}"
@@ -38,11 +45,14 @@ class ClaimSerializer(serializers.ModelSerializer):
 
 class ClaimDashboardSerializer(serializers.ModelSerializer):
     settlement_amount = serializers.SerializerMethodField()
+    reviewed_by_email = serializers.SerializerMethodField(read_only=True)
+    submitter_email = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Claim
         fields = ['id', 'reference_number', 'title', 'amount', 'status', 'created_at', 
-                  'settlement_amount', 'user', 'decided_settlement_amount']
+                  'settlement_amount', 'user', 'decided_settlement_amount', 'reviewed_by',
+                  'reviewed_at', 'reviewed_by_email', 'submitter_email']
         
     def get_settlement_amount(self, obj):
         # First check if there's a decided settlement amount
@@ -51,4 +61,14 @@ class ClaimDashboardSerializer(serializers.ModelSerializer):
         # Fall back to ML prediction if available
         if obj.ml_prediction:
             return obj.ml_prediction.settlement_amount
+        return None
+        
+    def get_reviewed_by_email(self, obj):
+        if obj.reviewed_by:
+            return obj.reviewed_by.email
+        return None
+        
+    def get_submitter_email(self, obj):
+        if obj.user:
+            return obj.user.email
         return None

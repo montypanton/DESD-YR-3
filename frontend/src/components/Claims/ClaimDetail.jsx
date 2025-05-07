@@ -278,6 +278,69 @@ const ClaimDetail = () => {
         </div>
       </div>
 
+      {/* Claim Status & Decision */}
+      {claim.status && (claim.status === 'APPROVED' || claim.status === 'REJECTED') && (
+        <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-md overflow-hidden`}>
+          <div className={`px-6 py-5 border-b ${
+            claim.status === 'APPROVED' 
+              ? (darkMode ? 'border-gray-700 bg-green-900' : 'border-gray-200 bg-green-50')
+              : (darkMode ? 'border-gray-700 bg-red-900' : 'border-gray-200 bg-red-50')
+          }`}>
+            <h3 className={`text-lg font-medium ${
+              claim.status === 'APPROVED'
+                ? (darkMode ? 'text-green-100' : 'text-green-800')
+                : (darkMode ? 'text-red-100' : 'text-red-800')
+            }`}>
+              Claim {claim.status === 'APPROVED' ? 'Approved' : 'Rejected'}
+            </h3>
+          </div>
+          <div className="p-6">
+            {claim.status === 'APPROVED' ? (
+              <div>
+                <Alert
+                  message="Your claim has been approved!"
+                  description={`Your claim has been reviewed by our finance team and approved with a settlement amount of £${
+                    parseFloat(claim.decided_settlement_amount).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  }. You will receive further instructions about the payment process via email.`}
+                  type="success"
+                  showIcon
+                  className="mb-4"
+                />
+                <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} border-2 border-green-500`}>
+                  <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Final Settlement Amount</p>
+                  <p className={`text-2xl font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                    £{parseFloat(claim.decided_settlement_amount).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                  {claim.reviewed_at && (
+                    <p className={`text-sm mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Decision made on {formatDate(claim.reviewed_at)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <Alert
+                  message="Your claim has been rejected"
+                  description="Your claim has been reviewed by our finance team and was not approved at this time. Please review the details below or contact customer support for further assistance."
+                  type="error"
+                  showIcon
+                  className="mb-4"
+                />
+                <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Claim Rejected</p>
+                  {claim.reviewed_at && (
+                    <p className={`text-sm mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Decision made on {formatDate(claim.reviewed_at)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* AI Analysis */}
       {claim.ml_prediction && (
         <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-md overflow-hidden`}>
@@ -293,7 +356,7 @@ const ClaimDetail = () => {
                 <p className={`text-2xl font-bold ${darkMode ? 'text-indigo-400' : 'text-indigo-600'} ${claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? 'line-through opacity-60' : ''}`}>
                   £{parseFloat(claim.ml_prediction.settlement_amount).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined && (
+                {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined && claim.status !== 'APPROVED' && claim.status !== 'REJECTED' && (
                   <Alert
                     message="Settlement amount has been adjusted"
                     type="info"
@@ -314,52 +377,54 @@ const ClaimDetail = () => {
               )}
             </div>
             
-            {/* Decided Settlement Amount */}
-            <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} mb-4 ${claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? 'border-2 border-green-500 dark:border-green-600' : ''}`}>
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} font-medium`}>
-                {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined 
-                  ? 'Final Settlement Amount' 
-                  : 'Set Settlement Amount'}
-              </p>
-              <div className="flex items-center mt-2">
-                <span className="mr-2 text-gray-500">£</span>
-                <Input
-                  type="number"
-                  min={0}
-                  step={100}
-                  value={decidedAmount}
-                  onChange={(e) => setDecidedAmount(e.target.value)}
-                  className={`text-2xl font-bold ${darkMode ? 'bg-gray-600 text-green-400 border-gray-500' : 'bg-white text-green-600 border-gray-300'}`}
-                  style={{ width: '200px' }}
-                />
-                <Button 
-                  type="primary"
-                  onClick={saveDecidedAmount}
-                  loading={savingDecidedAmount}
-                  className="ml-4"
-                  disabled={!decidedAmount || isNaN(parseFloat(decidedAmount))}
-                >
+            {/* Decided Settlement Amount - Only show for claims not in final state */}
+            {claim.status !== 'APPROVED' && claim.status !== 'REJECTED' && (
+              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} mb-4 ${claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? 'border-2 border-green-500 dark:border-green-600' : ''}`}>
+                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} font-medium`}>
                   {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined 
-                    ? 'Update Amount' 
-                    : 'Confirm Amount'}
-                </Button>
+                    ? 'Final Settlement Amount' 
+                    : 'Set Settlement Amount'}
+                </p>
+                <div className="flex items-center mt-2">
+                  <span className="mr-2 text-gray-500">£</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={100}
+                    value={decidedAmount}
+                    onChange={(e) => setDecidedAmount(e.target.value)}
+                    className={`text-2xl font-bold ${darkMode ? 'bg-gray-600 text-green-400 border-gray-500' : 'bg-white text-green-600 border-gray-300'}`}
+                    style={{ width: '200px' }}
+                  />
+                  <Button 
+                    type="primary"
+                    onClick={saveDecidedAmount}
+                    loading={savingDecidedAmount}
+                    className="ml-4"
+                    disabled={!decidedAmount || isNaN(parseFloat(decidedAmount))}
+                  >
+                    {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined 
+                      ? 'Update Amount' 
+                      : 'Confirm Amount'}
+                  </Button>
+                </div>
+                {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? (
+                  <Alert
+                    message="This settlement amount has been manually adjusted and finalized."
+                    type="success"
+                    showIcon
+                    className="mt-3"
+                  />
+                ) : (
+                  <Alert
+                    message="Set the final settlement amount based on your assessment."
+                    type="info"
+                    showIcon
+                    className="mt-3"
+                  />
+                )}
               </div>
-              {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? (
-                <Alert
-                  message="This settlement amount has been manually adjusted and finalized."
-                  type="success"
-                  showIcon
-                  className="mt-3"
-                />
-              ) : (
-                <Alert
-                  message="Set the final settlement amount based on your assessment."
-                  type="info"
-                  showIcon
-                  className="mt-3"
-                />
-              )}
-            </div>
+            )}
             
             {claim.ml_prediction.processing_notes && (
               <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>

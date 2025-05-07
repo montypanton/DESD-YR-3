@@ -34,6 +34,10 @@ class Claim(models.Model):
     ml_prediction = models.OneToOneField('MLPrediction', on_delete=models.SET_NULL, null=True, blank=True, related_name='claim')
     # Final settlement amount decided by the insurance adjuster (can differ from ML prediction)
     decided_settlement_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Finance team member who reviewed the claim
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_claims')
+    # When the claim was reviewed
+    reviewed_at = models.DateTimeField(null=True, blank=True)
     
     def __str__(self):
         return f"Claim {self.reference_number} - {self.user.email}"

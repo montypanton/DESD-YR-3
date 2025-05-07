@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Button, Spin, message, Tag, Breadcrumb, Input, Select } from 'antd';
+import { 
+  Button, 
+  Spin, 
+  message, 
+  Tag, 
+  Breadcrumb, 
+  Input, 
+  Select, 
+  Card, 
+  Modal,
+  Radio, 
+  InputNumber,
+  Form
+} from 'antd';
 import { 
   ArrowLeftOutlined, 
   CheckCircleOutlined, 
@@ -9,9 +22,12 @@ import {
   ExclamationCircleOutlined,
   HomeOutlined,
   FileTextOutlined,
-  UserOutlined
+  UserOutlined,
+  CheckOutlined,
+  CloseOutlined
 } from '@ant-design/icons';
 import { apiClient } from '../../services/authService';
+import { processClaim } from '../../services/financeService';
 import { useTheme } from '../../context/ThemeContext';
 
 const { TextArea } = Input;
@@ -24,6 +40,9 @@ const FinanceClaimDetail = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userLoading, setUserLoading] = useState(false);
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [form] = Form.useForm();
   const { darkMode } = useTheme();
 
   useEffect(() => {
@@ -423,6 +442,177 @@ const FinanceClaimDetail = () => {
       {renderClaimDataSection("Additional Information", [
         'ExceptionalCircumstances'
       ])}
+
+      {/* Review Section (Only show for PENDING claims) */}
+      {claim && claim.status === 'PENDING' && (
+        <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-md overflow-hidden`}>
+          <div className={`px-6 py-5 border-b ${darkMode ? 'border-gray-700 bg-green-900' : 'border-gray-200 bg-green-50'}`}>
+            <h3 className={`text-lg font-medium ${darkMode ? 'text-green-100' : 'text-green-800'}`}>Finance Review</h3>
+          </div>
+          <div className="p-6">
+            <p className={`mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+              This claim requires your review and decision. You can approve or reject this claim based on the information provided.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <Card
+                title="Settlement Information"
+                className={darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50'}
+                headStyle={darkMode ? { backgroundColor: '#374151', color: 'white' } : {}}
+                bodyStyle={darkMode ? { backgroundColor: '#374151' } : {}}
+              >
+                <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>AI-Recommended Settlement Amount:</p>
+                <p className={`text-xl font-bold mb-4 ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                  ${claim.ml_prediction?.settlement_amount ? 
+                    parseFloat(claim.ml_prediction.settlement_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 
+                    'Not available'}
+                </p>
+                <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Claimed Amount:</p>
+                <p className={`text-lg font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  ${parseFloat(claim.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </Card>
+              
+              <Card
+                title="Decision Required"
+                className={darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50'}
+                headStyle={darkMode ? { backgroundColor: '#374151', color: 'white' } : {}}
+                bodyStyle={darkMode ? { backgroundColor: '#374151' } : {}}
+              >
+                <div className="flex flex-col space-y-4 items-center justify-center h-full">
+                  <Button 
+                    type="primary" 
+                    size="large" 
+                    className="w-full"
+                    icon={<CheckOutlined />}
+                    style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+                    onClick={() => {
+                      form.setFieldsValue({
+                        status: 'APPROVED',
+                        final_settlement_amount: claim.ml_prediction?.settlement_amount || claim.amount
+                      });
+                      setReviewModalVisible(true);
+                    }}
+                  >
+                    Approve Claim
+                  </Button>
+                  <Button 
+                    danger 
+                    size="large" 
+                    className="w-full"
+                    icon={<CloseOutlined />}
+                    onClick={() => {
+                      form.setFieldsValue({
+                        status: 'REJECTED',
+                        final_settlement_amount: 0
+                      });
+                      setReviewModalVisible(true);
+                    }}
+                  >
+                    Reject Claim
+                  </Button>
+                </div>
+              </Card>
+            </div>
+            
+            <div className={`p-4 rounded-lg ${darkMode ? 'bg-yellow-900 text-yellow-200' : 'bg-yellow-50 text-yellow-800'}`}>
+              <div className="flex items-start">
+                <ExclamationCircleOutlined className="text-yellow-400 mr-2 mt-1" />
+                <div>
+                  <p className="font-medium">Important Note for Financial Review</p>
+                  <p className="mt-1 text-sm">
+                    Your decision will finalize this claim's status. Once approved or rejected, it cannot be reversed. 
+                    Please verify all details before making your decision. For approved claims, you must set a final settlement amount.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal for Claim Review */}
+      <Modal
+        title={form.getFieldValue('status') === 'APPROVED' ? "Approve Claim" : "Reject Claim"}
+        open={reviewModalVisible}
+        onCancel={() => setReviewModalVisible(false)}
+        footer={null}
+        destroyOnClose={true}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={async (values) => {
+            try {
+              setReviewLoading(true);
+              
+              // Call the API to process the claim
+              await processClaim(id, {
+                status: values.status,
+                final_settlement_amount: values.status === 'APPROVED' ? values.final_settlement_amount : null
+              });
+              
+              message.success(`Claim has been ${values.status === 'APPROVED' ? 'approved' : 'rejected'} successfully!`);
+              setReviewModalVisible(false);
+              
+              // Refresh claim data to show updated status
+              const response = await apiClient.get(`/claims/${id}/`);
+              setClaim(response.data);
+              
+            } catch (error) {
+              let errorMsg = 'Failed to process claim';
+              if (error.response && error.response.data && error.response.data.error) {
+                errorMsg += `: ${error.response.data.error}`;
+              }
+              message.error(errorMsg);
+            } finally {
+              setReviewLoading(false);
+            }
+          }}
+        >
+          <Form.Item name="status" hidden>
+            <Input />
+          </Form.Item>
+          
+          {form.getFieldValue('status') === 'APPROVED' && (
+            <Form.Item
+              name="final_settlement_amount"
+              label="Final Settlement Amount ($)"
+              rules={[
+                { required: true, message: 'Please enter the final settlement amount' },
+                { type: 'number', min: 0, message: 'Amount must be positive' }
+              ]}
+            >
+              <InputNumber
+                style={{ width: '100%' }}
+                formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                precision={2}
+              />
+            </Form.Item>
+          )}
+          
+          <Form.Item
+            name="notes"
+            label="Review Notes (Optional)"
+          >
+            <TextArea rows={4} placeholder="Add any notes about your decision" />
+          </Form.Item>
+          
+          <Form.Item className="mb-0 flex justify-end">
+            <Button style={{ marginRight: 8 }} onClick={() => setReviewModalVisible(false)}>
+              Cancel
+            </Button>
+            <Button 
+              type={form.getFieldValue('status') === 'APPROVED' ? "primary" : "danger"}
+              htmlType="submit"
+              loading={reviewLoading}
+            >
+              {form.getFieldValue('status') === 'APPROVED' ? "Approve Claim" : "Reject Claim"}
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
 
       {/* Actions */}
       <div className="flex justify-between mt-8">
