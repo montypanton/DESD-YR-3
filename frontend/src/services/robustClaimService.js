@@ -42,6 +42,23 @@ export const createClaim = async (claimData, options = {}) => {
   
   console.log('Creating claim with data:', JSON.stringify(claimData, null, 2));
   
+  // Validate and log important fields to help with debugging
+  console.log('VALIDATING CLAIM DATA BEFORE SUBMISSION:');
+  console.log('- Accident Date:', claimData.claim_data?.Accident_Date || 'NOT SET');
+  console.log('- Special Asset Damage:', typeof claimData.claim_data?.SpecialAssetDamage, claimData.claim_data?.SpecialAssetDamage);
+  console.log('- Whiplash:', typeof claimData.claim_data?.Whiplash, claimData.claim_data?.Whiplash);
+  
+  // Check for critical data issues before submission
+  if (!claimData.claim_data) {
+    console.error('Claim data object is missing in request');
+    throw new Error('Claim data is required for submission');
+  }
+  
+  if (!claimData.claim_data.Accident_Date) {
+    console.warn('Accident date is missing in claim data, this may cause backend validation errors');
+    // Don't throw an error here, let the backend handle validation
+  }
+  
   if (!mlPrediction) {
     console.error('ML prediction missing in claim data');
     throw new Error('ML prediction is required for claim submission');
@@ -75,19 +92,35 @@ export const createClaim = async (claimData, options = {}) => {
     console.error('Error parsing user data from localStorage:', e);
   }
   
-  // Normalize the data structure to ensure compatibility with backend
-  const normalizedData = {
-    ...claimData,
-    // Explicitly include title to make sure it's set
-    title: claimData.title || 'Insurance Claim',
-    // Include user reference if available, otherwise backend will use authenticated user
-    user: userData?.id,
-    ml_prediction: {
-      settlement_amount: settlementAmount,
-      confidence_score: Number(mlPrediction.confidence_score || 0.85),
-      source: 'ml_service'
-    }
+  // Make a deep clone of the data to avoid modifying the original
+  const normalizedData = JSON.parse(JSON.stringify(claimData));
+  
+  // Explicitly include title to make sure it's set
+  normalizedData.title = claimData.title || 'Insurance Claim';
+  
+  // Include user reference if available, otherwise backend will use authenticated user
+  normalizedData.user = userData?.id;
+  
+  // Make sure amount uses the ML prediction settlement amount
+  normalizedData.amount = settlementAmount;
+  
+  // Ensure ML prediction data is properly structured
+  normalizedData.ml_prediction = {
+    settlement_amount: settlementAmount,
+    confidence_score: Number(mlPrediction.confidence_score || 0.85),
+    source: 'ml_service'
   };
+  
+  // Check for Accident_Date in claim_data one more time
+  if (normalizedData.claim_data && !normalizedData.claim_data.Accident_Date) {
+    console.warn('Accident_Date is still missing in normalized data');
+  }
+  
+  // Final verification of key fields
+  console.log('NORMALIZED DATA VERIFICATION:');
+  console.log('- Accident Date:', normalizedData.claim_data?.Accident_Date || 'NOT SET');
+  console.log('- Special Asset Damage:', typeof normalizedData.claim_data?.SpecialAssetDamage, normalizedData.claim_data?.SpecialAssetDamage);
+  console.log('- Whiplash:', typeof normalizedData.claim_data?.Whiplash, normalizedData.claim_data?.Whiplash);
   
   // Use the correct endpoint for the API
   try {

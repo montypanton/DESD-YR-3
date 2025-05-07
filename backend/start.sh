@@ -1,33 +1,32 @@
 #!/bin/bash
 set -e
 
+# Function to wait for a service
+wait_for_service() {
+    echo "Waiting for $1 to be ready..."
+    until $2; do
+        echo "Waiting for $1... retrying"
+        sleep 2
+    done
+    echo "$1 is ready!"
+}
+
 # Wait for database to be ready
-echo "Waiting for database to be ready..."
-python -c "
-import time
-import sys
-import os
+wait_for_service "database" "python -c \"
 import mysql.connector
-
-start_time = time.time()
-timeout = 60
-
-while True:
-    try:
-        mysql.connector.connect(
-            host=os.environ.get('DB_HOST', 'db'),
-            user=os.environ.get('DB_USER', 'desd_user'),
-            password=os.environ.get('DB_PASSWORD', 'desd_pass_123'),
-            database=os.environ.get('DB_NAME', 'desd_db')
-        )
-        break
-    except Exception as e:
-        if time.time() - start_time > timeout:
-            print(f'Could not connect to database after {timeout} seconds. Error: {e}')
-            sys.exit(1)
-        time.sleep(2)
-"
-echo "Database is ready!"
+import os
+try:
+    mysql.connector.connect(
+        host=os.environ.get('DB_HOST', 'db'),
+        user=os.environ.get('DB_USER', 'desd_user'),
+        password=os.environ.get('DB_PASSWORD', 'desd_pass_123'),
+        database=os.environ.get('DB_NAME', 'desd_db')
+    )
+    exit(0)
+except Exception as e:
+    print(f'Database connection error: {e}')
+    exit(1)
+\""
 
 # Apply database migrations
 echo "Applying database migrations..."
@@ -53,58 +52,52 @@ else:
     print('Superuser already exists.')
 "
 
-# Load initial data if needed
-echo "Loading initial data if needed..."
-if [ ! -f .initial_data_loaded ]; then
-    if [ -d fixtures ]; then
-        for fixture in fixtures/*.json; do
-            if [ -f "$fixture" ]; then
-                echo "Loading fixture: $fixture"
-                python manage.py loaddata $fixture
-            fi
-        done
-    fi
-    touch .initial_data_loaded
-    echo "Initial data loaded."
-else
-    echo "Initial data already loaded."
-fi
-
 # Wait for ML service to be ready
-echo "Waiting for ML service to be ready..."
-python -c "
-import time
-import sys
-import os
+wait_for_service "ML service" "python -c \"
 import requests
-
-start_time = time.time()
-timeout = 60
-ml_service_url = os.environ.get('ML_SERVICE_URL', 'http://ml-service:8001')
-health_endpoint = f'{ml_service_url}/api/v1/health'
-
-while True:
-    try:
-        response = requests.get(health_endpoint, timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('status') == 'ok':
-                print(f'ML service is ready: {data}')
-                break
-        print(f'ML service not ready yet, status: {response.status_code}')
-    except Exception as e:
-        print(f'Waiting for ML service: {str(e)}')
-    
-    if time.time() - start_time > timeout:
-        print(f'Warning: Could not connect to ML service after {timeout} seconds.')
-        break
-    time.sleep(2)
-"
+import os
+try:
+    ml_service_url = os.environ.get('ML_SERVICE_URL', 'http://ml-service:8001')
+    health_endpoint = f'{ml_service_url}/api/v1/health'
+    response = requests.get(health_endpoint, timeout=5)
+    if response.status_code == 200 and response.json().get('status') == 'ok':
+        exit(0)
+    else:
+        exit(1)
+except Exception as e:
+    print(f'ML service error: {e}')
+    exit(1)
+\""
 
 # Register ML models
 echo "Registering ML models..."
 python manage.py register_ml_models
 
+# Create a simple health check endpoint
+# First, check if health endpoint is already defined
+if ! grep -q "url(r'^api/health/" backend/urls.py; then
+    echo "Adding health check endpoint..."
+    python -c "
+import os
+with open('backend/urls.py', 'r') as f:
+    content = f.read()
+if 'from django.http import JsonResponse' not in content:
+    content = content.replace('from django.urls import path, include', 'from django.urls import path, include\\nfrom django.http import JsonResponse')
+if 'def health_check' not in content:
+    content = content.replace('urlpatterns = [', 'def health_check(request):\\n    return JsonResponse({\"status\": \"ok\"})\\n\\nurlpatterns = [')
+if '\"^api/health/' not in content and '/api/health/' not in content:
+    content = content.replace('urlpatterns = [', 'urlpatterns = [\\n    path(\"api/health/\", health_check),')
+with open('backend/urls.py', 'w') as f:
+    f.write(content)
+"
+fi
+
 # Start server
 echo "Starting server..."
-python manage.py runserver 0.0.0.0:8000
+if [ "${ENVIRONMENT:-development}" = "production" ]; then
+    echo "Starting Gunicorn production server..."
+    gunicorn backend.wsgi:application --bind 0.0.0.0:8000 --workers 4
+else
+    echo "Starting Django development server..."
+    python manage.py runserver 0.0.0.0:8000
+fi

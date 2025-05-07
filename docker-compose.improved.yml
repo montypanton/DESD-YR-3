@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  # Database service
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-desd_db}
+      MYSQL_USER: ${DB_USER:-desd_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-desd_pass_123}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u${DB_USER:-desd_user}", "-p${DB_PASSWORD:-desd_pass_123}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - desd-network
+
+  # ML Service
+  ml-service:
+    build: 
+      context: ./ml-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - DEBUG=${ML_DEBUG:-True}
+      - API_KEY=${ML_API_KEY:-default-dev-key}
+      - ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000,http://localhost:8000,http://backend:8000
+      - MODELS_DIR=/app/models
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+    volumes:
+      - ./ml-service:/app
+      - ml_models:/app/models
+    networks:
+      - desd-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    command: sh -c "./start.sh"
+
+  # Backend service
+  backend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-2jSD9r2-KTldmeaVwm1QQx7qVyf4sRgJ8o2k7-Y1m6DZW5eoVcNIDJsEDpiPttz3c7g}
+      - DEBUG=${DEBUG:-True}
+      - DB_NAME=${DB_NAME:-desd_db}
+      - DB_USER=${DB_USER:-desd_user}
+      - DB_PASSWORD=${DB_PASSWORD:-desd_pass_123}
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootpassword}
+      - DB_HOST=db
+      - DB_PORT=3306
+      - PYTHONUNBUFFERED=1
+      - ML_SERVICE_URL=http://ml-service:8001
+      - ML_SERVICE_API_KEY=${ML_API_KEY:-default-dev-key}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app/backend
+      - backend_data:/app/backend/media
+      - backend_static:/app/backend/staticfiles
+      - ml_models:/app/models
+    command: sh -c "./start.sh"
+    networks:
+      - desd-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Frontend service
+  frontend:
+    image: node:16-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "3000:3000"
+    command: sh -c "chmod +x ./start.sh && ./start.sh"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000/api
+      - REACT_APP_ML_SERVICE_URL=http://localhost:8001
+      - REACT_APP_ML_API_KEY=${ML_API_KEY:-default-dev-key}
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=500
+      - FAST_REFRESH=true
+      - CI=false
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - desd-network
+    # Use healthcheck for React app
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  mysql_data:
+  frontend_node_modules:
+  backend_data:
+  backend_static:
+  ml_models:
+
+networks:
+  desd-network:
+    driver: bridge

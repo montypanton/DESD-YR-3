@@ -1,10 +1,10 @@
 version: '3.8'
 
 services:
-  # Database
+  # Database service
   db:
     image: mysql:8.0
-    restart: always
+    restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${DB_NAME:-desd_db}
       MYSQL_USER: ${DB_USER:-desd_user}
@@ -19,24 +19,27 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 10s
     networks:
       - desd-network
 
   # ML Service
   ml-service:
-    build: ./ml-service
-    restart: always
+    build: 
+      context: ./ml-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
       - "8001:8001"
     environment:
-      - DEBUG=True
-      - API_KEY=default-dev-key
+      - DEBUG=${ML_DEBUG:-True}
+      - API_KEY=${ML_API_KEY:-default-dev-key}
       - ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000,http://localhost:8000,http://backend:8000
       - MODELS_DIR=/app/models
       - PYTHONUNBUFFERED=1
-      - ENVIRONMENT=production
+      - ENVIRONMENT=${ENVIRONMENT:-production}
     volumes:
+      - ./ml-service:/app
       - ml_models:/app/models
     networks:
       - desd-network
@@ -46,28 +49,31 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --workers 4
 
-  # Backend
+  # Backend service
   backend:
-    build: .
-    restart: always
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
       ml-service:
         condition: service_healthy
     environment:
-      - SECRET_KEY=2jSD9r2-KTldmeaVwm1QQx7qVyf4sRgJ8o2k7-Y1m6DZW5eoVcNIDJsEDpiPttz3c7g
-      - DEBUG=True
-      - DB_NAME=desd_db
-      - DB_USER=desd_user
-      - DB_PASSWORD=desd_pass_123
-      - DB_ROOT_PASSWORD=rootpassword
+      - SECRET_KEY=${SECRET_KEY:-2jSD9r2-KTldmeaVwm1QQx7qVyf4sRgJ8o2k7-Y1m6DZW5eoVcNIDJsEDpiPttz3c7g}
+      - DEBUG=${DEBUG:-True}
+      - DB_NAME=${DB_NAME:-desd_db}
+      - DB_USER=${DB_USER:-desd_user}
+      - DB_PASSWORD=${DB_PASSWORD:-desd_pass_123}
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootpassword}
       - DB_HOST=db
       - DB_PORT=3306
       - PYTHONUNBUFFERED=1
       - ML_SERVICE_URL=http://ml-service:8001
-      - ML_SERVICE_API_KEY=default-dev-key
+      - ML_SERVICE_API_KEY=${ML_API_KEY:-default-dev-key}
     ports:
       - "8000:8000"
     volumes:
@@ -76,13 +82,10 @@ services:
       - backend_static:/app/backend/staticfiles
       - ml_models:/app/models
     command: >
-      sh -c "
-        echo 'Making start.sh executable...' &&
-        chmod +x ./start.sh &&
-        ls -la ./start.sh &&
-        echo 'Running start script...' &&
-        ./start.sh
-      "
+      bash -c "cd /app/backend && 
+      python manage.py migrate --noinput && 
+      python manage.py collectstatic --noinput &&
+      python manage.py runserver 0.0.0.0:8000"
     networks:
       - desd-network
     healthcheck:
@@ -90,9 +93,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 10s
 
-  # Frontend
+  # Frontend service
   frontend:
     image: node:16-alpine
     working_dir: /app
@@ -101,10 +104,12 @@ services:
       - frontend_node_modules:/app/node_modules
     ports:
       - "3000:3000"
-    command: sh -c "chmod +x ./start.sh && ./start.sh"
+    command: >
+      sh -c "npm install && npm start"
     environment:
       - REACT_APP_API_URL=http://localhost:8000/api
       - REACT_APP_ML_SERVICE_URL=http://localhost:8001
+      - REACT_APP_ML_API_KEY=${ML_API_KEY:-default-dev-key}
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
       - CHOKIDAR_INTERVAL=500
@@ -115,6 +120,13 @@ services:
         condition: service_healthy
     networks:
       - desd-network
+    # Use healthcheck for React app
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   mysql_data:

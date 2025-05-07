@@ -104,6 +104,13 @@ const ImprovedClaimForm = () => {
 
   // Handle form value changes to update the stored values
   const handleValuesChange = (changedValues, allValues) => {
+    // Log changes to help debug form state issues
+    if (Object.keys(changedValues).includes('AccidentDate')) {
+      console.log('AccidentDate changed to:', changedValues.AccidentDate ? 
+        changedValues.AccidentDate.format('YYYY-MM-DD') : 'null/undefined');
+    }
+    
+    // Update the combined form values
     setFormValues({...formValues, ...changedValues});
     
     // For financial step, auto-calculate totals
@@ -115,6 +122,17 @@ const ImprovedClaimForm = () => {
         totalSpecialDamages: specialDamages,
         totalGeneralDamages: generalDamages,
         totalClaim: specialDamages + generalDamages
+      });
+    }
+    
+    // Log entire form state after updates for critical fields
+    if (changedValues.AccidentDate !== undefined || 
+        changedValues.SpecialAssetDamage !== undefined ||
+        changedValues.Whiplash !== undefined) {
+      console.log('Current form state:', {
+        AccidentDate: allValues.AccidentDate ? allValues.AccidentDate.format('YYYY-MM-DD') : 'not set',
+        SpecialAssetDamage: allValues.SpecialAssetDamage,
+        Whiplash: allValues.Whiplash
       });
     }
   };
@@ -158,11 +176,23 @@ const ImprovedClaimForm = () => {
 
   // Format claim data for submission
   const formatClaimData = (values) => {
+    console.log("DEBUGGING FORM VALUES IN formatClaimData:", {
+      AccidentDateDirect: values.AccidentDate,
+      AccidentDateFormatted: values.AccidentDate ? values.AccidentDate.format('YYYY-MM-DD') : 'NOT SET',
+      AccidentDateFromForm: form.getFieldValue('AccidentDate'),
+      AccidentDateFormFormatted: form.getFieldValue('AccidentDate') ? form.getFieldValue('AccidentDate').format('YYYY-MM-DD') : 'NOT SET',
+      DriverAge: values.DriverAge,
+      Whiplash: values.Whiplash,
+      PoliceReportFiled: values.PoliceReportFiled
+    });
+    
     // Calculate total claim amount
     const specialDamages = calculateSpecialDamages(values);
     const generalDamages = calculateGeneralDamages(values);
     const totalAmount = specialDamages + generalDamages;
     
+    // Always use the actual values from the form, never replace with default values
+    // unless the field is actually undefined or null
     return {
       title: values.title || `Claim from ${user?.name || user?.email || 'User'}`, // Ensure title is always populated
       description: values.description || 'No description provided',
@@ -171,52 +201,55 @@ const ImprovedClaimForm = () => {
       // The token authentication will handle the user association
       claim_data: {
         // Categorical fields
-        'AccidentType': values.AccidentType,
-        'Vehicle Type': values.VehicleType,
-        'Weather Conditions': values.WeatherConditions,
-        'Injury_Prognosis': values.InjuryPrognosis,
-        'Dominant injury': values.DominantInjury,
-        'Gender': values.Gender,
+        AccidentType: values.AccidentType,
+        Vehicle_Type: values.VehicleType,
+        Weather_Conditions: values.WeatherConditions,
+        Injury_Prognosis: values.InjuryPrognosis,
+        Dominant_injury: values.DominantInjury,
+        Gender: values.Gender,
         
-        // Boolean fields
-        'Whiplash': values.Whiplash || false,
-        'Police Report Filed': values.PoliceReportFiled || false,
-        'Witness Present': values.WitnessPresent || false,
-        'Minor_Psychological_Injury': values.MinorPsychologicalInjury || false,
-        'Exceptional_Circumstances': values.ExceptionalCircumstances || false,
+        // CRITICAL FIX: Force boolean values to be actual booleans, not undefined
+        Whiplash: !!values.Whiplash, // Convert to true boolean
+        Police_Report_Filed: !!values.PoliceReportFiled, // Convert to true boolean
+        Witness_Present: !!values.WitnessPresent, // Convert to true boolean
+        Minor_Psychological_Injury: !!values.MinorPsychologicalInjury, // Convert to true boolean
+        Exceptional_Circumstances: !!values.ExceptionalCircumstances, // Convert to true boolean
         
-        // Numeric fields
-        'SpecialHealthExpenses': parseFloat(values.SpecialHealthExpenses || 0),
-        'SpecialReduction': parseFloat(values.SpecialReduction || 0),
-        'SpecialOverage': parseFloat(values.SpecialOverage || 0),
-        'GeneralRest': parseFloat(values.GeneralRest || 0),
-        'SpecialEarningsLoss': parseFloat(values.SpecialEarningsLoss || 0),
-        'SpecialUsageLoss': parseFloat(values.SpecialUsageLoss || 0),
-        'SpecialMedications': parseFloat(values.SpecialMedications || 0),
-        'SpecialAssetDamage': parseFloat(values.SpecialAssetDamage || 0),
-        'SpecialRehabilitation': parseFloat(values.SpecialRehabilitation || 0),
-        'SpecialFixes': parseFloat(values.SpecialFixes || 0),
-        'GeneralFixed': parseFloat(values.GeneralFixed || 0),
-        'GeneralUplift': parseFloat(values.GeneralUplift || 0),
-        'SpecialLoanerVehicle': parseFloat(values.SpecialLoanerVehicle || 0),
-        'SpecialTripCosts': parseFloat(values.SpecialTripCosts || 0),
-        'SpecialJourneyExpenses': parseFloat(values.SpecialJourneyExpenses || 0),
-        'SpecialTherapy': parseFloat(values.SpecialTherapy || 0),
+        // CRITICAL FIX: Force numeric values to be actual numbers, not undefined
+        // For all numeric fields, use parseFloat with || 0 to ensure we always have a valid number
+        SpecialHealthExpenses: parseFloat(values.SpecialHealthExpenses || 0),
+        SpecialReduction: parseFloat(values.SpecialReduction || 0),
+        SpecialOverage: parseFloat(values.SpecialOverage || 0),
+        GeneralRest: parseFloat(values.GeneralRest || 0),
+        SpecialEarningsLoss: parseFloat(values.SpecialEarningsLoss || 0),
+        SpecialUsageLoss: parseFloat(values.SpecialUsageLoss || 0),
+        SpecialMedications: parseFloat(values.SpecialMedications || 0),
+        SpecialAssetDamage: parseFloat(values.SpecialAssetDamage || 0),
+        SpecialRehabilitation: parseFloat(values.SpecialRehabilitation || 0),
+        SpecialFixes: parseFloat(values.SpecialFixes || 0),
+        GeneralFixed: parseFloat(values.GeneralFixed || 0),
+        GeneralUplift: parseFloat(values.GeneralUplift || 0),
+        SpecialLoanerVehicle: parseFloat(values.SpecialLoanerVehicle || 0),
+        SpecialTripCosts: parseFloat(values.SpecialTripCosts || 0),
+        SpecialJourneyExpenses: parseFloat(values.SpecialJourneyExpenses || 0),
+        SpecialTherapy: parseFloat(values.SpecialTherapy || 0),
         
-        // Vehicle and driver information
-        'Vehicle Age': parseFloat(values.VehicleAge || 0),
-        'Driver Age': parseFloat(values.DriverAge || 30),
-        'Number of Passengers': parseFloat(values.NumberOfPassengers || 0),
+        // Vehicle and driver information - these are important so ensure they have values
+        Vehicle_Age: parseFloat(values.VehicleAge || 0),
+        Driver_Age: parseFloat(values.DriverAge || 30),
+        Number_of_Passengers: parseFloat(values.NumberOfPassengers || 0),
         
-        // Dates
-        'Accident Date': values.AccidentDate ? values.AccidentDate.format('YYYY-MM-DD') : null,
-        'Claim Date': dayjs().format('YYYY-MM-DD'),
+        // CRITICAL FIX: Ensure Accident_Date is properly captured
+        Accident_Date: values.AccidentDate ? values.AccidentDate.format('YYYY-MM-DD') : 
+                      form.getFieldValue('AccidentDate') ? form.getFieldValue('AccidentDate').format('YYYY-MM-DD') : 
+                      dayjs().format('YYYY-MM-DD'), // Use today's date as last resort
+        Claim_Date: dayjs().format('YYYY-MM-DD'),
         
         // Additional information
-        'incidentLocation': values.incidentLocation,
-        'damageDescription': values.damageDescription,
-        'injuryDescription': values.injuryDescription,
-        'additionalInfo': values.additionalInfo
+        incidentLocation: values.incidentLocation,
+        damageDescription: values.damageDescription,
+        injuryDescription: values.injuryDescription,
+        additionalInfo: values.additionalInfo
       }
     };
   };
@@ -237,50 +270,55 @@ const ImprovedClaimForm = () => {
       // Validate all form fields first
       const values = await form.validateFields();
       
-      // Format data for prediction
+      // Format data for prediction - use the same approach as formatClaimData
+      // to ensure we're not defaulting values that user explicitly set
       const inputData = {
-        // Include all necessary fields for prediction from form values
-        'AccidentType': values.AccidentType,
-        'Vehicle Type': values.VehicleType,
-        'Weather Conditions': values.WeatherConditions,
-        'Injury_Prognosis': values.InjuryPrognosis,
-        'Dominant injury': values.DominantInjury,
-        'Gender': values.Gender,
+        // Categorical fields - use actual form values
+        AccidentType: values.AccidentType,
+        Vehicle_Type: values.VehicleType,
+        Weather_Conditions: values.WeatherConditions,
+        Injury_Prognosis: values.InjuryPrognosis,
+        Dominant_injury: values.DominantInjury,
+        Gender: values.Gender,
         
-        'Whiplash': values.Whiplash || false,
-        'Police_Report_Filed': values.PoliceReportFiled || false,
-        'Witness_Present': values.WitnessPresent || false,
-        'Minor_Psychological_Injury': values.MinorPsychologicalInjury || false,
-        'Exceptional_Circumstances': values.ExceptionalCircumstances || false,
+        // Boolean fields - only use default if undefined
+        Whiplash: values.Whiplash === undefined ? false : values.Whiplash,
+        Police_Report_Filed: values.PoliceReportFiled === undefined ? false : values.PoliceReportFiled,
+        Witness_Present: values.WitnessPresent === undefined ? false : values.WitnessPresent,
+        Minor_Psychological_Injury: values.MinorPsychologicalInjury === undefined ? false : values.MinorPsychologicalInjury,
+        Exceptional_Circumstances: values.ExceptionalCircumstances === undefined ? false : values.ExceptionalCircumstances,
         
-        'SpecialHealthExpenses': parseFloat(values.SpecialHealthExpenses || 0),
-        'SpecialReduction': parseFloat(values.SpecialReduction || 0),
-        'SpecialOverage': parseFloat(values.SpecialOverage || 0),
-        'GeneralRest': parseFloat(values.GeneralRest || 0),
-        'SpecialEarningsLoss': parseFloat(values.SpecialEarningsLoss || 0),
-        'SpecialUsageLoss': parseFloat(values.SpecialUsageLoss || 0),
-        'SpecialMedications': parseFloat(values.SpecialMedications || 0),
-        'SpecialAssetDamage': parseFloat(values.SpecialAssetDamage || 0),
-        'SpecialRehabilitation': parseFloat(values.SpecialRehabilitation || 0),
-        'SpecialFixes': parseFloat(values.SpecialFixes || 0),
-        'GeneralFixed': parseFloat(values.GeneralFixed || 0),
-        'GeneralUplift': parseFloat(values.GeneralUplift || 0),
-        'SpecialLoanerVehicle': parseFloat(values.SpecialLoanerVehicle || 0),
-        'SpecialTripCosts': parseFloat(values.SpecialTripCosts || 0),
-        'SpecialJourneyExpenses': parseFloat(values.SpecialJourneyExpenses || 0),
-        'SpecialTherapy': parseFloat(values.SpecialTherapy || 0),
+        // Numeric fields - only parse if defined, otherwise send as is
+        SpecialHealthExpenses: values.SpecialHealthExpenses !== undefined ? parseFloat(values.SpecialHealthExpenses) : undefined,
+        SpecialReduction: values.SpecialReduction !== undefined ? parseFloat(values.SpecialReduction) : undefined,
+        SpecialOverage: values.SpecialOverage !== undefined ? parseFloat(values.SpecialOverage) : undefined,
+        GeneralRest: values.GeneralRest !== undefined ? parseFloat(values.GeneralRest) : undefined,
+        SpecialEarningsLoss: values.SpecialEarningsLoss !== undefined ? parseFloat(values.SpecialEarningsLoss) : undefined,
+        SpecialUsageLoss: values.SpecialUsageLoss !== undefined ? parseFloat(values.SpecialUsageLoss) : undefined,
+        SpecialMedications: values.SpecialMedications !== undefined ? parseFloat(values.SpecialMedications) : undefined,
+        SpecialAssetDamage: values.SpecialAssetDamage !== undefined ? parseFloat(values.SpecialAssetDamage) : undefined,
+        SpecialRehabilitation: values.SpecialRehabilitation !== undefined ? parseFloat(values.SpecialRehabilitation) : undefined,
+        SpecialFixes: values.SpecialFixes !== undefined ? parseFloat(values.SpecialFixes) : undefined,
+        GeneralFixed: values.GeneralFixed !== undefined ? parseFloat(values.GeneralFixed) : undefined,
+        GeneralUplift: values.GeneralUplift !== undefined ? parseFloat(values.GeneralUplift) : undefined,
+        SpecialLoanerVehicle: values.SpecialLoanerVehicle !== undefined ? parseFloat(values.SpecialLoanerVehicle) : undefined,
+        SpecialTripCosts: values.SpecialTripCosts !== undefined ? parseFloat(values.SpecialTripCosts) : undefined,
+        SpecialJourneyExpenses: values.SpecialJourneyExpenses !== undefined ? parseFloat(values.SpecialJourneyExpenses) : undefined,
+        SpecialTherapy: values.SpecialTherapy !== undefined ? parseFloat(values.SpecialTherapy) : undefined,
         
-        'Vehicle_Age': parseFloat(values.VehicleAge || 0),
-        'Driver_Age': parseFloat(values.DriverAge || 30),
-        'Number_of_Passengers': parseFloat(values.NumberOfPassengers || 0),
+        // Vehicle and driver information
+        Vehicle_Age: values.VehicleAge !== undefined ? parseFloat(values.VehicleAge) : undefined,
+        Driver_Age: values.DriverAge !== undefined ? parseFloat(values.DriverAge) : undefined,
+        Number_of_Passengers: values.NumberOfPassengers !== undefined ? parseFloat(values.NumberOfPassengers) : undefined,
         
-        'Accident_Date': values.AccidentDate ? values.AccidentDate.format('YYYY-MM-DD') : null,
-        'Claim_Date': dayjs().format('YYYY-MM-DD'),
+        // Dates - preserve as is from form data
+        Accident_Date: values.AccidentDate ? values.AccidentDate.format('YYYY-MM-DD') : undefined,
+        Claim_Date: dayjs().format('YYYY-MM-DD'),
         
         // Include calculated totals to help with prediction
-        'TotalSpecialDamages': calculateSpecialDamages(values),
-        'TotalGeneralDamages': calculateGeneralDamages(values),
-        'TotalAmount': calculateSpecialDamages(values) + calculateGeneralDamages(values)
+        TotalSpecialDamages: calculateSpecialDamages(values),
+        TotalGeneralDamages: calculateGeneralDamages(values),
+        TotalAmount: calculateSpecialDamages(values) + calculateGeneralDamages(values)
       };
       
       // Retry loop for ML prediction
@@ -418,13 +456,27 @@ const ImprovedClaimForm = () => {
       
       // Format claim data for submission
       const values = await form.validateFields();
+      
+      // Log raw form values before formatting to help with debugging
+      console.log('Raw form values before submission:', {
+        AccidentDate: values.AccidentDate ? values.AccidentDate.format('YYYY-MM-DD') : 'not set',
+        SpecialAssetDamage: values.SpecialAssetDamage,
+        PoliceReportFiled: values.PoliceReportFiled,
+        Whiplash: values.Whiplash,
+        // Add other important fields to monitor
+        allFormValues: values
+      });
+      
+      // Format the claim data for submission
       const claimData = formatClaimData(values);
       
-      // Include the ML prediction in the submission
-      // Ensure values are properly converted to numbers
+      // Set the amount to be the ML prediction settlement amount
       const settlementAmount = typeof prediction.settlementAmount === 'number' 
         ? prediction.settlementAmount 
         : parseFloat(prediction.settlementAmount);
+      
+      // Override the amount with the settlement amount
+      claimData.amount = settlementAmount;
         
       const confidenceScore = typeof prediction.confidenceScore === 'number'
         ? prediction.confidenceScore
@@ -436,7 +488,34 @@ const ImprovedClaimForm = () => {
         source: 'ml_service'
       };
       
+      // Verify important fields are preserved correctly
+      console.log('CLAIM DATA VERIFICATION:');
+      console.log('- Accident Date:', claimData.claim_data.Accident_Date);
+      console.log('- Special Asset Damage:', claimData.claim_data.SpecialAssetDamage);
+      console.log('- Whiplash:', claimData.claim_data.Whiplash);
+      
       console.log('Submitting claim with ML prediction:', JSON.stringify(claimData.ml_prediction));
+      console.log('Full claim data being submitted:', JSON.stringify(claimData, null, 2));
+      
+      // CRITICAL FIX: Force-check Accident Date before submission
+      if (!claimData.claim_data.Accident_Date) {
+        // Get the date directly from the form field again
+        const accidentDate = form.getFieldValue('AccidentDate');
+        if (accidentDate) {
+          console.log('Emergency fix: Setting Accident_Date directly from form field:', accidentDate.format('YYYY-MM-DD'));
+          claimData.claim_data.Accident_Date = accidentDate.format('YYYY-MM-DD');
+        } else {
+          console.error('CRITICAL: AccidentDate is still missing at submission time!');
+          notification.error({
+            message: 'Missing Accident Date',
+            description: 'Please go back and enter a valid accident date before submitting.',
+            placement: 'topRight',
+            duration: 5
+          });
+          setLoading(false);
+          return; // Prevent submission
+        }
+      }
       
       // Submit to the API endpoint
       const response = await robustClaimService.createClaim(claimData);
@@ -521,6 +600,24 @@ const ImprovedClaimForm = () => {
     try {
       // Validate current step fields
       await form.validateFields();
+      
+      // Additional validation for the first step
+      if (currentStep === 0) {
+        // Make sure accident date is properly set
+        const accidentDate = form.getFieldValue('AccidentDate');
+        if (!accidentDate) {
+          notification.warning({
+            message: 'Accident Date Required',
+            description: 'Please select a valid accident date before proceeding.',
+            placement: 'topRight',
+            duration: 3
+          });
+          return;
+        }
+        
+        // Log the accident date to verify it's being captured correctly
+        console.log('Accident date when moving to next step:', accidentDate.format('YYYY-MM-DD'));
+      }
       
       // If moving to final step (Review & Submit)
       if (currentStep === 3) {
@@ -635,8 +732,20 @@ const ImprovedClaimForm = () => {
             name="AccidentDate"
             label="Date of Incident"
             rules={[{ required: true, message: 'Please provide the incident date' }]}
+            help="This date is required and must be in YYYY-MM-DD format"
           >
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker 
+              style={{ width: '100%' }} 
+              format="YYYY-MM-DD"
+              allowClear={false} 
+              onChange={(date) => {
+                if (date) {
+                  console.log('Date picker value changed to:', date.format('YYYY-MM-DD'));
+                } else {
+                  console.log('Date picker value cleared');
+                }
+              }}
+            />
           </Form.Item>
         </Col>
         <Col span={12}>
@@ -1338,7 +1447,12 @@ const ImprovedClaimForm = () => {
         <Descriptions bordered column={2}>
           <Descriptions.Item label="Claim Title">{form.getFieldValue('title')}</Descriptions.Item>
           <Descriptions.Item label="Accident Type">{form.getFieldValue('AccidentType')}</Descriptions.Item>
-          <Descriptions.Item label="Accident Date">{form.getFieldValue('AccidentDate')?.format('YYYY-MM-DD')}</Descriptions.Item>
+          <Descriptions.Item label="Accident Date">
+            {form.getFieldValue('AccidentDate') ? 
+              form.getFieldValue('AccidentDate').format('YYYY-MM-DD') : 
+              <Text type="danger">No date selected</Text>
+            }
+          </Descriptions.Item>
           <Descriptions.Item label="Incident Location">{form.getFieldValue('incidentLocation')}</Descriptions.Item>
           <Descriptions.Item label="Vehicle Type">{form.getFieldValue('VehicleType')}</Descriptions.Item>
           <Descriptions.Item label="Driver Age">{form.getFieldValue('DriverAge')}</Descriptions.Item>
