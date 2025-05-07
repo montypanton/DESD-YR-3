@@ -40,20 +40,20 @@ const FinanceDashboard = () => {
         // Process summary data
         const summaryData = summaryResponse.data;
         
-        // More robust data handling to accommodate different API response structures
+        // Use the updated API response fields from our improved backend
         setSummaryStats({
-          totalClaimsValue: summaryData.total_claimed || summaryData.total_amount || 0,
-          pendingCount: summaryData.pending_claims || summaryData.pending_count || 0,
-          avgProcessingTime: calculateAvgProcessingTime(summaryData),
+          totalClaimsValue: summaryData.total_claimed || 0,
+          pendingCount: summaryData.pending_claims || 0,
+          avgProcessingTime: summaryData.avg_processing_days || 0,
           pendingChange: calculatePercentChange(
-            summaryData.pending_claims_previous || summaryData.previous_pending || 0, 
-            summaryData.pending_claims || summaryData.pending_count || 0
+            summaryData.previous_pending || 0, 
+            summaryData.pending_claims || 0
           ),
           valueChange: calculatePercentChange(
-            summaryData.total_claimed_previous || summaryData.previous_total || 0, 
-            summaryData.total_claimed || summaryData.total_amount || 0
+            summaryData.previous_total || 0, 
+            summaryData.total_claimed || 0
           ),
-          processingTimeChange: calculateProcessingTimeChange(summaryData)
+          processingTimeChange: summaryData.avg_processing_days - (summaryData.previous_avg_days || 0)
         });
         
         console.log('Finance summary data:', summaryData); // Helpful for debugging
@@ -85,25 +85,10 @@ const FinanceDashboard = () => {
     fetchDashboardData();
   }, []);
 
-  // Helper function to calculate average processing time
-  const calculateAvgProcessingTime = (data) => {
-    // Check multiple possible field names for API flexibility
-    const avgTime = data.avg_processing_time || data.average_processing_days;
-    if (avgTime === undefined || avgTime === null) return 0;
-    return parseFloat(avgTime).toFixed(1);
-  };
-
   // Helper function to calculate percent change
   const calculatePercentChange = (previous, current) => {
     if (previous === 0) return 0;
     return ((current - previous) / previous * 100).toFixed(1);
-  };
-
-  // Helper function to calculate processing time change
-  const calculateProcessingTimeChange = (data) => {
-    const previous = data.avg_processing_time_previous || data.previous_processing_days || 0;
-    const current = data.avg_processing_time || data.average_processing_days || 0;
-    return (current - previous).toFixed(1);
   };
 
   // Custom date formatter without date-fns
@@ -277,10 +262,10 @@ const FinanceDashboard = () => {
                         {billing.claim_count}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                        £{billing.rate_per_claim.toFixed(2)}
+                        £{typeof billing.rate_per_claim === 'number' ? billing.rate_per_claim.toFixed(2) : '0.00'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                        £{billing.billable_amount.toFixed(2)}
+                        £{typeof billing.billable_amount === 'number' ? billing.billable_amount.toFixed(2) : '0.00'}
                       </td>
                     </tr>
                   ))}
@@ -338,7 +323,7 @@ const FinanceDashboard = () => {
                         {user.approved_claims_count}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                        £{user.billable_amount.toFixed(2)}
+                        £{typeof user.billable_amount === 'number' ? user.billable_amount.toFixed(2) : '0.00'}
                       </td>
                     </tr>
                   ))}
