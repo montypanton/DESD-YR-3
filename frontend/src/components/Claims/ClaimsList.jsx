@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Tag, Button, Card, Space, Typography, Alert, Spin } from 'antd';
+import { Table, Tag, Button, Card, Space, Typography, Alert, Spin, Tooltip } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { getClaims } from '../../services/claimService';
 import { useTheme } from '../../context/ThemeContext';
@@ -66,13 +66,58 @@ const ClaimsList = () => {
       render: (ml_prediction, record) => {
         // First check if there's a decided amount, which takes precedence
         if (record.decided_settlement_amount !== null && record.decided_settlement_amount !== undefined) {
-          return `£${parseFloat(record.decided_settlement_amount).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          return (
+            <Tooltip title="Final settlement amount decided by finance">
+              <span style={{ color: '#52c41a', fontWeight: 'bold' }}>
+                £{parseFloat(record.decided_settlement_amount).toLocaleString('en-GB', 
+                  { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </Tooltip>
+          );
         }
-        // Otherwise show ML prediction if available
-        return ml_prediction ? 
-          `£${parseFloat(ml_prediction.settlement_amount).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 
-          'Pending Assessment';
+        
+        // Check if ML prediction exists directly
+        if (ml_prediction && ml_prediction.settlement_amount) {
+          return (
+            <Tooltip title="ML predicted settlement amount">
+              <span style={{ color: '#1890ff', fontWeight: 'bold' }}>
+                £{parseFloat(ml_prediction.settlement_amount).toLocaleString('en-GB', 
+                  { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </Tooltip>
+          );
+        }
+        
+        // Check if ml_settlement_amount is available (from serializer direct access)
+        if (record.ml_settlement_amount) {
+          return (
+            <Tooltip title="ML predicted settlement amount">
+              <span style={{ color: '#1890ff', fontWeight: 'bold' }}>
+                £{parseFloat(record.ml_settlement_amount).toLocaleString('en-GB', 
+                  { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </Tooltip>
+          );
+        }
+        
+        // No ML prediction available
+        return (
+          <Tooltip title="No ML prediction available">
+            <span style={{ color: '#999999' }}>Pending Assessment</span>
+          </Tooltip>
+        );
       },
+      sorter: (a, b) => {
+        // First try to sort by decided amount
+        if (a.decided_settlement_amount !== null && b.decided_settlement_amount !== null) {
+          return parseFloat(a.decided_settlement_amount) - parseFloat(b.decided_settlement_amount);
+        }
+        
+        // Next try ML prediction
+        const valueA = a.ml_prediction?.settlement_amount || a.ml_settlement_amount || 0;
+        const valueB = b.ml_prediction?.settlement_amount || b.ml_settlement_amount || 0;
+        return parseFloat(valueA) - parseFloat(valueB);
+      }
     },
     {
       title: 'Status',

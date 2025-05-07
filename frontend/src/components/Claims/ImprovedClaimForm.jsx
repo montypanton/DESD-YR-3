@@ -578,11 +578,26 @@ const ImprovedClaimForm = () => {
           ? prediction.confidenceScore
           : parseFloat(prediction.confidenceScore || 0.85);
           
+        // Create comprehensive ML prediction data with all necessary fields
+        // This ensures both frontend and backend have complete data
         claimData.ml_prediction = {
           settlement_amount: settlementAmount,
           confidence_score: confidenceScore,
-          source: 'ml_service'
+          source: 'ml_service',
+          processing_time: prediction.processing_time || 0.5,
+          // Include input and output data which is required by the MLPrediction model
+          input_data: claimData.claim_data || {},
+          output_data: {
+            settlement_amount: settlementAmount,
+            confidence_score: confidenceScore,
+            processing_time: prediction.processing_time || 0.5,
+            details: {}
+          }
         };
+        
+        // Also add direct fields for easy access
+        claimData.ml_settlement_amount = settlementAmount;
+        claimData.ml_confidence_score = confidenceScore;
         
         // Verify important fields are preserved correctly - last chance to catch issues
         console.log('CLAIM DATA VERIFICATION:');

@@ -51,6 +51,8 @@ const FinanceClaimDetail = () => {
         setLoading(true);
         
         const response = await apiClient.get(`/claims/${id}/`);
+        console.log('Claim data received:', response.data);
+        console.log('ML prediction data:', response.data.ml_prediction);
         setClaim(response.data);
         
         // Extract userId based on the data type
@@ -463,9 +465,38 @@ const FinanceClaimDetail = () => {
               >
                 <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>AI-Recommended Settlement Amount:</p>
                 <p className={`text-xl font-bold mb-4 ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
-                  ${claim.ml_prediction?.settlement_amount ? 
-                    parseFloat(claim.ml_prediction.settlement_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 
-                    'Not available'}
+                  {(() => {
+                    console.log('ML Prediction data:', claim.ml_prediction);
+                    
+                    // First check direct settlement amount field from serializer
+                    if (claim.ml_settlement_amount) {
+                      return `$${parseFloat(claim.ml_settlement_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    }
+                    
+                    if (!claim.ml_prediction) {
+                      return 'Not available (prediction missing)';
+                    }
+                    
+                    // Try multiple potential paths to get the settlement amount
+                    if (typeof claim.ml_prediction.settlement_amount !== 'undefined' && claim.ml_prediction.settlement_amount !== null) {
+                      return `$${parseFloat(claim.ml_prediction.settlement_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    }
+                    
+                    if (claim.ml_prediction.prediction && typeof claim.ml_prediction.prediction.amount !== 'undefined' && claim.ml_prediction.prediction.amount !== null) {
+                      return `$${parseFloat(claim.ml_prediction.prediction.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    }
+                    
+                    if (claim.ml_prediction.output_data && typeof claim.ml_prediction.output_data.settlement_amount !== 'undefined' && claim.ml_prediction.output_data.settlement_amount !== null) {
+                      return `$${parseFloat(claim.ml_prediction.output_data.settlement_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    }
+                    
+                    // Fallback to the claimed amount if no prediction is available
+                    if (claim.amount && parseFloat(claim.amount) > 0) {
+                      return `$${parseFloat(claim.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (claimed amount)`;
+                    }
+                    
+                    return 'Not available (no settlement data)';
+                  })()}
                 </p>
                 <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Claimed Amount:</p>
                 <p className={`text-lg font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -487,9 +518,48 @@ const FinanceClaimDetail = () => {
                     icon={<CheckOutlined />}
                     style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
                     onClick={() => {
+                      // Extract settlement amount with better error handling
+                      console.log('Setting settlement amount for approval form');
+                      
+                      // Initialize variables
+                      let mlAmount = 0;
+                      let settlementSource = 'claim';
+                      
+                      // Try to get the ML prediction amount
+                      if (claim.ml_prediction) {
+                        console.log('ML prediction found:', claim.ml_prediction);
+                        
+                        // Try different possible paths for the settlement amount
+                        if (typeof claim.ml_prediction.settlement_amount !== 'undefined' && claim.ml_prediction.settlement_amount !== null) {
+                          mlAmount = parseFloat(claim.ml_prediction.settlement_amount);
+                          settlementSource = 'ml_direct';
+                          console.log('Using direct settlement_amount:', mlAmount);
+                        } else if (claim.ml_prediction.prediction && typeof claim.ml_prediction.prediction.amount !== 'undefined' && claim.ml_prediction.prediction.amount !== null) {
+                          mlAmount = parseFloat(claim.ml_prediction.prediction.amount);
+                          settlementSource = 'ml_prediction';
+                          console.log('Using prediction.amount:', mlAmount);
+                        } else if (claim.ml_prediction.output_data && typeof claim.ml_prediction.output_data.settlement_amount !== 'undefined' && claim.ml_prediction.output_data.settlement_amount !== null) {
+                          mlAmount = parseFloat(claim.ml_prediction.output_data.settlement_amount);
+                          settlementSource = 'ml_output_data';
+                          console.log('Using output_data.settlement_amount:', mlAmount);
+                        } else {
+                          console.log('No valid ML prediction amount found');
+                        }
+                      } else {
+                        console.log('No ML prediction object found');
+                      }
+                      
+                      // Use claim amount as fallback
+                      const claimAmount = claim.amount ? parseFloat(claim.amount) : 0;
+                      console.log('Claim amount:', claimAmount);
+                      
+                      // Decide which amount to use
+                      const settlementAmount = mlAmount > 0 ? mlAmount : claimAmount;
+                      console.log(`Using ${settlementSource} amount for settlement: ${settlementAmount}`);
+                      
                       form.setFieldsValue({
                         status: 'APPROVED',
-                        final_settlement_amount: claim.ml_prediction?.settlement_amount || claim.amount
+                        final_settlement_amount: settlementAmount
                       });
                       setReviewModalVisible(true);
                     }}

@@ -107,12 +107,26 @@ export const createClaim = async (claimData, options = {}) => {
   // Always ensure status is PENDING for finance review
   normalizedData.status = 'PENDING';
   
-  // Ensure ML prediction data is properly structured
+  // Ensure ML prediction data is properly structured for backend
+  // This is the key fix - we need to provide it in a format the backend expects
+  // Both directly and in a nested format to ensure compatibility
   normalizedData.ml_prediction = {
     settlement_amount: settlementAmount,
     confidence_score: Number(mlPrediction.confidence_score || 0.85),
-    source: 'ml_service'
+    source: 'ml_service',
+    processing_time: mlPrediction.processing_time || 0.5,
+    input_data: claimData.claim_data || {},
+    output_data: {
+      settlement_amount: settlementAmount,
+      confidence_score: Number(mlPrediction.confidence_score || 0.85),
+      processing_time: mlPrediction.processing_time || 0.5,
+      details: {}
+    }
   };
+  
+  // Also include these fields directly to ensure backend can find them
+  normalizedData.ml_settlement_amount = settlementAmount;
+  normalizedData.ml_confidence_score = Number(mlPrediction.confidence_score || 0.85);
   
   // Check for Accident_Date in claim_data one more time
   if (normalizedData.claim_data && !normalizedData.claim_data.Accident_Date) {

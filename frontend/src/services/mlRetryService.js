@@ -50,13 +50,21 @@ export const makePrediction = async (inputData, apiOptions = {}) => {
         throw new Error('Invalid settlement amount returned from ML model');
       }
       
-      // Return standardized response
+      // Return standardized response with complete data structure
       return {
         data: {
           prediction: {
             settlement_amount: settlementAmount,
             confidence_score: confidenceScore,
-            source: 'ml_service'
+            source: 'ml_service',
+            processing_time: mlResponse.data.prediction?.processing_time || 0.5,
+            input_data: inputData,
+            output_data: {
+              settlement_amount: settlementAmount,
+              confidence_score: confidenceScore,
+              processing_time: mlResponse.data.prediction?.processing_time || 0.5,
+              details: {}
+            }
           }
         },
         status: 200
@@ -130,13 +138,21 @@ export const makePrediction = async (inputData, apiOptions = {}) => {
                              predictionResult.confidenceScore || 
                              predictionResult.confidence || 0.85;
         
-        // Return standardized response
+        // Return standardized response with complete data structure
         return {
           data: {
             prediction: {
               settlement_amount: settlementAmount,
               confidence_score: confidenceScore,
-              source: 'ml_service'
+              source: 'ml_service',
+              processing_time: predictionResult.processing_time || 0.5,
+              input_data: data.input_data || {},
+              output_data: {
+                settlement_amount: settlementAmount,
+                confidence_score: confidenceScore,
+                processing_time: predictionResult.processing_time || 0.5,
+                details: {}
+              }
             }
           },
           status: 200
