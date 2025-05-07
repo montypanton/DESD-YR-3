@@ -1,9 +1,10 @@
 # Converts finance model instances to JSON format and validates input data.
 
 from rest_framework import serializers
-from .models import BillingRecord, UsageStatistics, InsuranceCompany, Invoice, InvoiceItem
+from .models import BillingRecord, UsageStatistics, InsuranceCompany, Invoice, InvoiceItem, BillingRate
 from account.serializers import UserSerializer
 from ml_interface.serializers import PredictionSerializer
+from django.utils import timezone
 
 
 class InsuranceCompanySerializer(serializers.ModelSerializer):
@@ -70,3 +71,60 @@ class UserBillingStatsSerializer(serializers.Serializer):
     paid_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
     last_payment_date = serializers.DateTimeField()
     total_predictions = serializers.IntegerField()
+
+
+class BillingRateSerializer(serializers.ModelSerializer):
+    insurance_company_name = serializers.ReadOnlyField(source='insurance_company.name')
+    created_by_name = serializers.ReadOnlyField(source='created_by.get_full_name')
+    
+    class Meta:
+        model = BillingRate
+        fields = ['id', 'insurance_company', 'insurance_company_name', 'rate_per_claim', 
+                 'effective_from', 'effective_to', 'is_active', 'created_at', 
+                 'updated_at', 'created_by', 'created_by_name']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by', 
+                          'insurance_company_name', 'created_by_name']
+    
+    def validate(self, data):
+        """
+        Validate the billing rate data.
+        """
+        # If effective_to is provided, it should be after effective_from
+        if data.get('effective_to') and data.get('effective_from') and data['effective_to'] <= data['effective_from']:
+            raise serializers.ValidationError("Effective end date must be after effective start date.")
+        
+        # If updating is_active to True, ensure no other active rates exist for this company
+        if self.instance and 'is_active' in data and data['is_active']:
+            company = data.get('insurance_company') or self.instance.insurance_company
+            active_rates = BillingRate.objects.filter(
+                insurance_company=company,
+                is_active=True
+            ).exclude(id=self.instance.id)
+            
+            if active_rates.exists():
+                raise serializers.ValidationError(
+                    "Another active billing rate already exists for this company. "
+                    "Please deactivate it first."
+                )
+        
+        return data
+    
+    def create(self, validated_data):
+        """
+        Add the user who created the rate.
+        """
+        validated_data['created_by'] = self.context['request'].user
+        
+        # Default effective_from to today if not provided
+        if 'effective_from' not in validated_data:
+            validated_data['effective_from'] = timezone.now().date()
+        
+        # If this is an active rate, deactivate any other active rates for this company
+        if validated_data.get('is_active', True):
+            company = validated_data['insurance_company']
+            BillingRate.objects.filter(
+                insurance_company=company,
+                is_active=True
+            ).update(is_active=False)
+        
+        return super().create(validated_data)

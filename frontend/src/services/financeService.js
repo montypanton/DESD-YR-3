@@ -406,6 +406,124 @@ export const bulkAssignToCompany = async (recordIds, insuranceCompanyId) => {
   });
 };
 
+/**
+ * Billing Rates API methods
+ */
+
+/**
+ * Get all billing rates
+ * @returns {Promise} API response with billing rates data
+ */
+export const getBillingRates = async () => {
+  return await apiClient.get('/finance/billing-rates/');
+};
+
+/**
+ * Get a specific billing rate by ID
+ * @param {number} id - Billing rate ID
+ * @returns {Promise} API response with billing rate data
+ */
+export const getBillingRate = async (id) => {
+  return await apiClient.get(`/finance/billing-rates/${id}/`);
+};
+
+/**
+ * Create a new billing rate
+ * @param {Object} rateData - Billing rate data
+ * @returns {Promise} API response with created billing rate
+ */
+export const createBillingRate = async (rateData) => {
+  return await apiClient.post('/finance/billing-rates/', rateData);
+};
+
+/**
+ * Update an existing billing rate
+ * @param {number} id - Billing rate ID
+ * @param {Object} rateData - Updated billing rate data
+ * @returns {Promise} API response with updated billing rate
+ */
+export const updateBillingRate = async (id, rateData) => {
+  return await apiClient.put(`/finance/billing-rates/${id}/`, rateData);
+};
+
+/**
+ * Delete a billing rate
+ * @param {number} id - Billing rate ID
+ * @returns {Promise} API response confirming deletion
+ */
+export const deleteBillingRate = async (id) => {
+  return await apiClient.delete(`/finance/billing-rates/${id}/`);
+};
+
+/**
+ * Get all active billing rates
+ * @returns {Promise} API response with active billing rates data
+ */
+export const getActiveBillingRates = async () => {
+  return await apiClient.get('/finance/billing-rates/active/');
+};
+
+/**
+ * Get billing rates for a specific company
+ * @param {number} companyId - Insurance company ID
+ * @returns {Promise} API response with company's billing rates
+ */
+export const getCompanyBillingRates = async (companyId) => {
+  return await apiClient.get(`/finance/billing-rates/by_company/?company_id=${companyId}`);
+};
+
+/**
+ * Activate a billing rate
+ * @param {number} id - Billing rate ID
+ * @returns {Promise} API response with activated billing rate
+ */
+export const activateBillingRate = async (id) => {
+  return await apiClient.post(`/finance/billing-rates/${id}/activate/`);
+};
+
+/**
+ * Deactivate a billing rate
+ * @param {number} id - Billing rate ID
+ * @returns {Promise} API response with deactivated billing rate
+ */
+export const deactivateBillingRate = async (id) => {
+  return await apiClient.post(`/finance/billing-rates/${id}/deactivate/`);
+};
+
+/**
+ * Usage Analytics API methods
+ */
+
+/**
+ * Get usage analytics for ML predictions
+ * @param {Object} params - Query parameters for filtering data
+ * @returns {Promise} API response with usage analytics data
+ */
+export const getUsageAnalytics = async (params = {}) => {
+  return await apiClient.get('/finance/usage-analytics/', { params });
+};
+
+/**
+ * Get usage summary with billing information
+ * @param {Object} params - Query parameters for filtering data
+ * @returns {Promise} API response with usage summary data
+ */
+export const getUsageSummary = async (params = {}) => {
+  return await apiClient.get('/finance/usage-summary/', { params });
+};
+
+/**
+ * Export predictions data as CSV
+ * @param {Object} params - Query parameters for filtering data
+ * @returns {Promise} API response with CSV data
+ */
+export const exportPredictions = async (params = {}) => {
+  return await apiClient.get('/finance/export-predictions/', {
+    params,
+    responseType: 'blob'
+  });
+};
+
 export default {
   getAllClaims,
   getFinanceSummary,
@@ -439,5 +557,19 @@ export default {
   exportInvoiceCsv,
   getUnbilledRecords,
   getInvoicingStats,
-  bulkAssignToCompany
+  bulkAssignToCompany,
+  // Billing rates methods
+  getBillingRates,
+  getBillingRate,
+  createBillingRate,
+  updateBillingRate,
+  deleteBillingRate,
+  getActiveBillingRates,
+  getCompanyBillingRates,
+  activateBillingRate,
+  deactivateBillingRate,
+  // Usage analytics methods
+  getUsageAnalytics,
+  getUsageSummary,
+  exportPredictions
 };

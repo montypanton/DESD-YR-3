@@ -3,6 +3,7 @@
 from django.db import models
 from account.models import User
 from ml_interface.models import Prediction
+from django.core.validators import MinValueValidator, DecimalValidator
 
 
 class InsuranceCompany(models.Model):
@@ -32,6 +33,54 @@ class InsuranceCompany(models.Model):
     
     def __str__(self):
         return self.name
+
+
+class BillingRate(models.Model):
+    """Represents the cost per claim for each insurance company."""
+    
+    insurance_company = models.ForeignKey(
+        InsuranceCompany,
+        on_delete=models.CASCADE,
+        related_name='billing_rates'
+    )
+    
+    # Rate per claim with validation (positive decimal, up to 2 decimal places)
+    rate_per_claim = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[
+            MinValueValidator(0.01),
+            DecimalValidator(10, 2)
+        ]
+    )
+    
+    # Date range for which this rate is applicable
+    effective_from = models.DateField()
+    effective_to = models.DateField(null=True, blank=True)
+    
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_billing_rates'
+    )
+    
+    class Meta:
+        ordering = ['-effective_from']
+        # Ensure we don't have overlapping active rates for the same company
+        constraints = [
+            models.UniqueConstraint(
+                fields=['insurance_company'],
+                condition=models.Q(is_active=True),
+                name='unique_active_rate_per_company'
+            )
+        ]
+    
+    def __str__(self):
+        return f"{self.insurance_company.name} - £{self.rate_per_claim} per claim (from {self.effective_from})"
 
 
 class BillingRecord(models.Model):

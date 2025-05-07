@@ -28,6 +28,8 @@ import InsuranceCompanies from './pages/finance/InsuranceCompanies';
 import InsuranceCompanyForm from './pages/finance/InsuranceCompanyForm';
 import Invoices from './pages/finance/Invoices';
 import InvoiceForm from './pages/finance/InvoiceForm';
+import BillingRates from './pages/finance/BillingRates';
+import UsageAnalytics from './pages/finance/UsageAnalytics';
 import UserManagement from './pages/admin/UserManagement';
 import AdminUserProfile from './pages/admin/AdminUserProfile';
 import ActivityLogs from './pages/admin/ActivityLogs';
@@ -287,6 +289,26 @@ function App() {
             element={
               <FinanceRoute>
                 <InvoiceForm />
+              </FinanceRoute>
+            } 
+          />
+          
+          {/* New billing rates routes */}
+          <Route 
+            path="finance/billing-rates" 
+            element={
+              <FinanceRoute>
+                <BillingRates />
+              </FinanceRoute>
+            } 
+          />
+          
+          {/* New usage analytics routes */}
+          <Route 
+            path="finance/usage-analytics" 
+            element={
+              <FinanceRoute>
+                <UsageAnalytics />
               </FinanceRoute>
             } 
           />

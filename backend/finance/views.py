@@ -1,6 +1,6 @@
 # Implements API views to handle financial data requests and responses.
 
-from django.db.models import Sum, Count, Avg, Q
+from django.db.models import Sum, Count, Avg, Q, F, Case, When, Value, IntegerField
 from django.utils import timezone
 from rest_framework import viewsets, status, permissions, filters
 from rest_framework.response import Response
@@ -11,14 +11,16 @@ from django.http import HttpResponse
 import uuid
 import csv
 import datetime
+from dateutil.relativedelta import relativedelta
 
-from .models import BillingRecord, UsageStatistics, InsuranceCompany, Invoice, InvoiceItem
+from .models import BillingRecord, UsageStatistics, InsuranceCompany, Invoice, InvoiceItem, BillingRate
 from .serializers import (
     BillingRecordSerializer, UsageStatisticsSerializer, UserBillingStatsSerializer,
-    InsuranceCompanySerializer, InvoiceSerializer, InvoiceItemSerializer
+    InsuranceCompanySerializer, InvoiceSerializer, InvoiceItemSerializer, BillingRateSerializer
 )
 from account.permissions import IsAdminUser, IsFinanceUser
 from account.models import User
+from ml_interface.models import Prediction
 
 # Public view for insurance companies - no authentication required
 class PublicInsuranceCompanyList(APIView):
@@ -525,3 +527,431 @@ class InvoicingStatsView(APIView):
             'overdue_invoices_count': overdue_invoices,
             'overdue_amount': overdue_amount
         })
+
+
+class BillingRateViewSet(viewsets.ModelViewSet):
+    """API endpoint for managing billing rates per insurance company."""
+    queryset = BillingRate.objects.all()
+    serializer_class = BillingRateSerializer
+    permission_classes = [IsAuthenticated, (IsFinanceUser | IsAdminUser)]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['insurance_company__name']
+    ordering_fields = ['effective_from', 'rate_per_claim', 'created_at']
+    
+    def perform_create(self, serializer):
+        serializer.save()
+    
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        """Get all active billing rates."""
+        active_rates = BillingRate.objects.filter(is_active=True)
+        serializer = self.get_serializer(active_rates, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def by_company(self, request, company_id=None):
+        """Get billing rates for a specific company."""
+        company_id = request.query_params.get('company_id')
+        if not company_id:
+            return Response(
+                {"error": "company_id query parameter is required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            company = InsuranceCompany.objects.get(id=company_id)
+        except InsuranceCompany.DoesNotExist:
+            return Response(
+                {"error": "Insurance company not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        rates = BillingRate.objects.filter(insurance_company=company)
+        serializer = self.get_serializer(rates, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        """Deactivate a billing rate."""
+        rate = self.get_object()
+        rate.is_active = False
+        rate.effective_to = timezone.now().date()
+        rate.save()
+        
+        serializer = self.get_serializer(rate)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        """Activate a billing rate and deactivate any other active rates for this company."""
+        rate = self.get_object()
+        company = rate.insurance_company
+        
+        # Deactivate any currently active rates for this company
+        BillingRate.objects.filter(
+            insurance_company=company,
+            is_active=True
+        ).update(is_active=False)
+        
+        # Activate this rate
+        rate.is_active = True
+        rate.effective_from = timezone.now().date()
+        rate.effective_to = None
+        rate.save()
+        
+        serializer = self.get_serializer(rate)
+        return Response(serializer.data)
+
+
+class UsageAnalyticsView(APIView):
+    """API endpoint for ML predictions usage analytics."""
+    permission_classes = [IsAuthenticated, (IsFinanceUser | IsAdminUser)]
+    
+    def get(self, request):
+        """
+        Get usage analytics for ML predictions grouped by insurance company and time period.
+        Supports filtering by:
+        - company_id: Insurance company ID
+        - time_range: 'weekly', 'monthly', 'yearly'
+        - from_date: Start date (YYYY-MM-DD)
+        - to_date: End date (YYYY-MM-DD)
+        """
+        # Get query parameters
+        company_id = request.query_params.get('company_id')
+        time_range = request.query_params.get('time_range', 'monthly')
+        from_date = request.query_params.get('from_date')
+        to_date = request.query_params.get('to_date')
+        
+        # Base queryset
+        queryset = Prediction.objects.all()
+        
+        # Apply company filter if provided
+        if company_id:
+            try:
+                company = InsuranceCompany.objects.get(id=company_id)
+                queryset = queryset.filter(user__insurance_company=company)
+            except InsuranceCompany.DoesNotExist:
+                return Response(
+                    {"error": f"Insurance company with ID {company_id} not found"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # Apply date filters if provided
+        if from_date:
+            try:
+                from_date = datetime.datetime.strptime(from_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(created_at__date__gte=from_date)
+            except ValueError:
+                return Response(
+                    {"error": "Invalid from_date format. Use YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        if to_date:
+            try:
+                to_date = datetime.datetime.strptime(to_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(created_at__date__lte=to_date)
+            except ValueError:
+                return Response(
+                    {"error": "Invalid to_date format. Use YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Define date truncation based on time_range
+        if time_range == 'weekly':
+            # Django doesn't have TruncWeek, so we'll use TruncDay and group manually
+            queryset = queryset.extra({
+                'date': "date_trunc('day', created_at)"
+            })
+            date_format = '%Y-%m-%d'
+        elif time_range == 'yearly':
+            queryset = queryset.extra({
+                'date': "date_trunc('year', created_at)"
+            })
+            date_format = '%Y'
+        else:  # Default to monthly
+            queryset = queryset.extra({
+                'date': "date_trunc('month', created_at)"
+            })
+            date_format = '%Y-%m'
+        
+        # Group by company and date
+        results = queryset.values(
+            'user__insurance_company',
+            'user__insurance_company__name',
+            'date'
+        ).annotate(
+            count=Count('id'),
+            successful=Sum(Case(
+                When(status='COMPLETED', then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField()
+            )),
+            failed=Sum(Case(
+                When(status='FAILED', then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField()
+            ))
+        ).order_by('user__insurance_company__name', 'date')
+        
+        # Format results
+        formatted_results = []
+        for result in results:
+            # Skip if insurance company is null
+            if result['user__insurance_company'] is None:
+                continue
+            
+            # Get active billing rate for the company
+            company_id = result['user__insurance_company']
+            date_obj = result['date']
+            
+            try:
+                billing_rate = BillingRate.objects.filter(
+                    insurance_company_id=company_id,
+                    effective_from__lte=date_obj,
+                    is_active=True
+                ).order_by('-effective_from').first()
+                
+                if not billing_rate:
+                    # Try to find any rate that covers this period
+                    billing_rate = BillingRate.objects.filter(
+                        insurance_company_id=company_id,
+                        effective_from__lte=date_obj,
+                        effective_to__gte=date_obj
+                    ).order_by('-effective_from').first()
+                
+                rate = billing_rate.rate_per_claim if billing_rate else 0
+            except (BillingRate.DoesNotExist, AttributeError):
+                rate = 0
+            
+            date_str = date_obj.strftime(date_format)
+            
+            formatted_results.append({
+                'company_id': company_id,
+                'company_name': result['user__insurance_company__name'],
+                'date': date_str,
+                'time_range': time_range,
+                'predictions_count': result['count'],
+                'successful_predictions': result['successful'],
+                'failed_predictions': result['failed'],
+                'rate_per_claim': str(rate),
+                'total_cost': str(rate * result['count']) if rate else '0.00'
+            })
+        
+        return Response(formatted_results)
+
+
+class UsageSummaryView(APIView):
+    """API endpoint for ML predictions usage summary."""
+    permission_classes = [IsAuthenticated, (IsFinanceUser | IsAdminUser)]
+    
+    def get(self, request):
+        """
+        Get a summary of ML predictions usage with billing information.
+        Supports filtering by:
+        - from_date: Start date (YYYY-MM-DD)
+        - to_date: End date (YYYY-MM-DD)
+        """
+        # Get query parameters
+        from_date = request.query_params.get('from_date')
+        to_date = request.query_params.get('to_date')
+        
+        # Base queryset
+        queryset = Prediction.objects.all()
+        
+        # Apply date filters if provided
+        if from_date:
+            try:
+                from_date = datetime.datetime.strptime(from_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(created_at__date__gte=from_date)
+            except ValueError:
+                return Response(
+                    {"error": "Invalid from_date format. Use YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        if to_date:
+            try:
+                to_date = datetime.datetime.strptime(to_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(created_at__date__lte=to_date)
+            except ValueError:
+                return Response(
+                    {"error": "Invalid to_date format. Use YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Get total predictions count
+        total_predictions = queryset.count()
+        
+        # Group by company
+        company_stats = queryset.values(
+            'user__insurance_company',
+            'user__insurance_company__name'
+        ).annotate(
+            count=Count('id')
+        ).order_by('-count')
+        
+        # Get active billing rates for each company
+        company_data = []
+        total_billable_amount = 0
+        
+        for stat in company_stats:
+            company_id = stat['user__insurance_company']
+            
+            # Skip if insurance company is null
+            if company_id is None:
+                continue
+            
+            try:
+                # Get the active billing rate for this company
+                billing_rate = BillingRate.objects.filter(
+                    insurance_company_id=company_id,
+                    is_active=True
+                ).first()
+                
+                rate = billing_rate.rate_per_claim if billing_rate else 0
+                total_amount = rate * stat['count']
+                total_billable_amount += total_amount
+                
+                company_data.append({
+                    'company_id': company_id,
+                    'company_name': stat['user__insurance_company__name'],
+                    'predictions_count': stat['count'],
+                    'rate_per_claim': str(rate),
+                    'total_amount': str(total_amount)
+                })
+            except (BillingRate.DoesNotExist, AttributeError):
+                # Include company even without a billing rate
+                company_data.append({
+                    'company_id': company_id,
+                    'company_name': stat['user__insurance_company__name'],
+                    'predictions_count': stat['count'],
+                    'rate_per_claim': '0.00',
+                    'total_amount': '0.00'
+                })
+        
+        # Get predictions without company
+        unassigned_count = queryset.filter(
+            user__insurance_company__isnull=True
+        ).count()
+        
+        # Date range
+        date_range = {
+            'from_date': from_date.isoformat() if from_date else None,
+            'to_date': to_date.isoformat() if to_date else None
+        }
+        
+        return Response({
+            'total_predictions': total_predictions,
+            'total_billable_amount': str(total_billable_amount),
+            'companies': company_data,
+            'unassigned_predictions': unassigned_count,
+            'date_range': date_range
+        })
+
+
+class ExportPredictionsView(APIView):
+    """API endpoint for exporting ML predictions data."""
+    permission_classes = [IsAuthenticated, (IsFinanceUser | IsAdminUser)]
+    
+    def get(self, request, format=None):
+        """
+        Export ML predictions data as CSV.
+        Supports filtering by:
+        - company_id: Insurance company ID
+        - from_date: Start date (YYYY-MM-DD)
+        - to_date: End date (YYYY-MM-DD)
+        """
+        # Get query parameters
+        company_id = request.query_params.get('company_id')
+        from_date = request.query_params.get('from_date')
+        to_date = request.query_params.get('to_date')
+        
+        # Base queryset
+        queryset = Prediction.objects.all()
+        
+        # Apply company filter if provided
+        if company_id:
+            try:
+                company = InsuranceCompany.objects.get(id=company_id)
+                queryset = queryset.filter(user__insurance_company=company)
+                company_name = company.name
+            except InsuranceCompany.DoesNotExist:
+                return Response(
+                    {"error": f"Insurance company with ID {company_id} not found"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        else:
+            company_name = "All Companies"
+        
+        # Apply date filters if provided
+        if from_date:
+            try:
+                from_date = datetime.datetime.strptime(from_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(created_at__date__gte=from_date)
+            except ValueError:
+                return Response(
+                    {"error": "Invalid from_date format. Use YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        if to_date:
+            try:
+                to_date = datetime.datetime.strptime(to_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(created_at__date__lte=to_date)
+            except ValueError:
+                return Response(
+                    {"error": "Invalid to_date format. Use YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Get predictions with related data
+        predictions = queryset.select_related('user', 'user__insurance_company').order_by('-created_at')
+        
+        # Create CSV response
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="predictions_{company_name}_{timezone.now().strftime("%Y%m%d")}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            'Prediction ID', 'Date', 'User', 'Insurance Company', 'Status', 
+            'Model Used', 'Processing Time (s)', 'Rate Per Claim', 'Billable Amount'
+        ])
+        
+        # Write prediction data
+        for prediction in predictions:
+            # Get billing rate for this prediction's company
+            rate = 0
+            if prediction.user and prediction.user.insurance_company:
+                try:
+                    billing_rate = BillingRate.objects.filter(
+                        insurance_company=prediction.user.insurance_company,
+                        effective_from__lte=prediction.created_at,
+                        is_active=True
+                    ).order_by('-effective_from').first()
+                    
+                    if not billing_rate:
+                        # Try to find any rate that covers this period
+                        billing_rate = BillingRate.objects.filter(
+                            insurance_company=prediction.user.insurance_company,
+                            effective_from__lte=prediction.created_at,
+                            effective_to__gte=prediction.created_at
+                        ).order_by('-effective_from').first()
+                    
+                    rate = billing_rate.rate_per_claim if billing_rate else 0
+                except (BillingRate.DoesNotExist, AttributeError):
+                    rate = 0
+            
+            writer.writerow([
+                prediction.id,
+                prediction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                prediction.user.email if prediction.user else 'Unknown',
+                prediction.user.insurance_company.name if prediction.user and prediction.user.insurance_company else 'None',
+                prediction.status,
+                prediction.model_name,
+                prediction.processing_time,
+                rate,
+                rate if prediction.status == 'COMPLETED' else 0
+            ])
+        
+        return response
