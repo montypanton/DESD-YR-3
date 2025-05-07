@@ -684,7 +684,14 @@ class ClaimViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['put'])
     def settlement(self, request, pk=None):
-        """Update the decided settlement amount for a claim"""
+        """Update the decided settlement amount for a claim - restricted to finance/admin users only"""
+        # Check if user has finance or admin permissions
+        if not (request.user.is_finance or request.user.is_admin):
+            return Response(
+                {'error': 'Only finance team members can set settlement amounts'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
         try:
             claim = self.get_object()
             
@@ -784,6 +791,16 @@ class ClaimViewSet(viewsets.ModelViewSet):
                 f"Claim {claim.reference_number} {decision.lower()} by {request.user.email} "
                 f"with settlement amount {settlement_amount if decision == 'APPROVED' else 'N/A'}"
             )
+            
+            # Create billing record for approved claims
+            if decision == 'APPROVED':
+                try:
+                    from finance.api_utils import ensure_billing_record_for_approved_claim
+                    billing_result = ensure_billing_record_for_approved_claim(claim)
+                    logger.info(f"Billing record creation result: {billing_result['message']}")
+                except Exception as billing_error:
+                    logger.error(f"Error creating billing record for claim {claim.reference_number}: {str(billing_error)}")
+                    logger.debug(f"Billing error stack trace: {traceback.format_exc()}")
             
             # Return the updated claim
             serializer = self.get_serializer(claim)

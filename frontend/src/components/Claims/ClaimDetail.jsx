@@ -23,8 +23,9 @@ const ClaimDetail = () => {
   const [loading, setLoading] = useState(true);
   const { darkMode } = useTheme();
   const { user } = useAuth();
-  const [decidedAmount, setDecidedAmount] = useState('');
-  const [savingDecidedAmount, setSavingDecidedAmount] = useState(false);
+  // These states are no longer needed for end users
+  // const [decidedAmount, setDecidedAmount] = useState('');
+  // const [savingDecidedAmount, setSavingDecidedAmount] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -35,13 +36,12 @@ const ClaimDetail = () => {
         const response = await getClaimById(id);
         if (response && response.data) {
           setClaim(response.data);
-          // Initialize the decided amount from the claim's decided_settlement_amount if it exists
-          // Otherwise use the ML prediction amount as the starting value
-          setDecidedAmount(
-            response.data.decided_settlement_amount !== null && response.data.decided_settlement_amount !== undefined
-              ? response.data.decided_settlement_amount
-              : response.data.ml_prediction?.settlement_amount || ''
-          );
+          // No longer need to set decidedAmount as end users can't edit it
+          // setDecidedAmount(
+          //   response.data.decided_settlement_amount !== null && response.data.decided_settlement_amount !== undefined
+          //     ? response.data.decided_settlement_amount
+          //     : response.data.ml_prediction?.settlement_amount || ''
+          // );
         }
       } catch (error) {
         console.error('Error fetching claim details:', error);
@@ -131,32 +131,33 @@ const ClaimDetail = () => {
     );
   };
 
-  const saveDecidedAmount = async () => {
-    try {
-      if (!decidedAmount || isNaN(parseFloat(decidedAmount))) {
-        message.error('Please enter a valid settlement amount');
-        return;
-      }
-      
-      setSavingDecidedAmount(true);
-      const updatedAmount = parseFloat(decidedAmount);
-      
-      await apiClient.put(`/claims/${id}/settlement/`, { settlement_amount: updatedAmount });
-      
-      // Update local state to reflect the change
-      setClaim(prevClaim => ({
-        ...prevClaim,
-        decided_settlement_amount: updatedAmount
-      }));
-      
-      message.success('Settlement amount updated successfully');
-    } catch (error) {
-      console.error('Error saving settlement amount:', error);
-      message.error('Failed to save settlement amount');
-    } finally {
-      setSavingDecidedAmount(false);
-    }
-  };
+  // This function is no longer needed as end users can't edit the settlement amount
+  // const saveDecidedAmount = async () => {
+  //   try {
+  //     if (!decidedAmount || isNaN(parseFloat(decidedAmount))) {
+  //       message.error('Please enter a valid settlement amount');
+  //       return;
+  //     }
+  //     
+  //     setSavingDecidedAmount(true);
+  //     const updatedAmount = parseFloat(decidedAmount);
+  //     
+  //     await apiClient.put(`/claims/${id}/settlement/`, { settlement_amount: updatedAmount });
+  //     
+  //     // Update local state to reflect the change
+  //     setClaim(prevClaim => ({
+  //       ...prevClaim,
+  //       decided_settlement_amount: updatedAmount
+  //     }));
+  //     
+  //     message.success('Settlement amount updated successfully');
+  //   } catch (error) {
+  //     console.error('Error saving settlement amount:', error);
+  //     message.error('Failed to save settlement amount');
+  //   } finally {
+  //     setSavingDecidedAmount(false);
+  //   }
+  // };
 
   if (loading) {
     return (
@@ -353,18 +354,9 @@ const ClaimDetail = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
               <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
                 <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>AI Settlement Recommendation</p>
-                <p className={`text-2xl font-bold ${darkMode ? 'text-indigo-400' : 'text-indigo-600'} ${claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? 'line-through opacity-60' : ''}`}>
+                <p className={`text-2xl font-bold ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>
                   £{parseFloat(claim.ml_prediction.settlement_amount).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
-                {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined && claim.status !== 'APPROVED' && claim.status !== 'REJECTED' && (
-                  <Alert
-                    message="Settlement amount has been adjusted"
-                    type="info"
-                    showIcon
-                    className="mt-2 text-xs"
-                    style={{ padding: '4px 8px' }}
-                  />
-                )}
               </div>
               
               {claim.ml_prediction.confidence_score && (
@@ -377,52 +369,16 @@ const ClaimDetail = () => {
               )}
             </div>
             
-            {/* Decided Settlement Amount - Only show for claims not in final state */}
+            {/* Display information about settlement process - Only show for claims not in final state */}
             {claim.status !== 'APPROVED' && claim.status !== 'REJECTED' && (
-              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} mb-4 ${claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? 'border-2 border-green-500 dark:border-green-600' : ''}`}>
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} font-medium`}>
-                  {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined 
-                    ? 'Final Settlement Amount' 
-                    : 'Set Settlement Amount'}
-                </p>
-                <div className="flex items-center mt-2">
-                  <span className="mr-2 text-gray-500">£</span>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={100}
-                    value={decidedAmount}
-                    onChange={(e) => setDecidedAmount(e.target.value)}
-                    className={`text-2xl font-bold ${darkMode ? 'bg-gray-600 text-green-400 border-gray-500' : 'bg-white text-green-600 border-gray-300'}`}
-                    style={{ width: '200px' }}
-                  />
-                  <Button 
-                    type="primary"
-                    onClick={saveDecidedAmount}
-                    loading={savingDecidedAmount}
-                    className="ml-4"
-                    disabled={!decidedAmount || isNaN(parseFloat(decidedAmount))}
-                  >
-                    {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined 
-                      ? 'Update Amount' 
-                      : 'Confirm Amount'}
-                  </Button>
-                </div>
-                {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? (
-                  <Alert
-                    message="This settlement amount has been manually adjusted and finalized."
-                    type="success"
-                    showIcon
-                    className="mt-3"
-                  />
-                ) : (
-                  <Alert
-                    message="Set the final settlement amount based on your assessment."
-                    type="info"
-                    showIcon
-                    className="mt-3"
-                  />
-                )}
+              <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} mb-4`}>
+                <Alert
+                  message="Your claim is currently under review"
+                  description="The AI-predicted settlement amount shown above is an estimate. The final settlement amount will be determined by our finance team during the approval process."
+                  type="info"
+                  showIcon
+                  className="mt-1"
+                />
               </div>
             )}
             

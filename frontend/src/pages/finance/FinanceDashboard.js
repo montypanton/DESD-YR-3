@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getAllClaims, getFinanceSummary, getRecentClaims } from '../../services/financeService';
+import { 
+  getAllClaims,
+  getFinanceSummary,
+  getRecentClaims,
+  getBillableClaims,
+  getCompanyUsers
+} from '../../services/financeService';
 
 const FinanceDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -14,6 +20,8 @@ const FinanceDashboard = () => {
     processingTimeChange: 0
   });
   const [recentClaims, setRecentClaims] = useState([]);
+  const [billableClaims, setBillableClaims] = useState([]);
+  const [companyUsers, setCompanyUsers] = useState([]);
 
   // Fetch data when component mounts
   useEffect(() => {
@@ -21,10 +29,12 @@ const FinanceDashboard = () => {
       try {
         setLoading(true);
         
-        // Fetch summary statistics and recent claims in parallel
-        const [summaryResponse, recentResponse] = await Promise.all([
+        // Fetch all data in parallel
+        const [summaryResponse, recentResponse, billableResponse, usersResponse] = await Promise.all([
           getFinanceSummary(),
-          getRecentClaims(5) // Get 5 most recent claims
+          getRecentClaims(5), // Get 5 most recent claims
+          getBillableClaims(), // Get billable claims per company/month
+          getCompanyUsers() // Get users under each company with their usage
         ]);
         
         // Process summary data
@@ -52,6 +62,16 @@ const FinanceDashboard = () => {
         const recentClaimsData = recentResponse.data.results || recentResponse.data || [];
         setRecentClaims(recentClaimsData);
         console.log('Recent claims data:', recentClaimsData); // Helpful for debugging
+        
+        // Process billable claims data
+        const billableClaimsData = billableResponse.data.results || billableResponse.data || [];
+        setBillableClaims(billableClaimsData);
+        console.log('Billable claims data:', billableClaimsData); // Helpful for debugging
+        
+        // Process company users data
+        const companyUsersData = usersResponse.data.results || usersResponse.data || [];
+        setCompanyUsers(companyUsersData);
+        console.log('Company users data:', companyUsersData); // Helpful for debugging
         
         setError(null);
       } catch (err) {
@@ -211,8 +231,130 @@ const FinanceDashboard = () => {
         </div>
       </div>
 
+      {/* Billing Summary */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Company Billing Information */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Company Billing</h2>
+            <Link to="/finance/billing-rates" className="text-green-600 hover:text-green-700 text-sm font-medium">
+              Manage rates
+            </Link>
+          </div>
+          
+          {billableClaims.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Company
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Month
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Claims
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Rate
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Billable Amount
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {billableClaims.slice(0, 5).map((billing, index) => (
+                    <tr key={`${billing.company_id}-${billing.month}-${index}`}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        {billing.company_name || 'Unknown'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                        {billing.month}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                        {billing.claim_count}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                        £{billing.rate_per_claim.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        £{billing.billable_amount.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+              No billable claims found.
+            </div>
+          )}
+        </div>
+
+        {/* User Billing Information */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Top Users by Cost</h2>
+            <Link to="/finance/user-billing" className="text-green-600 hover:text-green-700 text-sm font-medium">
+              View all users
+            </Link>
+          </div>
+          
+          {companyUsers.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      User
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Company
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Claims
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Billable Amount
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {companyUsers
+                    .sort((a, b) => b.billable_amount - a.billable_amount) // Sort by billable amount
+                    .slice(0, 5) // Get top 5 users by cost
+                    .map((user) => (
+                    <tr key={user.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        {user.full_name || user.email}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                        {user.company_name || 'Unknown'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                        {user.approved_claims_count}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        £{user.billable_amount.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+              No user billing data found.
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Recent Claims */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden mt-6">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
           <h2 className="text-lg font-medium text-gray-900 dark:text-white">Recent Claims</h2>
           <Link to="/finance/claims" className="text-green-600 hover:text-green-700 text-sm font-medium">

@@ -46,6 +46,24 @@ export const getFinanceSummary = async () => {
 };
 
 /**
+ * Get billable claims per company and month
+ * @param {Object} params - Query parameters for filtering
+ * @returns {Promise} API response with billable claims data
+ */
+export const getBillableClaims = async (params = {}) => {
+  return await apiClient.get('/finance/billable-claims/', { params });
+};
+
+/**
+ * Get users under each company with their usage costs
+ * @param {Object} params - Query parameters for filtering
+ * @returns {Promise} API response with company users data
+ */
+export const getCompanyUsers = async (params = {}) => {
+  return await apiClient.get('/finance/company-users/', { params });
+};
+
+/**
  * Get recent claims for finance dashboard
  * @param {number} limit - Number of claims to return
  * @returns {Promise} API response with recent claims
@@ -528,6 +546,8 @@ export default {
   getAllClaims,
   getFinanceSummary,
   getRecentClaims,
+  getBillableClaims,
+  getCompanyUsers,
   flagClaim,
   addClaimComment,
   getClaimsByStatus,

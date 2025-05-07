@@ -741,6 +741,251 @@ class UsageAnalyticsView(APIView):
         return Response(formatted_results)
 
 
+class BillableClaimsView(APIView):
+    """API endpoint for fetching billable claims per company and month."""
+    permission_classes = [IsAuthenticated, (IsFinanceUser | IsAdminUser)]
+    
+    def get(self, request):
+        """
+        Get billable claims per company and month.
+        Supports filtering by:
+        - company_id: Insurance company ID
+        - year: Year for the report (default: current year)
+        - month: Month for the report (1-12, optional)
+        """
+        # Get query parameters
+        company_id = request.query_params.get('company_id')
+        year = request.query_params.get('year', timezone.now().year)
+        month = request.query_params.get('month')
+        
+        try:
+            year = int(year)
+        except (ValueError, TypeError):
+            year = timezone.now().year
+            
+        if month:
+            try:
+                month = int(month)
+                if month < 1 or month > 12:
+                    return Response(
+                        {"error": "Month must be between 1 and 12"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except (ValueError, TypeError):
+                month = None
+                
+        # Start with all approved claims that have billing records
+        from claims.models import Claim
+        from django.db.models import F
+                
+        # Only get claims that have been approved by finance users
+        claims_queryset = Claim.objects.filter(
+            status='APPROVED',
+            reviewed_by__isnull=False,
+            reviewed_at__isnull=False,
+        ).select_related('user', 'user__insurance_company', 'reviewed_by')
+        
+        # Apply year filter
+        claims_queryset = claims_queryset.filter(reviewed_at__year=year)
+        
+        # Apply month filter if provided
+        if month:
+            claims_queryset = claims_queryset.filter(reviewed_at__month=month)
+            
+        # Apply company filter if provided
+        if company_id:
+            claims_queryset = claims_queryset.filter(user__insurance_company_id=company_id)
+            
+        # Annotate with insurance company information
+        claims_queryset = claims_queryset.annotate(
+            insurance_company_id=F('user__insurance_company__id'),
+            insurance_company_name=F('user__insurance_company__name')
+        )
+        
+        # Group by month and company
+        from django.db.models.functions import TruncMonth
+        
+        # Group queries by month and company
+        billable_claims = (
+            claims_queryset.annotate(month=TruncMonth('reviewed_at'))
+            .values('month', 'insurance_company_id', 'insurance_company_name')
+            .annotate(
+                claim_count=Count('id'),
+                total_amount=Sum('decided_settlement_amount'),
+            )
+            .order_by('month', 'insurance_company_name')
+        )
+        
+        # Get the current billing rates for each company to calculate billable amount
+        results = []
+        for claim_group in billable_claims:
+            company_id = claim_group['insurance_company_id']
+            month_date = claim_group['month']
+            
+            # Skip if no company is associated
+            if not company_id:
+                continue
+                
+            # Get billing rate for this company and date
+            try:
+                billing_rate = BillingRate.objects.filter(
+                    insurance_company_id=company_id,
+                    effective_from__lte=month_date,
+                    is_active=True
+                ).order_by('-effective_from').first()
+                
+                if not billing_rate:
+                    # Try to find any rate that was active during this period
+                    billing_rate = BillingRate.objects.filter(
+                        insurance_company_id=company_id,
+                        effective_from__lte=month_date,
+                        effective_to__gte=month_date
+                    ).order_by('-effective_from').first()
+                    
+                rate = float(billing_rate.rate_per_claim) if billing_rate else 0
+            except (BillingRate.DoesNotExist, AttributeError):
+                rate = 0
+                
+            # Calculate total billable amount
+            billable_amount = rate * claim_group['claim_count']
+            
+            # Format month string
+            month_str = month_date.strftime('%Y-%m')
+            
+            results.append({
+                'month': month_str,
+                'company_id': company_id,
+                'company_name': claim_group['insurance_company_name'],
+                'claim_count': claim_group['claim_count'],
+                'total_settlement_amount': float(claim_group['total_amount'] or 0),
+                'rate_per_claim': rate,
+                'billable_amount': billable_amount
+            })
+            
+        return Response(results)
+
+
+class CompanyUsersView(APIView):
+    """API endpoint for fetching users under each company with their usage costs."""
+    permission_classes = [IsAuthenticated, (IsFinanceUser | IsAdminUser)]
+    
+    def get(self, request):
+        """
+        Get users under each company with their usage costs.
+        Supports filtering by:
+        - company_id: Insurance company ID
+        - from_date: Start date (YYYY-MM-DD)
+        - to_date: End date (YYYY-MM-DD)
+        """
+        # Get query parameters
+        company_id = request.query_params.get('company_id')
+        from_date = request.query_params.get('from_date')
+        to_date = request.query_params.get('to_date')
+        
+        # Process date filters
+        if from_date:
+            try:
+                from_date = datetime.datetime.strptime(from_date, '%Y-%m-%d').date()
+            except ValueError:
+                return Response(
+                    {"error": "Invalid from_date format. Use YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        if to_date:
+            try:
+                to_date = datetime.datetime.strptime(to_date, '%Y-%m-%d').date()
+            except ValueError:
+                return Response(
+                    {"error": "Invalid to_date format. Use YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Start with all users that belong to insurance companies
+        from account.models import User
+        
+        # Filter users by insurance company if specified
+        if company_id:
+            users_queryset = User.objects.filter(
+                insurance_company_id=company_id,
+                is_active=True
+            ).select_related('insurance_company')
+        else:
+            users_queryset = User.objects.filter(
+                insurance_company__isnull=False,
+                is_active=True
+            ).select_related('insurance_company')
+        
+        # Get claims for each user
+        from claims.models import Claim
+        
+        # Prepare result data
+        result_data = []
+        
+        for user in users_queryset:
+            # Get approved claims for this user
+            claims_queryset = Claim.objects.filter(
+                user=user,
+                status='APPROVED',
+                reviewed_by__isnull=False
+            )
+            
+            # Apply date filters if provided
+            if from_date:
+                claims_queryset = claims_queryset.filter(reviewed_at__date__gte=from_date)
+                
+            if to_date:
+                claims_queryset = claims_queryset.filter(reviewed_at__date__lte=to_date)
+            
+            # Count total approved claims
+            approved_claims_count = claims_queryset.count()
+            
+            # Get billing rate for the user's company
+            if user.insurance_company:
+                try:
+                    billing_rate = BillingRate.objects.filter(
+                        insurance_company=user.insurance_company,
+                        is_active=True
+                    ).first()
+                    
+                    rate = float(billing_rate.rate_per_claim) if billing_rate else 0
+                except (BillingRate.DoesNotExist, AttributeError):
+                    rate = 0
+            else:
+                rate = 0
+            
+            # Calculate billable amount
+            billable_amount = rate * approved_claims_count
+            
+            # Get pending claims for this user
+            pending_claims_count = Claim.objects.filter(
+                user=user,
+                status__in=['PENDING', 'PROCESSING']
+            ).count()
+            
+            # Format user data
+            user_data = {
+                'id': user.id,
+                'email': user.email,
+                'full_name': user.get_full_name(),
+                'company_id': user.insurance_company.id if user.insurance_company else None,
+                'company_name': user.insurance_company.name if user.insurance_company else None,
+                'approved_claims_count': approved_claims_count,
+                'pending_claims_count': pending_claims_count,
+                'rate_per_claim': rate,
+                'billable_amount': billable_amount,
+                'last_active': user.last_login.isoformat() if user.last_login else None,
+                'date_joined': user.date_joined.isoformat()
+            }
+            
+            result_data.append(user_data)
+        
+        # Sort by billable amount (descending)
+        result_data.sort(key=lambda x: (x['company_name'] or '', -x['billable_amount']))
+        
+        return Response(result_data)
+        
+
 class UsageSummaryView(APIView):
     """API endpoint for ML predictions usage summary."""
     permission_classes = [IsAuthenticated, (IsFinanceUser | IsAdminUser)]

@@ -7,7 +7,8 @@ from .views import (
     BillingDashboardView, UserBillingStatsView,
     InsuranceCompanyViewSet, InvoiceViewSet, InvoicingStatsView,
     PublicInsuranceCompanyList, BillingRateViewSet,
-    UsageAnalyticsView, UsageSummaryView, ExportPredictionsView
+    UsageAnalyticsView, UsageSummaryView, ExportPredictionsView,
+    BillableClaimsView, CompanyUsersView
 )
 from claims.views import ClaimViewSet
 
@@ -30,6 +31,8 @@ urlpatterns = [
     path('usage-analytics/', UsageAnalyticsView.as_view(), name='usage-analytics'),
     path('usage-summary/', UsageSummaryView.as_view(), name='usage-summary'),
     path('export-predictions/', ExportPredictionsView.as_view(), name='export-predictions'),
+    path('billable-claims/', BillableClaimsView.as_view(), name='billable-claims'),
+    path('company-users/', CompanyUsersView.as_view(), name='company-users'),
     
     # Public endpoint for insurance companies - doesn't require authentication
     path('public/insurance-companies/', PublicInsuranceCompanyList.as_view(), name='public-insurance-companies'),
