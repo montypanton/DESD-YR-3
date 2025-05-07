@@ -14,7 +14,9 @@ export const getAllClaims = async () => {
     console.log('Attempting to fetch claims from standard endpoint...');
     // First try the standard endpoint
     const response = await apiClient.get('/claims/');
-    console.log('Successfully fetched claims:', response.data);
+    const claimsCount = Array.isArray(response.data) ? response.data.length : 
+                        (response.data?.results ? response.data.results.length : 'unknown');
+    console.log(`Successfully fetched ${claimsCount} claims`);
     return response;
   } catch (error) {
     console.error('Error fetching from standard endpoint:', error);
@@ -22,7 +24,9 @@ export const getAllClaims = async () => {
     // If that fails, try the finance-specific endpoint
     try {
       const fallbackResponse = await apiClient.get('/finance/claims/');
-      console.log('Successfully fetched claims from fallback:', fallbackResponse.data);
+      const claimsCount = Array.isArray(fallbackResponse.data) ? fallbackResponse.data.length : 
+                          (fallbackResponse.data?.results ? fallbackResponse.data.results.length : 'unknown');
+      console.log(`Successfully fetched ${claimsCount} claims from fallback`);
       return fallbackResponse;
     } catch (fallbackError) {
       console.error('Error fetching from finance endpoint:', fallbackError);
@@ -105,12 +109,20 @@ export const getClaimsByStatus = async (status) => {
     if (status) {
       console.log(`Fetching claims with status: ${status}`);
       const response = await apiClient.get(`/claims/?status=${status}`);
-      console.log(`Retrieved ${response.data?.length || 0} claims with status ${status}`);
+      
+      // Log count based on response format
+      const claimsCount = Array.isArray(response.data) ? response.data.length : 
+                         (response.data?.results ? response.data.results.length : 'unknown');
+      console.log(`Retrieved ${claimsCount} claims with status ${status}`);
       return response;
     } else {
       // If no status is provided, get all claims
       const response = await apiClient.get('/claims/');
-      console.log(`Retrieved ${response.data?.length || 0} claims (all statuses)`);
+      
+      // Log count based on response format
+      const claimsCount = Array.isArray(response.data) ? response.data.length : 
+                         (response.data?.results ? response.data.results.length : 'unknown');
+      console.log(`Retrieved ${claimsCount} claims (all statuses)`);
       return response;
     }
   } catch (error) {
@@ -121,12 +133,20 @@ export const getClaimsByStatus = async (status) => {
       if (status) {
         console.log(`Attempting fallback to finance endpoint with status: ${status}`);
         const fallbackResponse = await apiClient.get(`/finance/claims/?status=${status}`);
-        console.log(`Retrieved ${fallbackResponse.data?.length || 0} claims from finance endpoint with status ${status}`);
+        
+        // Log count based on response format
+        const claimsCount = Array.isArray(fallbackResponse.data) ? fallbackResponse.data.length : 
+                           (fallbackResponse.data?.results ? fallbackResponse.data.results.length : 'unknown');
+        console.log(`Retrieved ${claimsCount} claims from finance endpoint with status ${status}`);
         return fallbackResponse;
       } else {
         console.log(`Attempting fallback to finance endpoint for all claims`);
         const fallbackResponse = await apiClient.get('/finance/claims/');
-        console.log(`Retrieved ${fallbackResponse.data?.length || 0} claims from finance endpoint (all statuses)`);
+        
+        // Log count based on response format
+        const claimsCount = Array.isArray(fallbackResponse.data) ? fallbackResponse.data.length : 
+                           (fallbackResponse.data?.results ? fallbackResponse.data.results.length : 'unknown');
+        console.log(`Retrieved ${claimsCount} claims from finance endpoint (all statuses)`);
         return fallbackResponse;
       }
     } catch (fallbackError) {

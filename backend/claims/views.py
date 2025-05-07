@@ -21,10 +21,27 @@ class ClaimViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Allow finance users to see all claims as well as admins
+        # Get the base queryset based on user permissions
         if self.request.user.is_admin or self.request.user.is_finance:
-            return Claim.objects.all()
-        return Claim.objects.filter(user=self.request.user)
+            queryset = Claim.objects.all()
+        else:
+            queryset = Claim.objects.filter(user=self.request.user)
+        
+        # Apply status filtering if status parameter is provided
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            # Handle special case for status parameter
+            if status_param.upper() == 'PENDING':
+                # Include both PENDING and COMPLETED claims for 'pending' filter
+                queryset = queryset.filter(status__in=['PENDING', 'COMPLETED'])
+            else:
+                # For other statuses, filter exact match
+                queryset = queryset.filter(status=status_param.upper())
+                
+            # Log the filtering for debugging
+            logger.info(f"Filtered claims by status: {status_param.upper()}, count: {queryset.count()}")
+        
+        return queryset
 
     def generate_reference_number(self):
         """Generate a unique reference number for the claim"""

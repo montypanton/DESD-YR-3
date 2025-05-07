@@ -31,7 +31,7 @@ const FinanceClaims = () => {
         let response;
 
         const statusMap = {
-          'pending': 'PENDING',  // For pending tab, we'll add COMPLETED in filtering below
+          'pending': 'PENDING',  // Backend will handle combining PENDING & COMPLETED
           'approved': 'APPROVED',
           'rejected': 'REJECTED',
           'processed': 'PROCESSED',
@@ -79,13 +79,15 @@ const FinanceClaims = () => {
           
           console.log('Processed claims data:', allClaims);
           
-          // Filter claims by various statuses and update all tabs at once
+          // Let the backend handle proper filtering
+          // We're storing all claims only for the 'all' tab since we query the backend
+          // directly for each other tab
           const sortedClaims = {
             all: allClaims, // Keep the full list for the 'All' tab
-            pending: allClaims.filter(claim => claim.status === 'PENDING' || claim.status === 'COMPLETED'),
-            approved: allClaims.filter(claim => claim.status === 'APPROVED'),
-            rejected: allClaims.filter(claim => claim.status === 'REJECTED'),
-            processed: allClaims.filter(claim => claim.status === 'PROCESSED')
+            pending: [], // Will be loaded from API when tab is selected
+            approved: [], // Will be loaded from API when tab is selected
+            rejected: [], // Will be loaded from API when tab is selected
+            processed: [] // Will be loaded from API when tab is selected
           };
           
           // Log the counts of filtered claims for debugging
@@ -123,24 +125,9 @@ const FinanceClaims = () => {
           
           console.log('Processed filtered claims data:', fetchedClaims);
           
-          // Handle special case for 'pending' tab - also include COMPLETED status
-          if (activeTab === 'pending') {
-            // If we're on the pending tab, additionally fetch COMPLETED claims 
-            // that should also appear in the pending review section
-            try {
-              const completedResponse = await getClaimsByStatus('COMPLETED');
-              const completedClaims = completedResponse.data.results || completedResponse.data || [];
-              
-              // Merge the claims, avoiding duplicates by ID
-              const existingIds = new Set(fetchedClaims.map(claim => claim.id));
-              const uniqueCompletedClaims = completedClaims.filter(claim => !existingIds.has(claim.id));
-              
-              fetchedClaims = [...fetchedClaims, ...uniqueCompletedClaims];
-              console.log(`Added ${uniqueCompletedClaims.length} COMPLETED claims to pending view`);
-            } catch (error) {
-              console.error('Error fetching additional COMPLETED claims:', error);
-            }
-          }
+          // We no longer need to handle the special case for PENDING tab
+          // as it's now handled on the backend with the proper filter
+          console.log(`Using backend filtering for ${activeTab} tab with status: ${statusMap[activeTab]}`);
 
           if (filters.dateFrom) {
             fetchedClaims = fetchedClaims.filter(claim =>
