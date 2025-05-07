@@ -174,7 +174,7 @@ const FinanceDashboard = () => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
           <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase mb-2">Total Claims Value</h3>
           <div className="flex items-baseline">
-            <span className="text-3xl font-bold text-gray-900 dark:text-white">${summaryStats.totalClaimsValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span className="text-3xl font-bold text-gray-900 dark:text-white">£{summaryStats.totalClaimsValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             {summaryStats.valueChange !== 0 && (
               <span className={`ml-2 text-sm font-medium ${parseFloat(summaryStats.valueChange) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {summaryStats.valueChange > 0 ? '+' : ''}{summaryStats.valueChange}%
@@ -261,7 +261,7 @@ const FinanceDashboard = () => {
                       {claim.title || (claim.claim_data?.incidentType || 'General Claim')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      ${parseFloat(claim.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      £{parseFloat(claim.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(claim.status)}`}>

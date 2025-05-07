@@ -8,12 +8,14 @@ from .views import (
     InsuranceCompanyViewSet, InvoiceViewSet, InvoicingStatsView,
     PublicInsuranceCompanyList
 )
+from claims.views import ClaimViewSet
 
 router = DefaultRouter()
 router.register(r'billing', BillingRecordViewSet)
 router.register(r'usage-stats', UsageStatisticsViewSet)
 router.register(r'insurance-companies', InsuranceCompanyViewSet)
 router.register(r'invoices', InvoiceViewSet)
+router.register(r'claims', ClaimViewSet, basename='finance-claims')
 
 urlpatterns = [
     path('', include(router.urls)),

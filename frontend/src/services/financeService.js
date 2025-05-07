@@ -10,8 +10,26 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api
  * @returns {Promise} API response with claims data
  */
 export const getAllClaims = async () => {
-  // Use the claims endpoint from the claims app instead of finance-specific one
-  return await apiClient.get('/claims/');
+  try {
+    console.log('Attempting to fetch claims from standard endpoint...');
+    // First try the standard endpoint
+    const response = await apiClient.get('/claims/');
+    console.log('Successfully fetched claims:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Error fetching from standard endpoint:', error);
+    console.log('Attempting fallback to finance-specific endpoint...');
+    // If that fails, try the finance-specific endpoint
+    try {
+      const fallbackResponse = await apiClient.get('/finance/claims/');
+      console.log('Successfully fetched claims from fallback:', fallbackResponse.data);
+      return fallbackResponse;
+    } catch (fallbackError) {
+      console.error('Error fetching from finance endpoint:', fallbackError);
+      // Re-throw the error to be handled by the caller
+      throw fallbackError;
+    }
+  }
 };
 
 /**
@@ -29,8 +47,29 @@ export const getFinanceSummary = async () => {
  * @returns {Promise} API response with recent claims
  */
 export const getRecentClaims = async (limit = 5) => {
-  // Use the recent endpoint in the claims API that we just created
-  return await apiClient.get(`/claims/recent/?limit=${limit}`);
+  try {
+    // First try the dedicated recent claims endpoint
+    return await apiClient.get(`/claims/recent/?limit=${limit}`);
+  } catch (error) {
+    // If that fails, get all claims and sort them client-side by date
+    const response = await getAllClaims();
+    
+    // Extract claims from response
+    const allClaims = response.data.results || response.data || [];
+    
+    // Sort claims by created_at date (newest first)
+    const sortedClaims = [...allClaims].sort((a, b) => {
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+    
+    // Return only the requested number of claims
+    const recentClaims = sortedClaims.slice(0, limit);
+    
+    // Format response to match expected structure
+    return {
+      data: recentClaims
+    };
+  }
 };
 
 /**
@@ -57,11 +96,44 @@ export const addClaimComment = async (claimId, commentData) => {
 
 /**
  * Get claims filtered by status
- * @param {string} status - Status to filter by (PENDING, APPROVED, REJECTED)
+ * @param {string} status - Status to filter by (PENDING, APPROVED, REJECTED, COMPLETED)
  * @returns {Promise} API response with filtered claims
  */
 export const getClaimsByStatus = async (status) => {
-  return await apiClient.get(`/claims/?status=${status}`);
+  try {
+    // Try first with status parameter
+    if (status) {
+      console.log(`Fetching claims with status: ${status}`);
+      const response = await apiClient.get(`/claims/?status=${status}`);
+      console.log(`Retrieved ${response.data?.length || 0} claims with status ${status}`);
+      return response;
+    } else {
+      // If no status is provided, get all claims
+      const response = await apiClient.get('/claims/');
+      console.log(`Retrieved ${response.data?.length || 0} claims (all statuses)`);
+      return response;
+    }
+  } catch (error) {
+    console.error(`Error fetching claims with status ${status}:`, error.response?.status || 'unknown status', error.message);
+    
+    // If direct endpoint fails, try finance-specific endpoint
+    try {
+      if (status) {
+        console.log(`Attempting fallback to finance endpoint with status: ${status}`);
+        const fallbackResponse = await apiClient.get(`/finance/claims/?status=${status}`);
+        console.log(`Retrieved ${fallbackResponse.data?.length || 0} claims from finance endpoint with status ${status}`);
+        return fallbackResponse;
+      } else {
+        console.log(`Attempting fallback to finance endpoint for all claims`);
+        const fallbackResponse = await apiClient.get('/finance/claims/');
+        console.log(`Retrieved ${fallbackResponse.data?.length || 0} claims from finance endpoint (all statuses)`);
+        return fallbackResponse;
+      }
+    } catch (fallbackError) {
+      console.error(`Finance fallback also failed:`, fallbackError.response?.status || 'unknown status', fallbackError.message);
+      throw fallbackError;
+    }
+  }
 };
 
 /**

@@ -104,6 +104,9 @@ export const createClaim = async (claimData, options = {}) => {
   // Make sure amount uses the ML prediction settlement amount
   normalizedData.amount = settlementAmount;
   
+  // Always ensure status is PENDING for finance review
+  normalizedData.status = 'PENDING';
+  
   // Ensure ML prediction data is properly structured
   normalizedData.ml_prediction = {
     settlement_amount: settlementAmount,
@@ -122,15 +125,25 @@ export const createClaim = async (claimData, options = {}) => {
   console.log('- Special Asset Damage:', typeof normalizedData.claim_data?.SpecialAssetDamage, normalizedData.claim_data?.SpecialAssetDamage);
   console.log('- Whiplash:', typeof normalizedData.claim_data?.Whiplash, normalizedData.claim_data?.Whiplash);
   
-  // Use the correct endpoint for the API
+  // Use the correct endpoint for the API with fallback mechanism
   try {
-    // The v2 endpoint might not exist, let's try the standard endpoint
-    return await safeApiClient.post('/claims/', normalizedData, {}, {
-      successMessage: 'Claim submitted successfully',
-      showSuccessMessage: true,
-      errorMessage: 'Failed to submit claim',
-      ...options
-    });
+    // First try the primary endpoint
+    try {
+      return await safeApiClient.post('/claims/', normalizedData, {}, {
+        successMessage: 'Claim submitted successfully',
+        showSuccessMessage: true,
+        errorMessage: 'Failed to submit claim',
+        ...options
+      });
+    } catch (primaryError) {
+      // If that fails, try the finance-specific endpoint to ensure it gets routed properly
+      return await safeApiClient.post('/finance/claims/', normalizedData, {}, {
+        successMessage: 'Claim submitted successfully',
+        showSuccessMessage: true,
+        errorMessage: 'Failed to submit claim',
+        ...options
+      });
+    }
   } catch (error) {
     console.error('Claim submission error:', error);
     // Rethrow to allow proper error handling

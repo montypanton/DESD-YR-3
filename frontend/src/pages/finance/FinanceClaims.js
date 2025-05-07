@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { getAllClaims, getClaimsByStatus, exportClaims } from '../../services/financeService';
 
 const FinanceClaims = () => {
-  const [activeTab, setActiveTab] = useState('pending');
+  const [activeTab, setActiveTab] = useState('all'); // Show all claims by default
   const [claims, setClaims] = useState({
+    all: [],
     pending: [],
     approved: [],
     rejected: [],
@@ -30,25 +31,116 @@ const FinanceClaims = () => {
         let response;
 
         const statusMap = {
-          'pending': 'PENDING',
+          'pending': 'PENDING',  // For pending tab, we'll add COMPLETED in filtering below
           'approved': 'APPROVED',
           'rejected': 'REJECTED',
-          'processed': 'PROCESSED'
+          'processed': 'PROCESSED',
+          'all': ''  // Empty string to fetch all claims
         };
+        
+        // Add debugging to see if we're getting any claims at all and authenticate user role
+        console.log('Fetching claims with active tab:', activeTab, 'status:', statusMap[activeTab]);
+        
+        // Log user information to ensure proper role
+        const userJson = localStorage.getItem('user');
+        let userInfo = null;
+        if (userJson) {
+          try {
+            userInfo = JSON.parse(userJson);
+            console.log('Current user info:', userInfo);
+          } catch (e) {
+            console.error('Error parsing user data', e);
+          }
+        }
 
         if (activeTab === 'all') {
           response = await getAllClaims();
-          const allClaims = response.data.results || response.data || [];
+          console.log('Response format from getAllClaims:', response);
+          
+          // Handle different response formats
+          let allClaims = [];
+          if (response.data) {
+            if (Array.isArray(response.data)) {
+              allClaims = response.data;
+            } else if (response.data.results && Array.isArray(response.data.results)) {
+              allClaims = response.data.results;
+            } else if (typeof response.data === 'object') {
+              // If it's an object but not an array and doesn't have results array,
+              // check for claims array or any other array property
+              const possibleArrayProps = Object.keys(response.data).filter(key => 
+                Array.isArray(response.data[key])
+              );
+              
+              if (possibleArrayProps.length > 0) {
+                allClaims = response.data[possibleArrayProps[0]];
+              }
+            }
+          }
+          
+          console.log('Processed claims data:', allClaims);
+          
+          // Filter claims by various statuses and update all tabs at once
           const sortedClaims = {
-            pending: allClaims.filter(claim => claim.status === 'PENDING'),
+            all: allClaims, // Keep the full list for the 'All' tab
+            pending: allClaims.filter(claim => claim.status === 'PENDING' || claim.status === 'COMPLETED'),
             approved: allClaims.filter(claim => claim.status === 'APPROVED'),
             rejected: allClaims.filter(claim => claim.status === 'REJECTED'),
             processed: allClaims.filter(claim => claim.status === 'PROCESSED')
           };
+          
+          // Log the counts of filtered claims for debugging
+          console.log('Filtered claim counts:', {
+            all: sortedClaims.all.length,
+            pending: sortedClaims.pending.length,
+            approved: sortedClaims.approved.length,
+            rejected: sortedClaims.rejected.length,
+            processed: sortedClaims.processed.length
+          });
           setClaims(sortedClaims);
         } else {
           response = await getClaimsByStatus(statusMap[activeTab]);
-          let fetchedClaims = response.data.results || response.data || [];
+          console.log('Response format from getClaimsByStatus:', response);
+          
+          // Process response data similarly to getAllClaims
+          let fetchedClaims = [];
+          if (response.data) {
+            if (Array.isArray(response.data)) {
+              fetchedClaims = response.data;
+            } else if (response.data.results && Array.isArray(response.data.results)) {
+              fetchedClaims = response.data.results;
+            } else if (typeof response.data === 'object') {
+              // If it's an object but not an array and doesn't have results array,
+              // check for claims array or any other array property
+              const possibleArrayProps = Object.keys(response.data).filter(key => 
+                Array.isArray(response.data[key])
+              );
+              
+              if (possibleArrayProps.length > 0) {
+                fetchedClaims = response.data[possibleArrayProps[0]];
+              }
+            }
+          }
+          
+          console.log('Processed filtered claims data:', fetchedClaims);
+          
+          // Handle special case for 'pending' tab - also include COMPLETED status
+          if (activeTab === 'pending') {
+            // If we're on the pending tab, additionally fetch COMPLETED claims 
+            // that should also appear in the pending review section
+            try {
+              const completedResponse = await getClaimsByStatus('COMPLETED');
+              const completedClaims = completedResponse.data.results || completedResponse.data || [];
+              
+              // Merge the claims, avoiding duplicates by ID
+              const existingIds = new Set(fetchedClaims.map(claim => claim.id));
+              const uniqueCompletedClaims = completedClaims.filter(claim => !existingIds.has(claim.id));
+              
+              fetchedClaims = [...fetchedClaims, ...uniqueCompletedClaims];
+              console.log(`Added ${uniqueCompletedClaims.length} COMPLETED claims to pending view`);
+            } catch (error) {
+              console.error('Error fetching additional COMPLETED claims:', error);
+            }
+          }
 
           if (filters.dateFrom) {
             fetchedClaims = fetchedClaims.filter(claim =>
@@ -85,7 +177,17 @@ const FinanceClaims = () => {
         setError(null);
       } catch (err) {
         console.error('Error fetching claims:', err);
-        setError('Failed to load claims. Please try again.');
+        // Provide more detailed error information
+        let errorMessage = 'Failed to load claims. Please try again.';
+        if (err.response) {
+          errorMessage += ` Server response: ${err.response.status} ${err.response.statusText}`;
+          console.error('Response data:', err.response.data);
+        } else if (err.request) {
+          errorMessage += ' No response received from server.';
+        } else {
+          errorMessage += ` Error: ${err.message}`;
+        }
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -301,7 +403,17 @@ const FinanceClaims = () => {
       )}
 
       <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="-mb-px flex" aria-label="Tabs">
+        <nav className="-mb-px flex flex-wrap" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('all')}
+            className={`py-4 px-6 text-sm font-medium ${
+              activeTab === 'all'
+                ? 'border-green-500 text-green-600 border-b-2'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            All Claims ({claims.all.length})
+          </button>
           <button
             onClick={() => setActiveTab('pending')}
             className={`py-4 px-6 text-sm font-medium ${
@@ -419,13 +531,13 @@ const FinanceClaims = () => {
                       {claim.description || claim.claim_data?.damageDescription || 'No description available'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      ${parseFloat(claim.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      £{parseFloat(claim.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     {activeTab !== 'pending' && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                         {claim.ml_prediction?.settlement_amount ? (
                           <div className="flex items-center">
-                            ${parseFloat(claim.ml_prediction.settlement_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            £{parseFloat(claim.ml_prediction.settlement_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             <span className="ml-1 text-xs text-gray-400">({(claim.ml_prediction.confidence_score * 100).toFixed(0)}% confidence)</span>
                           </div>
                         ) : (

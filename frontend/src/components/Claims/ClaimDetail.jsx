@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Button, Spin, message, Tag, Breadcrumb, Input } from 'antd';
+import { Button, Spin, message, Tag, Breadcrumb, Input, Alert } from 'antd';
 import { 
   ArrowLeftOutlined, 
   CheckCircleOutlined, 
@@ -11,6 +11,7 @@ import {
   FileTextOutlined,
   FileDoneOutlined
 } from '@ant-design/icons';
+import { getClaimById } from '../../services/claimService';
 import { apiClient } from '../../services/authService';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -24,22 +25,27 @@ const ClaimDetail = () => {
   const { user } = useAuth();
   const [decidedAmount, setDecidedAmount] = useState('');
   const [savingDecidedAmount, setSavingDecidedAmount] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchClaimDetails = async () => {
       try {
         setLoading(true);
-        const response = await apiClient.get(`/claims/${id}/`);
-        setClaim(response.data);
-        // Initialize the decided amount from the claim's decided_settlement_amount if it exists
-        // Otherwise use the ML prediction amount as the starting value
-        setDecidedAmount(
-          response.data.decided_settlement_amount !== null && response.data.decided_settlement_amount !== undefined
-            ? response.data.decided_settlement_amount
-            : response.data.ml_prediction?.settlement_amount || ''
-        );
+        setError(null);
+        const response = await getClaimById(id);
+        if (response && response.data) {
+          setClaim(response.data);
+          // Initialize the decided amount from the claim's decided_settlement_amount if it exists
+          // Otherwise use the ML prediction amount as the starting value
+          setDecidedAmount(
+            response.data.decided_settlement_amount !== null && response.data.decided_settlement_amount !== undefined
+              ? response.data.decided_settlement_amount
+              : response.data.ml_prediction?.settlement_amount || ''
+          );
+        }
       } catch (error) {
         console.error('Error fetching claim details:', error);
+        setError('Failed to load claim details. Please try again later.');
         message.error('Failed to load claim details');
       } finally {
         setLoading(false);
@@ -52,7 +58,7 @@ const ClaimDetail = () => {
   }, [id]);
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', { 
+    return new Date(dateString).toLocaleDateString('en-GB', { 
       year: 'numeric', 
       month: 'long', 
       day: 'numeric',
@@ -127,8 +133,22 @@ const ClaimDetail = () => {
 
   const saveDecidedAmount = async () => {
     try {
+      if (!decidedAmount || isNaN(parseFloat(decidedAmount))) {
+        message.error('Please enter a valid settlement amount');
+        return;
+      }
+      
       setSavingDecidedAmount(true);
-      await apiClient.put(`/claims/${id}/settlement/`, { settlement_amount: decidedAmount });
+      const updatedAmount = parseFloat(decidedAmount);
+      
+      await apiClient.put(`/claims/${id}/settlement/`, { settlement_amount: updatedAmount });
+      
+      // Update local state to reflect the change
+      setClaim(prevClaim => ({
+        ...prevClaim,
+        decided_settlement_amount: updatedAmount
+      }));
+      
       message.success('Settlement amount updated successfully');
     } catch (error) {
       console.error('Error saving settlement amount:', error);
@@ -149,6 +169,23 @@ const ClaimDetail = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className={`max-w-6xl mx-auto py-10 px-4 sm:px-6 lg:px-8 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <Alert
+          message="Error Loading Claim"
+          description={error}
+          type="error"
+          showIcon
+          className="mb-4"
+        />
+        <Button type="primary" onClick={() => navigate('/claims')}>
+          Back to Claims
+        </Button>
+      </div>
+    );
+  }
+
   if (!claim) {
     return (
       <div className={`max-w-6xl mx-auto py-10 px-4 sm:px-6 lg:px-8 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -163,7 +200,7 @@ const ClaimDetail = () => {
                 We couldn't find the claim you're looking for. It may have been removed or you might not have access to it.
               </p>
               <div className="mt-4">
-                <Button type="primary" onClick={() => navigate('/predictions')}>Back to Claims</Button>
+                <Button type="primary" onClick={() => navigate('/claims')}>Back to Claims</Button>
               </div>
             </div>
           </div>
@@ -182,7 +219,7 @@ const ClaimDetail = () => {
           </Link>
         </Breadcrumb.Item>
         <Breadcrumb.Item>
-          <Link to="/predictions" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
+          <Link to="/claims" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
             <FileTextOutlined /> Claims History
           </Link>
         </Breadcrumb.Item>
@@ -220,7 +257,7 @@ const ClaimDetail = () => {
           <div className="p-4 sm:px-6 lg:px-8">
             <p className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Claimed Amount</p>
             <p className={`mt-1 text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              £{parseFloat(claim.amount).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {claim.amount ? `£${parseFloat(claim.amount).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
             </p>
           </div>
           
@@ -253,29 +290,38 @@ const ClaimDetail = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
               <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
                 <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>AI Settlement Recommendation</p>
-                <p className={`text-2xl font-bold ${darkMode ? 'text-indigo-400' : 'text-indigo-600'} ${claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? 'line-through' : ''}`}>
+                <p className={`text-2xl font-bold ${darkMode ? 'text-indigo-400' : 'text-indigo-600'} ${claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? 'line-through opacity-60' : ''}`}>
                   £{parseFloat(claim.ml_prediction.settlement_amount).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
+                {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined && (
+                  <Alert
+                    message="Settlement amount has been adjusted"
+                    type="info"
+                    showIcon
+                    className="mt-2 text-xs"
+                    style={{ padding: '4px 8px' }}
+                  />
+                )}
               </div>
               
-              {/* {claim.ml_prediction.confidence_score && (
+              {claim.ml_prediction.confidence_score && (
                 <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Confidence Score</p>
                   <p className={`text-2xl font-bold ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>
                     {(claim.ml_prediction.confidence_score * 100).toFixed(1)}%
                   </p>
                 </div>
-              )} */}
+              )}
             </div>
             
             {/* Decided Settlement Amount */}
             <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} mb-4 ${claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? 'border-2 border-green-500 dark:border-green-600' : ''}`}>
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'} font-medium`}>
                 {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined 
-                  ? 'Adjusted Settlement Amount' 
-                  : 'Decide Settlement Amount'}
+                  ? 'Final Settlement Amount' 
+                  : 'Set Settlement Amount'}
               </p>
-              <div className="flex items-center mt-1">
+              <div className="flex items-center mt-2">
                 <span className="mr-2 text-gray-500">£</span>
                 <Input
                   type="number"
@@ -291,20 +337,27 @@ const ClaimDetail = () => {
                   onClick={saveDecidedAmount}
                   loading={savingDecidedAmount}
                   className="ml-4"
+                  disabled={!decidedAmount || isNaN(parseFloat(decidedAmount))}
                 >
                   {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined 
                     ? 'Update Amount' 
-                    : 'Save Amount'}
+                    : 'Confirm Amount'}
                 </Button>
               </div>
               {claim.decided_settlement_amount !== null && claim.decided_settlement_amount !== undefined ? (
-                <p className="mt-2 text-sm text-green-500 dark:text-green-400">
-                  This settlement amount has been manually adjusted from the AI recommendation.
-                </p>
+                <Alert
+                  message="This settlement amount has been manually adjusted and finalized."
+                  type="success"
+                  showIcon
+                  className="mt-3"
+                />
               ) : (
-                <p className="mt-2 text-sm text-gray-500">
-                  Adjust this value to set the final settlement amount based on your assessment.
-                </p>
+                <Alert
+                  message="Set the final settlement amount based on your assessment."
+                  type="info"
+                  showIcon
+                  className="mt-3"
+                />
               )}
             </div>
             
@@ -362,7 +415,7 @@ const ClaimDetail = () => {
         <Button 
           type="primary"
           icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/predictions')}
+          onClick={() => navigate('/claims')}
           size="large"
           className={darkMode ? 'ant-btn-primary-dark' : ''}
         >

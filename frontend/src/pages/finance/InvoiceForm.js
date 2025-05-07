@@ -122,7 +122,6 @@ const InvoiceForm = () => {
       setLoading(true);
       
       // Format dates for API using the Ant Design DatePicker values
-      // Note: Ant Design's DatePicker returns an object with a format method even without moment
       const formattedValues = {
         ...values,
         issued_date: values.issued_date ? values.issued_date.format('YYYY-MM-DD') : null,
@@ -396,7 +395,7 @@ const InvoiceForm = () => {
               onFinish={handleSubmit}
               initialValues={{ 
                 status: 'DRAFT',
-                currency: 'USD',
+                currency: 'GBP',
                 total_amount: 0
               }}
               className={darkMode ? 'ant-form-dark' : ''}
@@ -457,7 +456,7 @@ const InvoiceForm = () => {
                   <Input 
                     type="number"
                     step="0.01"
-                    prefix="$"
+                    prefix="£"
                     disabled={isEditing}
                     className={darkMode ? 'bg-gray-700 text-white border-gray-600' : ''}
                   />

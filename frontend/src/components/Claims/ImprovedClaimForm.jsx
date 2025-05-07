@@ -1565,12 +1565,12 @@ const ImprovedClaimForm = () => {
             <Col xs={24} md={16}>
               <Title level={4} style={{ marginBottom: 16, color: '#333' }}>AI-Recommended Settlement</Title>
               <Title level={2} style={{ color: '#1890ff', margin: 0, fontWeight: 600 }}>
-                ${prediction.settlementAmount.toFixed(2)}
+                £{prediction.settlementAmount.toFixed(2)}
               </Title>
               <div style={{ marginTop: 4 }}>
                 <Text style={{ fontSize: 16, color: '#666' }}>
-                  Special: ${calculateSpecialDamages(form.getFieldsValue()).toFixed(2)}, 
-                  General: ${calculateGeneralDamages(form.getFieldsValue()).toFixed(2)}
+                  Special: £{calculateSpecialDamages(form.getFieldsValue()).toFixed(2)}, 
+                  General: £{calculateGeneralDamages(form.getFieldsValue()).toFixed(2)}
                 </Text>
               </div>
               <Text style={{ fontSize: 16, display: 'block', marginTop: 8 }}>

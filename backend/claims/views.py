@@ -21,7 +21,8 @@ class ClaimViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.is_admin:
+        # Allow finance users to see all claims as well as admins
+        if self.request.user.is_admin or self.request.user.is_finance:
             return Claim.objects.all()
         return Claim.objects.filter(user=self.request.user)
 
@@ -152,13 +153,14 @@ class ClaimViewSet(viewsets.ModelViewSet):
                 logger.debug(f"Stack trace: {traceback.format_exc()}")
                 raise serializers.ValidationError(f"Error saving prediction: {str(e)}")
             
-            # Update claim with new prediction and change status to COMPLETED
+            # Update claim with new prediction but maintain PENDING status for finance review
             try:
                 claim.ml_prediction = prediction
-                # Update status from PENDING to COMPLETED once prediction is available
-                if claim.status == 'PENDING':
-                    claim.status = 'COMPLETED'
-                    logger.info(f"Updated claim status from PENDING to COMPLETED")
+                # Keep claim in PENDING status to ensure it appears in finance review queue
+                # PENDING status indicates it needs review by finance team
+                if claim.status != 'PENDING':
+                    claim.status = 'PENDING'
+                    logger.info(f"Updated claim status to PENDING for finance review")
                 claim.save()
                 logger.info(f"Updated claim {claim.reference_number} with new prediction")
             except Exception as e:
@@ -411,13 +413,13 @@ class ClaimViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
             
-            # Update claim with new prediction
+            # Update claim with new prediction but maintain PENDING status
             try:
                 claim.ml_prediction = prediction
-                # Update status from PENDING to COMPLETED if applicable
-                if claim.status == 'PENDING':
-                    claim.status = 'COMPLETED'
-                    logger.info(f"Updated claim status from PENDING to COMPLETED")
+                # Set status to PENDING to ensure it appears in finance review queue
+                if claim.status != 'PENDING':
+                    claim.status = 'PENDING'
+                    logger.info(f"Updated claim status to PENDING for finance review")
                 claim.save()
                 logger.info(f"Updated claim {claim.reference_number} with new prediction")
             except Exception as e:

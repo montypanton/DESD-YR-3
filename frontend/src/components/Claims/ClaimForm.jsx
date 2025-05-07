@@ -34,6 +34,8 @@ const ClaimForm = () => {
       const claimData = {
         title: values.title,
         description: values.description,
+        amount: 0, // Default amount that will be calculated by backend or ML model
+        status: 'PENDING', // Ensure status is PENDING for finance review
         claim_data: {
           // Store all the form fields that aren't part of the main fields
           incidentDate: values.incidentDate,
@@ -42,14 +44,75 @@ const ClaimForm = () => {
           incidentLocation: values.incidentLocation,
           damageDescription: values.damageDescription,
           additionalInfo: values.additionalInfo,
+          // Add necessary fields for ML prediction
+          Accident_Date: values.incidentDate ? values.incidentDate.format('YYYY-MM-DD') : null,
+          AccidentType: values.incidentType || 'Other',
+          DominantInjury: 'Multiple', // Default value
+          InjuryPrognosis: 'A. 1 month', // Default value
         }
       };
 
-      await axios.post('/api/claims/', claimData);
+      // Use the claims service to ensure it reaches both endpoints
+      const response = await fetch('/api/claims/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(claimData)
+      });
+      
+      // Handle response
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${await response.text()}`);
+      }
+      
       message.success('Insurance claim submitted successfully!');
       form.resetFields();
       navigate('/claims');
     } catch (error) {
+      // Also try the finance endpoint as fallback
+      try {
+        const claimData = {
+          title: values.title,
+          description: values.description,
+          amount: 0, // Default amount that will be calculated by backend or ML model
+          status: 'PENDING', // Ensure status is PENDING for finance review
+          claim_data: {
+            // Store all the form fields that aren't part of the main fields
+            incidentDate: values.incidentDate,
+            policyNumber: values.policyNumber,
+            incidentType: values.incidentType,
+            incidentLocation: values.incidentLocation,
+            damageDescription: values.damageDescription,
+            additionalInfo: values.additionalInfo,
+            // Add necessary fields for ML prediction
+            Accident_Date: values.incidentDate ? values.incidentDate.format('YYYY-MM-DD') : null,
+            AccidentType: values.incidentType || 'Other',
+            DominantInjury: 'Multiple', // Default value
+            InjuryPrognosis: 'A. 1 month', // Default value
+          }
+        };
+
+        const financeResponse = await fetch('/api/finance/claims/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify(claimData)
+        });
+        
+        if (financeResponse.ok) {
+          message.success('Insurance claim submitted successfully!');
+          form.resetFields();
+          navigate('/claims');
+          return;
+        }
+      } catch (fallbackError) {
+        // Continue to the error handler
+      }
+      
       message.error('Failed to submit claim: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
