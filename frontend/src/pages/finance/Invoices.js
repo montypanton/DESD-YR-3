@@ -5,7 +5,6 @@ import {
   Button, 
   Input, 
   Space, 
-  Popconfirm, 
   message, 
   Breadcrumb, 
   Tag, 
@@ -16,17 +15,13 @@ import {
   PlusOutlined, 
   SearchOutlined, 
   EditOutlined, 
-  DeleteOutlined,
-  FileExcelOutlined,
-  FilePdfOutlined,
-  MailOutlined,
-  CheckCircleOutlined,
-  HomeOutlined,
-  BankOutlined,
-  BuildOutlined,
-  FileTextOutlined
+  HomeOutlined, 
+  BankOutlined, 
+  FileTextOutlined,
+  CheckCircleOutlined
 } from '@ant-design/icons';
-import { getInvoices, deleteInvoice, exportInvoiceCsv, generateInvoicePdf, sendInvoice, markInvoiceAsPaid } from '../../services/financeService';
+import { getInvoices, markInvoiceAsPaid } from '../../services/financeService';
+import { submitInvoiceToExternalService } from '../../services/billingServiceIntegration';
 import { useTheme } from '../../context/ThemeContext';
 
 const { Option } = Select;
@@ -54,76 +49,6 @@ const Invoices = () => {
       message.error('Failed to load invoices');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await deleteInvoice(id);
-      message.success('Invoice deleted successfully');
-      fetchInvoices();
-    } catch (error) {
-      console.error('Error deleting invoice:', error);
-      message.error('Failed to delete invoice');
-    }
-  };
-
-  const handleExportCsv = async (id) => {
-    try {
-      const response = await exportInvoiceCsv(id);
-      
-      // Create a blob from the response data
-      const blob = new Blob([response.data], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      
-      // Create a temporary link and trigger download
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `invoice_${id}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      
-      // Clean up
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      message.success('Invoice exported successfully');
-    } catch (error) {
-      console.error('Error exporting invoice:', error);
-      message.error('Failed to export invoice');
-    }
-  };
-
-  const handleGeneratePdf = async (id) => {
-    try {
-      await generateInvoicePdf(id);
-      message.success('Invoice PDF generated successfully');
-      fetchInvoices(); // Refresh to show updated status
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      message.error('Failed to generate PDF');
-    }
-  };
-
-  const handleSendInvoice = async (id) => {
-    try {
-      await sendInvoice(id);
-      message.success('Invoice sent successfully');
-      fetchInvoices(); // Refresh to show updated status
-    } catch (error) {
-      console.error('Error sending invoice:', error);
-      message.error('Failed to send invoice');
-    }
-  };
-
-  const handleMarkAsPaid = async (id) => {
-    try {
-      await markInvoiceAsPaid(id);
-      message.success('Invoice marked as paid');
-      fetchInvoices(); // Refresh to show updated status
-    } catch (error) {
-      console.error('Error marking invoice as paid:', error);
-      message.error('Failed to mark invoice as paid');
     }
   };
 
@@ -177,20 +102,39 @@ const Invoices = () => {
     fetchInvoices(params);
   };
 
+  const handleMarkAsPaid = async (id) => {
+    try {
+      await markInvoiceAsPaid(id);
+      message.success('Invoice marked as paid');
+      fetchInvoices(); // Refresh to show updated status
+    } catch (error) {
+      console.error('Error marking invoice as paid:', error);
+      message.error('Failed to mark invoice as paid');
+    }
+  };
+  
+  const handleSubmitToExternalService = async (invoice) => {
+    try {
+      setLoading(true);
+      const result = await submitInvoiceToExternalService(invoice);
+      message.success('Invoice submitted to billing service: ' + result.reference);
+      fetchInvoices(); // Refresh the list
+    } catch (error) {
+      console.error('Error submitting to billing service:', error);
+      message.error('Failed to submit invoice to billing service');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getStatusTag = (status) => {
     switch (status) {
       case 'DRAFT':
         return <Tag color="gray">Draft</Tag>;
       case 'ISSUED':
         return <Tag color="blue">Issued</Tag>;
-      case 'SENT':
-        return <Tag color="purple">Sent</Tag>;
       case 'PAID':
         return <Tag color="green">Paid</Tag>;
-      case 'OVERDUE':
-        return <Tag color="red">Overdue</Tag>;
-      case 'CANCELLED':
-        return <Tag color="volcano">Cancelled</Tag>;
       default:
         return <Tag color="default">{status}</Tag>;
     }
@@ -240,7 +184,7 @@ const Invoices = () => {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
-        <Space size="small" wrap>
+        <Space size="small">
           <Button 
             type="link" 
             icon={<EditOutlined />} 
@@ -250,29 +194,7 @@ const Invoices = () => {
             Edit
           </Button>
           
-          {record.status === 'DRAFT' && (
-            <Button 
-              type="link" 
-              icon={<FilePdfOutlined />} 
-              size="small" 
-              onClick={() => handleGeneratePdf(record.id)}
-            >
-              Generate
-            </Button>
-          )}
-          
           {record.status === 'ISSUED' && (
-            <Button 
-              type="link" 
-              icon={<MailOutlined />} 
-              size="small" 
-              onClick={() => handleSendInvoice(record.id)}
-            >
-              Send
-            </Button>
-          )}
-          
-          {(record.status === 'SENT' || record.status === 'ISSUED') && (
             <Button 
               type="link" 
               icon={<CheckCircleOutlined />} 
@@ -280,31 +202,16 @@ const Invoices = () => {
               onClick={() => handleMarkAsPaid(record.id)}
               className="text-green-600 hover:text-green-800"
             >
-              Paid
+              Mark Paid
             </Button>
           )}
           
-          <Button 
-            type="link" 
-            icon={<FileExcelOutlined />} 
-            size="small" 
-            onClick={() => handleExportCsv(record.id)}
+          <Button
+            type="link"
+            onClick={() => handleSubmitToExternalService(record)}
           >
-            Export
+            Send to Billing Service
           </Button>
-          
-          {record.status === 'DRAFT' && (
-            <Popconfirm
-              title="Are you sure you want to delete this invoice?"
-              onConfirm={() => handleDelete(record.id)}
-              okText="Yes"
-              cancelText="No"
-            >
-              <Button type="link" danger icon={<DeleteOutlined />} size="small">
-                Delete
-              </Button>
-            </Popconfirm>
-          )}
         </Space>
       ),
     },
@@ -320,7 +227,7 @@ const Invoices = () => {
           </Link>
         </Breadcrumb.Item>
         <Breadcrumb.Item>
-          <Link to="/finance" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
+          <Link to="/finance/dashboard" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
             <BankOutlined /> Finance
           </Link>
         </Breadcrumb.Item>
@@ -362,10 +269,7 @@ const Invoices = () => {
         >
           <Option value="DRAFT">Draft</Option>
           <Option value="ISSUED">Issued</Option>
-          <Option value="SENT">Sent</Option>
           <Option value="PAID">Paid</Option>
-          <Option value="OVERDUE">Overdue</Option>
-          <Option value="CANCELLED">Cancelled</Option>
         </Select>
         
         <RangePicker 

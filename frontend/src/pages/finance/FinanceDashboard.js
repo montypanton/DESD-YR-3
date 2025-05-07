@@ -4,8 +4,7 @@ import {
   getAllClaims,
   getFinanceSummary,
   getRecentClaims,
-  getBillableClaims,
-  getCompanyUsers
+  getBillableClaims
 } from '../../services/financeService';
 
 const FinanceDashboard = () => {
@@ -21,7 +20,6 @@ const FinanceDashboard = () => {
   });
   const [recentClaims, setRecentClaims] = useState([]);
   const [billableClaims, setBillableClaims] = useState([]);
-  const [companyUsers, setCompanyUsers] = useState([]);
 
   // Fetch data when component mounts
   useEffect(() => {
@@ -30,11 +28,10 @@ const FinanceDashboard = () => {
         setLoading(true);
         
         // Fetch all data in parallel
-        const [summaryResponse, recentResponse, billableResponse, usersResponse] = await Promise.all([
+        const [summaryResponse, recentResponse, billableResponse] = await Promise.all([
           getFinanceSummary(),
           getRecentClaims(5), // Get 5 most recent claims
-          getBillableClaims(), // Get billable claims per company/month
-          getCompanyUsers() // Get users under each company with their usage
+          getBillableClaims() // Get billable claims per company/month
         ]);
         
         // Process summary data
@@ -56,22 +53,13 @@ const FinanceDashboard = () => {
           processingTimeChange: summaryData.avg_processing_days - (summaryData.previous_avg_days || 0)
         });
         
-        console.log('Finance summary data:', summaryData); // Helpful for debugging
-        
         // Process recent claims data - handle potential different data structures
         const recentClaimsData = recentResponse.data.results || recentResponse.data || [];
         setRecentClaims(recentClaimsData);
-        console.log('Recent claims data:', recentClaimsData); // Helpful for debugging
         
         // Process billable claims data
         const billableClaimsData = billableResponse.data.results || billableResponse.data || [];
         setBillableClaims(billableClaimsData);
-        console.log('Billable claims data:', billableClaimsData); // Helpful for debugging
-        
-        // Process company users data
-        const companyUsersData = usersResponse.data.results || usersResponse.data || [];
-        setCompanyUsers(companyUsersData);
-        console.log('Company users data:', companyUsersData); // Helpful for debugging
         
         setError(null);
       } catch (err) {
@@ -132,15 +120,9 @@ const FinanceDashboard = () => {
     }
   };
 
-  // Handle export button click
-  const handleExport = async () => {
-    try {
-      // In a real implementation, this would trigger financeService.exportClaims()
-      alert('Export functionality will be implemented here');
-    } catch (err) {
-      console.error('Error exporting report:', err);
-      setError('Failed to export report. Please try again.');
-    }
+  // Handle generate invoice button
+  const handleGenerateInvoice = () => {
+    window.location.href = '/finance/invoices/new';
   };
 
   if (loading) {
@@ -158,13 +140,19 @@ const FinanceDashboard = () => {
         <div className="flex items-center space-x-3">
           <button 
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center"
-            onClick={handleExport}
+            onClick={handleGenerateInvoice}
           >
-            <svg className="w-5 h-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
             </svg>
-            Export Report
+            Generate Invoice
           </button>
+          <Link to="/finance/invoices" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center">
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"></path>
+            </svg>
+            Billing Service
+          </Link>
         </div>
       </div>
 
@@ -217,125 +205,64 @@ const FinanceDashboard = () => {
       </div>
 
       {/* Billing Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Company Billing Information */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Company Billing</h2>
-            <Link to="/finance/billing-rates" className="text-green-600 hover:text-green-700 text-sm font-medium">
-              Manage rates
-            </Link>
-          </div>
-          
-          {billableClaims.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Company
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Month
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Claims
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Rate
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Billable Amount
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {billableClaims.slice(0, 5).map((billing, index) => (
-                    <tr key={`${billing.company_id}-${billing.month}-${index}`}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                        {billing.company_name || 'Unknown'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                        {billing.month}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                        {billing.claim_count}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                        £{typeof billing.rate_per_claim === 'number' ? billing.rate_per_claim.toFixed(2) : '0.00'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                        £{typeof billing.billable_amount === 'number' ? billing.billable_amount.toFixed(2) : '0.00'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-              No billable claims found.
-            </div>
-          )}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Company Billing</h2>
+          <Link to="/finance/billing-rates" className="text-green-600 hover:text-green-700 text-sm font-medium">
+            Manage rates
+          </Link>
         </div>
-
-        {/* User Billing Information */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Top Users by Cost</h2>
-            <Link to="/finance/user-billing" className="text-green-600 hover:text-green-700 text-sm font-medium">
-              View all users
-            </Link>
-          </div>
-          
-          {companyUsers.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      User
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Company
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Claims
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Billable Amount
-                    </th>
+        
+        {billableClaims.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Company
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Month
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Claims
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Rate
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Billable Amount
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {billableClaims.slice(0, 5).map((billing, index) => (
+                  <tr key={`${billing.company_id}-${billing.month}-${index}`}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      {billing.company_name || 'Unknown'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                      {billing.month}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                      {billing.claim_count}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                      £{typeof billing.rate_per_claim === 'number' ? billing.rate_per_claim.toFixed(2) : '0.00'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      £{typeof billing.billable_amount === 'number' ? billing.billable_amount.toFixed(2) : '0.00'}
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {companyUsers
-                    .sort((a, b) => b.billable_amount - a.billable_amount) // Sort by billable amount
-                    .slice(0, 5) // Get top 5 users by cost
-                    .map((user) => (
-                    <tr key={user.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                        {user.full_name || user.email}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                        {user.company_name || 'Unknown'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                        {user.approved_claims_count}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                        £{typeof user.billable_amount === 'number' ? user.billable_amount.toFixed(2) : '0.00'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-              No user billing data found.
-            </div>
-          )}
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+            No billable claims found.
+          </div>
+        )}
       </div>
 
       {/* Recent Claims */}
@@ -356,7 +283,7 @@ const FinanceDashboard = () => {
                     ID
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Employee
+                    Company
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Title
@@ -382,7 +309,7 @@ const FinanceDashboard = () => {
                       {claim.reference_number || claim.id}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {claim.user?.email || (claim.user ? `${claim.user.first_name} ${claim.user.last_name}` : 'Unknown')}
+                      {claim.insurance_company?.name || 'Unknown'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                       {claim.title || (claim.claim_data?.incidentType || 'General Claim')}

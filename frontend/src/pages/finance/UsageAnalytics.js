@@ -1,27 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Row, Col, Select, DatePicker, Button, Table, Statistic, 
-  Spin, Alert, Space, Divider, Radio, message 
+  Spin, Alert, Space, Radio, message 
 } from 'antd';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
-  ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell 
+  ResponsiveContainer
 } from 'recharts';
 import { 
-  DownloadOutlined, FilterOutlined, BarChartOutlined, 
-  PieChartOutlined, LineChartOutlined 
+  FilterOutlined
 } from '@ant-design/icons';
 import moment from 'moment';
 import { 
-  getUsageAnalytics, getUsageSummary, exportPredictions,
+  getUsageAnalytics, getUsageSummary,
   getInsuranceCompanies 
 } from '../../services/financeService';
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
-
-// Colors for charts
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
 const UsageAnalytics = () => {
   // State variables
@@ -31,7 +27,6 @@ const UsageAnalytics = () => {
     total_predictions: 0,
     total_billable_amount: '0.00',
     companies: [],
-    unassigned_predictions: 0,
     date_range: {}
   });
   const [companies, setCompanies] = useState([]);
@@ -41,7 +36,6 @@ const UsageAnalytics = () => {
     from_date: undefined,
     to_date: undefined
   });
-  const [chartType, setChartType] = useState('bar');
   const [error, setError] = useState(null);
 
   // Fetch initial data when component mounts
@@ -125,43 +119,6 @@ const UsageAnalytics = () => {
     }
   };
 
-  // Handle export
-  const handleExport = async () => {
-    try {
-      setLoading(true);
-      
-      const params = {
-        company_id: filters.company_id,
-        from_date: filters.from_date ? moment(filters.from_date).format('YYYY-MM-DD') : undefined,
-        to_date: filters.to_date ? moment(filters.to_date).format('YYYY-MM-DD') : undefined
-      };
-      
-      const response = await exportPredictions(params);
-      
-      // Create a download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      
-      // Generate filename with company name if specified
-      const companyName = filters.company_id ? 
-        companies.find(c => c.id === filters.company_id)?.name || 'Selected' : 
-        'All';
-      
-      link.setAttribute('download', `predictions_${companyName}_${moment().format('YYYYMMDD')}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      
-      message.success('Export successful!');
-    } catch (err) {
-      console.error('Error exporting data:', err);
-      message.error('Failed to export data. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Table columns
   const columns = [
     {
@@ -187,12 +144,6 @@ const UsageAnalytics = () => {
       dataIndex: 'successful_predictions',
       key: 'successful_predictions',
       sorter: (a, b) => a.successful_predictions - b.successful_predictions
-    },
-    {
-      title: 'Failed',
-      dataIndex: 'failed_predictions',
-      key: 'failed_predictions',
-      sorter: (a, b) => a.failed_predictions - b.failed_predictions
     },
     {
       title: 'Rate Per Claim (£)',
@@ -267,118 +218,10 @@ const UsageAnalytics = () => {
     }
   };
 
-  // Prepare data for pie chart
-  const preparePieData = () => {
-    return summary.companies.map(company => ({
-      name: company.company_name,
-      value: company.predictions_count
-    }));
-  };
-
-  // Render appropriate chart based on chart type selection
-  const renderChart = () => {
-    const chartData = prepareChartData();
-    
-    if (chartData.length === 0) {
-      return (
-        <div className="text-center p-8 text-gray-500 dark:text-gray-400">
-          No data available for the selected filters.
-        </div>
-      );
-    }
-    
-    switch (chartType) {
-      case 'bar':
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart
-              data={chartData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 50 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey={filters.company_id ? "date" : "company_name"} 
-                angle={-45} 
-                textAnchor="end"
-                height={80}
-              />
-              <YAxis />
-              <Tooltip formatter={(value) => value.toLocaleString()} />
-              <Legend />
-              <Bar dataKey="predictions_count" name="Total Predictions" fill="#0088FE" />
-              <Bar dataKey="successful_predictions" name="Successful" fill="#00C49F" />
-              <Bar dataKey="failed_predictions" name="Failed" fill="#FF8042" />
-            </BarChart>
-          </ResponsiveContainer>
-        );
-        
-      case 'line':
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart
-              data={chartData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 50 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey={filters.company_id ? "date" : "company_name"} 
-                angle={-45} 
-                textAnchor="end"
-                height={80}
-              />
-              <YAxis />
-              <Tooltip formatter={(value) => value.toLocaleString()} />
-              <Legend />
-              <Line type="monotone" dataKey="predictions_count" name="Total Predictions" stroke="#0088FE" activeDot={{ r: 8 }} />
-              <Line type="monotone" dataKey="successful_predictions" name="Successful" stroke="#00C49F" />
-              <Line type="monotone" dataKey="failed_predictions" name="Failed" stroke="#FF8042" />
-            </LineChart>
-          </ResponsiveContainer>
-        );
-        
-      case 'pie':
-        const pieData = preparePieData();
-        return (
-          <ResponsiveContainer width="100%" height={400}>
-            <PieChart>
-              <Pie
-                data={pieData}
-                cx="50%"
-                cy="50%"
-                labelLine={true}
-                outerRadius={150}
-                fill="#8884d8"
-                dataKey="value"
-                nameKey="name"
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-              >
-                {pieData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value) => value.toLocaleString()} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        );
-        
-      default:
-        return null;
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Usage Analytics Dashboard</h1>
-        <Button
-          type="primary"
-          icon={<DownloadOutlined />}
-          onClick={handleExport}
-          loading={loading}
-        >
-          Export CSV
-        </Button>
       </div>
       
       {error && (
@@ -445,7 +288,7 @@ const UsageAnalytics = () => {
       
       {/* Summary Statistics */}
       <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={24} sm={12} md={8}>
           <Card className="dark:bg-gray-800">
             <Statistic
               title="Total Predictions"
@@ -455,7 +298,7 @@ const UsageAnalytics = () => {
           </Card>
         </Col>
         
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={24} sm={12} md={8}>
           <Card className="dark:bg-gray-800">
             <Statistic
               title="Total Billable Amount"
@@ -466,7 +309,7 @@ const UsageAnalytics = () => {
           </Card>
         </Col>
         
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={24} sm={12} md={8}>
           <Card className="dark:bg-gray-800">
             <Statistic
               title="Insurance Companies"
@@ -475,39 +318,42 @@ const UsageAnalytics = () => {
             />
           </Card>
         </Col>
-        
-        <Col xs={24} sm={12} md={6}>
-          <Card className="dark:bg-gray-800">
-            <Statistic
-              title="Unassigned Predictions"
-              value={summary.unassigned_predictions}
-              valueStyle={{ color: summary.unassigned_predictions > 0 ? '#cf1322' : '#3f8600' }}
-            />
-          </Card>
-        </Col>
       </Row>
       
-      {/* Chart Controls */}
+      {/* Chart */}
       <Card className="dark:bg-gray-800">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Usage Trends</h2>
-          <Radio.Group 
-            value={chartType} 
-            onChange={(e) => setChartType(e.target.value)} 
-            buttonStyle="solid"
-          >
-            <Radio.Button value="bar"><BarChartOutlined /> Bar</Radio.Button>
-            <Radio.Button value="line"><LineChartOutlined /> Line</Radio.Button>
-            <Radio.Button value="pie"><PieChartOutlined /> Pie</Radio.Button>
-          </Radio.Group>
         </div>
         
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <Spin size="large" />
           </div>
+        ) : prepareChartData().length > 0 ? (
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart
+              data={prepareChartData()}
+              margin={{ top: 20, right: 30, left: 20, bottom: 50 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey={filters.company_id ? "date" : "company_name"} 
+                angle={-45} 
+                textAnchor="end"
+                height={80}
+              />
+              <YAxis />
+              <Tooltip formatter={(value) => value.toLocaleString()} />
+              <Legend />
+              <Bar dataKey="predictions_count" name="Total Predictions" fill="#0088FE" />
+              <Bar dataKey="successful_predictions" name="Successful" fill="#00C49F" />
+            </BarChart>
+          </ResponsiveContainer>
         ) : (
-          renderChart()
+          <div className="text-center p-8 text-gray-500 dark:text-gray-400">
+            No data available for the selected filters.
+          </div>
         )}
       </Card>
       

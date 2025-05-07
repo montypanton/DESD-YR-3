@@ -171,7 +171,15 @@ function App() {
           <Route path="submit-claim" element={<ImprovedSubmitClaim />} />
           <Route path="submit-claim-legacy" element={<SubmitClaim />} />
           
-          {/* Finance Routes - Now using FinanceRoute component */}
+          {/* Finance Routes - Main entry point */}
+          <Route 
+            path="finance" 
+            element={
+              <Navigate to="/finance/dashboard" replace />
+            } 
+          />
+          
+          {/* Finance Dashboard */}
           <Route 
             path="finance/dashboard" 
             element={
