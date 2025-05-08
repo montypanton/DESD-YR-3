@@ -1759,14 +1759,6 @@ const ImprovedClaimForm = () => {
   return (
     <>
       <Card title="Submit a New Insurance Claim" style={{ maxWidth: 900, margin: '0 auto' }}>
-        <Alert
-          message="ML Prediction Required"
-          description="This system uses a strict ML-only prediction flow. All claims must have a valid ML model prediction to be submitted."
-          type="info"
-          showIcon
-          style={{ marginBottom: 20 }}
-        />
-        
         <Steps current={currentStep} style={{ marginBottom: 30 }}>
           {steps.map(step => (
             <Step 
