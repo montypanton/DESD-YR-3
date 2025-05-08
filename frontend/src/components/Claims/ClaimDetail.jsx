@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Button, Spin, message, Tag, Breadcrumb, Input, Alert } from 'antd';
+import { Button, Spin, message, Tag, Breadcrumb, Input, Alert, Image, Divider, Typography, Empty } from 'antd';
 import { 
   ArrowLeftOutlined, 
   CheckCircleOutlined, 
@@ -9,12 +9,22 @@ import {
   ExclamationCircleOutlined,
   HomeOutlined,
   FileTextOutlined,
-  FileDoneOutlined
+  FileDoneOutlined,
+  FileImageOutlined,
+  FilePdfOutlined,
+  FileExcelOutlined,
+  FileWordOutlined,
+  FileUnknownOutlined,
+  FileOutlined,
+  PaperClipOutlined,
+  MedicineBoxOutlined
 } from '@ant-design/icons';
 import { getClaimById } from '../../services/claimService';
 import { apiClient } from '../../services/authService';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+
+const { Title, Text } = Typography;
 
 const ClaimDetail = () => {
   const { id } = useParams();
@@ -27,6 +37,7 @@ const ClaimDetail = () => {
   // const [decidedAmount, setDecidedAmount] = useState('');
   // const [savingDecidedAmount, setSavingDecidedAmount] = useState(false);
   const [error, setError] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => {
     const fetchClaimDetails = async () => {
@@ -100,6 +111,32 @@ const ClaimDetail = () => {
       .replace(/^./, str => str.toUpperCase()) // Capitalize the first letter
       .replace(/_/g, ' '); // Replace underscores with spaces
   };
+  
+  const getFileIcon = (fileType) => {
+    if (!fileType) return <FileOutlined />;
+    
+    if (fileType.includes('image/')) {
+      return <FileImageOutlined style={{ color: '#1890ff' }} />;
+    } else if (fileType.includes('pdf')) {
+      return <FilePdfOutlined style={{ color: '#f5222d' }} />;
+    } else if (fileType.includes('excel') || fileType.includes('spreadsheet') || fileType.includes('xlsx') || fileType.includes('xls')) {
+      return <FileExcelOutlined style={{ color: '#52c41a' }} />;
+    } else if (fileType.includes('word') || fileType.includes('document') || fileType.includes('docx') || fileType.includes('doc')) {
+      return <FileWordOutlined style={{ color: '#1890ff' }} />;
+    } else {
+      return <FileUnknownOutlined style={{ color: '#faad14' }} />;
+    }
+  };
+  
+  const getCategoryIcon = (category) => {
+    if (category === 'medical') {
+      return <MedicineBoxOutlined style={{ color: '#eb2f96' }} />;
+    } else if (category === 'evidence') {
+      return <PaperClipOutlined style={{ color: '#1890ff' }} />;
+    } else {
+      return <FileOutlined />;
+    }
+  };
 
   const renderClaimDataSection = (sectionTitle, fields) => {
     if (!claim?.claim_data) return null;
@@ -126,6 +163,138 @@ const ClaimDetail = () => {
               </div>
             ))}
           </dl>
+        </div>
+      </div>
+    );
+  };
+  
+  const renderMediaFilesSection = () => {
+    console.log('Claim data for media files:', claim?.claim_data);
+    
+    // Collect all media files from different possible fields
+    let mediaFiles = [];
+    let fileNameMap = new Map(); // Track files by name to prevent duplicates
+    
+    // Helper function to add files without duplicates
+    const addUniqueFiles = (files) => {
+      if (!files || !Array.isArray(files)) return;
+      
+      files.forEach(file => {
+        if (!file.name) return; // Skip files without names
+        
+        // If we haven't seen this filename before, add it
+        if (!fileNameMap.has(file.name)) {
+          fileNameMap.set(file.name, file);
+          mediaFiles.push(file);
+        }
+      });
+    };
+    
+    // Check for media_files field first
+    if (claim?.claim_data?.media_files && Array.isArray(claim.claim_data.media_files)) {
+      addUniqueFiles(claim.claim_data.media_files);
+    }
+    
+    // Check for category-specific fields - only add if not already added
+    if (claim?.claim_data?.evidence_files && Array.isArray(claim.claim_data.evidence_files)) {
+      addUniqueFiles(claim.claim_data.evidence_files);
+    }
+    
+    if (claim?.claim_data?.medical_files && Array.isArray(claim.claim_data.medical_files)) {
+      addUniqueFiles(claim.claim_data.medical_files);
+    }
+    
+    if (mediaFiles.length === 0) {
+      console.log('No media files found in claim data');
+      return null;
+    }
+    
+    console.log('Unique media files found:', mediaFiles);
+    
+    // Group files by category
+    const filesByCategory = {
+      evidence: mediaFiles.filter(file => file.category === 'evidence'),
+      medical: mediaFiles.filter(file => file.category === 'medical'),
+      other: mediaFiles.filter(file => !file.category || (file.category !== 'evidence' && file.category !== 'medical'))
+    };
+    
+    return (
+      <div className={`mb-8 ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} shadow-md rounded-xl overflow-hidden`}>
+        <div className={`px-6 py-5 ${darkMode ? 'border-gray-700 bg-blue-900' : 'border-gray-200 bg-blue-50'} border-b`}>
+          <h3 className={`text-lg font-medium ${darkMode ? 'text-blue-200' : 'text-blue-700'}`}>Claim Attachments</h3>
+        </div>
+        <div className="p-6">
+          {['evidence', 'medical', 'other'].map(category => {
+            const files = filesByCategory[category];
+            if (!files || files.length === 0) return null;
+            
+            return (
+              <div key={category} className="mb-6">
+                <h4 className={`text-md font-medium mb-3 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  {category === 'evidence' ? 'Evidence Files' : 
+                   category === 'medical' ? 'Medical Documentation' : 'Other Files'}
+                </h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {files.map((file, index) => {
+                    const isImage = file.type && file.type.includes('image/');
+                    
+                    return (
+                      <div 
+                        key={`${file.uid || index}`}
+                        className={`p-3 border rounded-lg ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} 
+                                  hover:shadow-md transition-shadow duration-200 cursor-pointer`}
+                        onClick={() => {
+                          if (isImage && file.url) {
+                            setPreviewImage(file.url);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center">
+                          <div className="mr-3">
+                            {getFileIcon(file.type)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm truncate font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                              {file.name}
+                            </p>
+                            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {file.size ? `${Math.round(file.size / 1024)} KB` : ''}
+                            </p>
+                          </div>
+                          <div>
+                            {getCategoryIcon(file.category)}
+                          </div>
+                        </div>
+                        
+                        {isImage && file.url && (
+                          <div className="mt-2 overflow-hidden rounded-md h-20 flex items-center justify-center bg-black">
+                            <img 
+                              src={file.url} 
+                              alt={file.name}
+                              className="max-h-full max-w-full object-contain" 
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          
+          {/* Image preview modal */}
+          <Image
+            style={{ display: 'none' }}
+            preview={{
+              visible: !!previewImage,
+              src: previewImage,
+              onVisibleChange: (visible) => {
+                if (!visible) setPreviewImage(null);
+              },
+            }}
+          />
         </div>
       </div>
     );
@@ -430,6 +599,9 @@ const ClaimDetail = () => {
       {renderClaimDataSection("Additional Information", [
         'ExceptionalCircumstances'
       ])}
+      
+      {/* Media Files Section */}
+      {renderMediaFilesSection()}
 
       {/* Actions */}
       <div className="flex justify-between mt-8">

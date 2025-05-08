@@ -201,7 +201,64 @@ const ImprovedClaimForm = () => {
     // Calculate total claim amount
     const specialDamages = calculateSpecialDamages(formData);
     const generalDamages = calculateGeneralDamages(formData);
-    const totalAmount = specialDamages + generalDamages;
+    let totalAmount = specialDamages + generalDamages;
+    
+    // Ensure totalAmount doesn't exceed 10 digits (backend validation limit)
+    // 9,999,999,999 is the maximum allowed
+    if (totalAmount > 9999999999) {
+      console.warn('Total amount exceeds 10 digits, capping at maximum allowed value');
+      totalAmount = 9999999999;
+    }
+    
+    // Get file lists from form data
+    const evidenceUpload = form.getFieldValue('evidence');
+    const medicalEvidenceUpload = form.getFieldValue('medicalEvidence');
+    
+    console.log('Evidence upload from form:', evidenceUpload);
+    console.log('Medical evidence upload from form:', medicalEvidenceUpload);
+    
+    // Process evidence files
+    let evidenceFiles = [];
+    if (evidenceUpload && Array.isArray(evidenceUpload)) {
+      evidenceFiles = evidenceUpload;
+    } else if (evidenceUpload && evidenceUpload.fileList) {
+      evidenceFiles = evidenceUpload.fileList;
+    }
+    
+    // Process medical evidence files
+    let medicalEvidenceFiles = [];
+    if (medicalEvidenceUpload && Array.isArray(medicalEvidenceUpload)) {
+      medicalEvidenceFiles = medicalEvidenceUpload;
+    } else if (medicalEvidenceUpload && medicalEvidenceUpload.fileList) {
+      medicalEvidenceFiles = medicalEvidenceUpload.fileList;
+    }
+    
+    console.log('Processed evidence files:', evidenceFiles);
+    console.log('Processed medical evidence files:', medicalEvidenceFiles);
+    
+    // Create a safe representation of file data for storage in JSON
+    const mediaFiles = [
+      ...evidenceFiles.map(file => ({
+        uid: file.uid || `evidence-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: file.name || 'unknown-file',
+        type: file.type || 'application/octet-stream',
+        size: file.size || 0,
+        category: 'evidence',
+        url: file.thumbUrl || (file.originFileObj ? URL.createObjectURL(file.originFileObj) : ''),
+        lastModified: file.lastModified || Date.now()
+      })),
+      ...medicalEvidenceFiles.map(file => ({
+        uid: file.uid || `medical-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: file.name || 'unknown-file',
+        type: file.type || 'application/octet-stream',
+        size: file.size || 0,
+        category: 'medical',
+        url: file.thumbUrl || (file.originFileObj ? URL.createObjectURL(file.originFileObj) : ''),
+        lastModified: file.lastModified || Date.now()
+      }))
+    ];
+    
+    console.log('Media files to save:', mediaFiles);
     
     // Build a normalized claim data object with proper validation for all fields
     return {
@@ -257,7 +314,29 @@ const ImprovedClaimForm = () => {
         incidentLocation: formData.incidentLocation || '',
         damageDescription: formData.damageDescription || '',
         injuryDescription: formData.injuryDescription || '',
-        additionalInfo: formData.additionalInfo || ''
+        additionalInfo: formData.additionalInfo || '',
+        
+        // Include media files metadata in claim data
+        media_files: mediaFiles.length > 0 ? mediaFiles : null,
+        
+        // Also store by category for easier access
+        evidence_files: evidenceFiles.length > 0 ? 
+          evidenceFiles.map(file => ({
+            name: file.name || 'unknown-file',
+            type: file.type || 'application/octet-stream',
+            size: file.size || 0,
+            category: 'evidence',
+            url: file.thumbUrl || (file.originFileObj ? URL.createObjectURL(file.originFileObj) : '')
+          })) : [],
+        
+        medical_files: medicalEvidenceFiles.length > 0 ?
+          medicalEvidenceFiles.map(file => ({
+            name: file.name || 'unknown-file',
+            type: file.type || 'application/octet-stream',
+            size: file.size || 0,
+            category: 'medical',
+            url: file.thumbUrl || (file.originFileObj ? URL.createObjectURL(file.originFileObj) : '')
+          })) : []
       }
     };
   };
@@ -1127,7 +1206,8 @@ const ImprovedClaimForm = () => {
             initialValue={0}
           >
             <InputNumber 
-              min={0} 
+              min={0}
+              max={9999999999} 
               style={{ width: '100%' }} 
               formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
               parser={value => value.replace(/£\s?|(,*)/g, '')}
@@ -1143,6 +1223,7 @@ const ImprovedClaimForm = () => {
           >
             <InputNumber 
               min={0} 
+              max={9999999999}
               style={{ width: '100%' }} 
               formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
               parser={value => value.replace(/£\s?|(,*)/g, '')}
@@ -1161,6 +1242,7 @@ const ImprovedClaimForm = () => {
           >
             <InputNumber 
               min={0} 
+              max={9999999999}
               style={{ width: '100%' }} 
               formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
               parser={value => value.replace(/£\s?|(,*)/g, '')}
@@ -1177,6 +1259,7 @@ const ImprovedClaimForm = () => {
           >
             <InputNumber 
               min={0} 
+              max={9999999999}
               style={{ width: '100%' }} 
               formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
               parser={value => value.replace(/£\s?|(,*)/g, '')}
@@ -1225,6 +1308,46 @@ const ImprovedClaimForm = () => {
         name="evidence"
         label="Supporting Evidence"
         extra="Upload photos, reports, or other evidence of damages (optional)"
+        getValueFromEvent={e => {
+          console.log('Upload event:', e);
+          
+          // If e is the fileList array or has a fileList property,
+          // make sure we're storing the most complete data
+          if (Array.isArray(e)) {
+            return e;
+          }
+          
+          // This is typically what we'll get from antd Upload
+          if (e && e.fileList) {
+            // Remove duplicates by comparing names
+            const uniqueFiles = [];
+            const fileNames = new Set();
+            
+            e.fileList.forEach(file => {
+              const fileName = file.name || (file.originFileObj && file.originFileObj.name);
+              
+              // Only add files with unique names
+              if (fileName && !fileNames.has(fileName)) {
+                fileNames.add(fileName);
+                
+                // If there's an originFileObj, create a thumbUrl for preview
+                if (file.originFileObj && !file.thumbUrl && file.type && file.type.startsWith('image/')) {
+                  try {
+                    file.thumbUrl = URL.createObjectURL(file.originFileObj);
+                  } catch (err) {
+                    console.error('Error creating object URL for file', err);
+                  }
+                }
+                
+                uniqueFiles.push(file);
+              }
+            });
+            
+            return uniqueFiles;
+          }
+          
+          return [];
+        }}
       >
         <Upload 
           name="files" 
@@ -1320,6 +1443,7 @@ const ImprovedClaimForm = () => {
           >
             <InputNumber 
               min={0} 
+              max={9999999999}
               style={{ width: '100%' }} 
               formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
               parser={value => value.replace(/£\s?|(,*)/g, '')}
@@ -1396,6 +1520,46 @@ const ImprovedClaimForm = () => {
         name="medicalEvidence"
         label="Medical Documentation"
         extra="Upload medical reports, bills, or other medical documentation (optional)"
+        getValueFromEvent={e => {
+          console.log('Upload event:', e);
+          
+          // If e is the fileList array or has a fileList property,
+          // make sure we're storing the most complete data
+          if (Array.isArray(e)) {
+            return e;
+          }
+          
+          // This is typically what we'll get from antd Upload
+          if (e && e.fileList) {
+            // Remove duplicates by comparing names
+            const uniqueFiles = [];
+            const fileNames = new Set();
+            
+            e.fileList.forEach(file => {
+              const fileName = file.name || (file.originFileObj && file.originFileObj.name);
+              
+              // Only add files with unique names
+              if (fileName && !fileNames.has(fileName)) {
+                fileNames.add(fileName);
+                
+                // If there's an originFileObj, create a thumbUrl for preview
+                if (file.originFileObj && !file.thumbUrl && file.type && file.type.startsWith('image/')) {
+                  try {
+                    file.thumbUrl = URL.createObjectURL(file.originFileObj);
+                  } catch (err) {
+                    console.error('Error creating object URL for file', err);
+                  }
+                }
+                
+                uniqueFiles.push(file);
+              }
+            });
+            
+            return uniqueFiles;
+          }
+          
+          return [];
+        }}
       >
         <Upload 
           name="files" 
