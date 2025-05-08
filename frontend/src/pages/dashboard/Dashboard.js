@@ -242,18 +242,27 @@ const Dashboard = () => {
           </Col>
           <Col xs={24} sm={12} md={6}>
             <Statistic
-              title={<span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Pending Claims</span>}
-              value={dashboardData.pending_claims || 0}
-              valueStyle={{ color: darkMode ? '#fcd34d' : '#f59e0b' }}
-              prefix={<ClockCircleOutlined />}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Statistic
               title={<span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Total Settlements</span>}
               value={formatCurrency(dashboardData.approved_settlements || dashboardData.total_settlements || 0)}
               valueStyle={{ color: darkMode ? '#86efac' : '#10b981' }}
             />
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <div className="h-full">
+              <Statistic
+                title={<span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Total ML Service Cost</span>}
+                value={formatCurrency(dashboardData.total_billing_cost || 0)}
+                valueStyle={{ color: darkMode ? '#fcd34d' : '#f59e0b' }}
+                prefix={<PieChartOutlined />}
+              />
+              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                {dashboardData.predictions_count > 0 && 
+                  <>
+                    {dashboardData.predictions_count} predictions × {formatCurrency(dashboardData.rate_per_claim || 0)} per prediction
+                  </>
+                }
+              </div>
+            </div>
           </Col>
         </Row>
       </Card>

@@ -23,6 +23,7 @@ from .serializers import ClaimSerializer, ClaimDashboardSerializer, MLPrediction
 from ml_interface.models import MLModel
 from ml_interface.ml_client import ml_client  # Import the ML service client
 from account.permissions import IsAdminUser, IsMLEngineer, IsFinanceUser
+from account.models import User  # Import the User model to access insurance_company
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +258,39 @@ class ClaimViewSet(viewsets.ModelViewSet):
         # Total settlements is the sum of both
         total_settlements = decided_settlements + ml_settlements
         
+        # Calculate the total ML service cost based on number of predictions and company rate
+        total_billing_cost = 0
+        rate_per_claim = 0
+        predictions_count = 0
+        try:
+            # Get the company's rate per prediction
+            from finance.models import BillingRate
+            user_company = request.user.insurance_company
+            
+            # Count number of predictions for this user
+            predictions_count = queryset.filter(ml_prediction__isnull=False).count()
+            
+            if user_company:
+                # Get active billing rate for the user's company
+                billing_rate = BillingRate.objects.filter(
+                    insurance_company=user_company,
+                    is_active=True
+                ).first()
+                
+                if billing_rate:
+                    # Get rate per claim
+                    rate_per_claim = float(billing_rate.rate_per_claim)
+                    
+                    # Calculate total cost: rate per claim * number of predictions
+                    total_billing_cost = rate_per_claim * predictions_count
+                else:
+                    logger.warning(f"No active billing rate found for company {user_company.name}")
+            else:
+                logger.info("User does not belong to any insurance company")
+        except Exception as e:
+            logger.error(f"Error calculating ML service cost: {str(e)}")
+            logger.debug(f"Stack trace: {traceback.format_exc()}")
+        
         recent_claims = queryset.order_by('-created_at')[:5]
         recent_serializer = ClaimSerializer(recent_claims, many=True)
         
@@ -268,6 +302,9 @@ class ClaimViewSet(viewsets.ModelViewSet):
             'completed_claims': completed_claims,
             'total_claimed': total_claimed,
             'total_settlements': total_settlements,
+            'total_billing_cost': float(total_billing_cost),
+            'predictions_count': predictions_count,
+            'rate_per_claim': rate_per_claim,
             'recent_claims': recent_serializer.data
         })
 
