@@ -349,8 +349,8 @@ const ClaimDetail = () => {
           showIcon
           className="mb-4"
         />
-        <Button type="primary" onClick={() => navigate('/claims')}>
-          Back to Claims
+        <Button type="primary" onClick={() => navigate('/predictions')}>
+          Back to Claims History
         </Button>
       </div>
     );
@@ -370,7 +370,7 @@ const ClaimDetail = () => {
                 We couldn't find the claim you're looking for. It may have been removed or you might not have access to it.
               </p>
               <div className="mt-4">
-                <Button type="primary" onClick={() => navigate('/claims')}>Back to Claims</Button>
+                <Button type="primary" onClick={() => navigate('/predictions')}>Back to Claims History</Button>
               </div>
             </div>
           </div>
@@ -382,21 +382,31 @@ const ClaimDetail = () => {
   return (
     <div className={`space-y-8 max-w-6xl mx-auto py-10 px-4 sm:px-6 lg:px-8 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
       {/* Breadcrumbs */}
-      <Breadcrumb className="mb-4">
-        <Breadcrumb.Item>
-          <Link to="/" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
-            <HomeOutlined /> Home
-          </Link>
-        </Breadcrumb.Item>
-        <Breadcrumb.Item>
-          <Link to="/claims" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
-            <FileTextOutlined /> Claims History
-          </Link>
-        </Breadcrumb.Item>
-        <Breadcrumb.Item className={darkMode ? 'text-gray-100' : 'text-gray-800'}>
-          {claim.reference_number || `Claim #${claim.id}`}
-        </Breadcrumb.Item>
-      </Breadcrumb>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+        <Breadcrumb>
+          <Breadcrumb.Item>
+            <Link to="/" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
+              <HomeOutlined /> Home
+            </Link>
+          </Breadcrumb.Item>
+          <Breadcrumb.Item>
+            <Link to="/predictions" className={darkMode ? 'text-gray-300 hover:text-white font-medium' : 'text-gray-600 hover:text-gray-900 font-medium'}>
+              <FileTextOutlined /> Claims History
+            </Link>
+          </Breadcrumb.Item>
+          <Breadcrumb.Item className={darkMode ? 'text-gray-100' : 'text-gray-800'}>
+            {claim.reference_number || `Claim #${claim.id}`}
+          </Breadcrumb.Item>
+        </Breadcrumb>
+        <Button 
+          type="default"
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate('/predictions')}
+          className={`mt-2 sm:mt-0 ${darkMode ? 'border-gray-600 text-gray-300 hover:text-white' : 'border-gray-300 text-gray-600 hover:text-gray-900'}`}
+        >
+          Back to Claims History
+        </Button>
+      </div>
       
       {/* Header */}
       <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-md overflow-hidden`}>
@@ -608,9 +618,9 @@ const ClaimDetail = () => {
         <Button 
           type="primary"
           icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/claims')}
+          onClick={() => navigate('/predictions')}
           size="large"
-          className={darkMode ? 'ant-btn-primary-dark' : ''}
+          className={`${darkMode ? 'ant-btn-primary-dark' : ''} hover:opacity-90`}
         >
           Back to Claims History
         </Button>
