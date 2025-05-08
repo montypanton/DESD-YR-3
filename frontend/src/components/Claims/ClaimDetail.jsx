@@ -146,6 +146,15 @@ const ClaimDetail = () => {
       .filter(([_, value]) => value !== null && value !== undefined && value !== "");
 
     if (sectionData.length === 0) return null;
+    
+    // List of financial fields that should have a pound symbol
+    const financialFields = [
+      'SpecialHealthExpenses', 'SpecialMedications', 'SpecialRehabilitation',
+      'SpecialTherapy', 'SpecialEarningsLoss', 'SpecialUsageLoss',
+      'SpecialTripCosts', 'SpecialJourneyExpenses', 'GeneralRest',
+      'GeneralFixed', 'GeneralUplift', 'SpecialReduction', 'SpecialOverage',
+      'SpecialFixes', 'SpecialAssetDamage', 'SpecialLoanerVehicle'
+    ];
 
     return (
       <div className={`mb-8 ${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} shadow-md rounded-xl overflow-hidden`}>
@@ -154,14 +163,22 @@ const ClaimDetail = () => {
         </div>
         <div className="p-6">
           <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-6">
-            {sectionData.map(([key, value]) => (
-              <div key={key} className="sm:col-span-1">
-                <dt className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{formatClaimField(key)}</dt>
-                <dd className={`mt-1 text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value}
-                </dd>
-              </div>
-            ))}
+            {sectionData.map(([key, value]) => {
+              // Format value with £ if it's a financial field and value is a number
+              const isFinancial = financialFields.includes(key);
+              const formattedValue = isFinancial && !isNaN(parseFloat(value)) 
+                ? `£${parseFloat(value).toLocaleString('en-GB')}`
+                : typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value;
+              
+              return (
+                <div key={key} className="sm:col-span-1">
+                  <dt className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{formatClaimField(key)}</dt>
+                  <dd className={`mt-1 text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {formattedValue}
+                  </dd>
+                </div>
+              );
+            })}
           </dl>
         </div>
       </div>
