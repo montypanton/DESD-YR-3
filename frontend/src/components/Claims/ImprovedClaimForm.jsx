@@ -1781,14 +1781,6 @@ const ImprovedClaimForm = () => {
               />
               <div style={{ marginTop: 16 }}>
                 <Button 
-                  type="default"
-                  icon={<RocketOutlined />}
-                  onClick={retryPrediction}
-                  style={{ marginRight: 8 }}
-                >
-                  Regenerate
-                </Button>
-                <Button 
                   type="link" 
                   icon={<InfoCircleOutlined />} 
                   onClick={() => notification.info({
