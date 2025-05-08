@@ -166,6 +166,19 @@ def ensure_billing_record_for_approved_claim(claim):
             - message: A description of what happened
             - error: Error message (if unsuccessful)
     """
+    # Force refresh the claim from the database to ensure we have the latest status
+    # This is crucial to prevent stale data issues
+    from django.db import connection
+    connection.close()  # Force close any open connections to ensure fresh data
+    
+    # Reload claim from database
+    from claims.models import Claim
+    try:
+        claim_id = claim.id
+        claim = Claim.objects.get(id=claim_id)
+    except Exception as e:
+        logger.error(f"Error reloading claim {claim_id}: {str(e)}")
+    
     # Only create billing records for approved claims
     if claim.status != 'APPROVED':
         return {
@@ -184,16 +197,21 @@ def ensure_billing_record_for_approved_claim(claim):
         }
     
     # Calculate billing amount (using decided settlement amount if available)
-    if claim.decided_settlement_amount is not None and claim.decided_settlement_amount > 0:
-        amount = claim.decided_settlement_amount
-    elif claim.amount is not None and claim.amount > 0:
-        amount = claim.amount
-    else:
-        # Default amount if both are invalid
-        amount = 100.00
+    amount = 100.00  # Default fallback amount
     
-    # Create unique invoice number
-    invoice_number = f"BR-{claim.reference_number}"
+    if hasattr(claim, 'decided_settlement_amount') and claim.decided_settlement_amount is not None:
+        if float(claim.decided_settlement_amount) > 0:
+            amount = float(claim.decided_settlement_amount)
+    elif hasattr(claim, 'ml_prediction') and claim.ml_prediction and hasattr(claim.ml_prediction, 'settlement_amount'):
+        if claim.ml_prediction.settlement_amount is not None and float(claim.ml_prediction.settlement_amount) > 0:
+            amount = float(claim.ml_prediction.settlement_amount)
+    elif hasattr(claim, 'amount') and claim.amount is not None:
+        if float(claim.amount) > 0:
+            amount = float(claim.amount)
+    
+    # Create unique invoice number with timestamp to ensure uniqueness
+    timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
+    invoice_number = f"BR-{claim.reference_number}-{timestamp}"
     
     # Default description
     description = f"Claim settlement for claim #{claim.reference_number}"
@@ -201,8 +219,9 @@ def ensure_billing_record_for_approved_claim(claim):
     # Default currency
     currency = 'USD'
     
-    try:
-        with transaction.atomic():
+    # Wrap the entire creation process in a transaction to ensure atomicity
+    with transaction.atomic():
+        try:
             # Check if user has an insurance company
             user = claim.user
             insurance_company = getattr(user, 'insurance_company', None)
@@ -215,7 +234,7 @@ def ensure_billing_record_for_approved_claim(claim):
                     # Assign the first available company
                     insurance_company = companies.first()
                     user.insurance_company = insurance_company
-                    user.save()
+                    user.save(update_fields=['insurance_company'])
                     logger.info(f"Assigned insurance company {insurance_company.name} to user {user.email}")
             
             # Create the billing record with the insurance company (if available)
@@ -231,40 +250,41 @@ def ensure_billing_record_for_approved_claim(claim):
                 due_date=timezone.now().date() + timedelta(days=30)
             )
             
-            logger.info(f"Successfully created billing record {billing_record.id} for claim {claim.reference_number}")
+            logger.info(f"Successfully created billing record {billing_record.id} for claim {claim.reference_number}, amount={amount}")
             return {
                 'success': True,
                 'billing_record': billing_record,
                 'message': f"Created new billing record for claim {claim.reference_number}"
             }
-    except Exception as e:
-        logger.error(f"Error creating billing record for claim {claim.reference_number}: {str(e)}")
-        
-        # Try again without the insurance company as a fallback
-        try:
-            billing_record = BillingRecord.objects.create(
-                user=claim.user,
-                amount=amount,
-                currency=currency,
-                payment_status='PENDING',
-                description=description,
-                invoice_number=invoice_number,
-                claim_reference=claim.reference_number,
-                due_date=timezone.now().date() + timedelta(days=30)
-            )
-            logger.info(f"Created billing record {billing_record.id} without insurance company as fallback")
-            return {
-                'success': True,
-                'billing_record': billing_record,
-                'message': f"Created billing record without insurance company as fallback"
-            }
-        except Exception as e2:
-            logger.error(f"Final error creating billing record for claim {claim.reference_number}: {str(e2)}")
-            return {
-                'success': False,
-                'error': str(e2),
-                'message': f"Failed to create billing record after multiple attempts"
-            }
+            
+        except Exception as e:
+            logger.error(f"Error creating billing record for claim {claim.reference_number}: {str(e)}")
+            
+            # Try one more time with simplified data as a fallback
+            try:
+                billing_record = BillingRecord.objects.create(
+                    user=user,
+                    amount=amount,
+                    currency=currency,
+                    payment_status='PENDING',
+                    description=description,
+                    invoice_number=invoice_number,
+                    claim_reference=claim.reference_number,
+                    due_date=timezone.now().date() + timedelta(days=30)
+                )
+                logger.info(f"Created simplified billing record {billing_record.id} as fallback")
+                return {
+                    'success': True,
+                    'billing_record': billing_record,
+                    'message': f"Created billing record with fallback method"
+                }
+            except Exception as e2:
+                logger.error(f"Final error creating billing record for claim {claim.reference_number}: {str(e2)}")
+                return {
+                    'success': False,
+                    'error': str(e2),
+                    'message': f"Failed to create billing record after multiple attempts"
+                }
 
 def standardize_billing_records(billing_records):
     """

@@ -403,43 +403,44 @@ class BillingDashboardView(APIView):
         from claims.models import Claim
         
         # Calculate total claims value (sum of decided_settlement_amount for approved claims)
+        # Handle potential NULL values in decided_settlement_amount with COALESCE
+        from django.db.models.functions import Coalesce
         total_claimed = Claim.objects.filter(
             status='APPROVED'
         ).aggregate(
-            Sum('decided_settlement_amount')
-        )['decided_settlement_amount__sum'] or 0
+            sum=Sum(Coalesce('decided_settlement_amount', 'amount'))
+        )['sum'] or 0
         
-        # Get previous month for comparison
+        # Get previous month for comparison - use created_at which is guaranteed to exist
         last_month = timezone.now() - timedelta(days=30)
         previous_total = Claim.objects.filter(
             status='APPROVED',
-            reviewed_at__lt=last_month
+            created_at__lt=last_month
         ).aggregate(
-            Sum('decided_settlement_amount')
-        )['decided_settlement_amount__sum'] or 0
+            sum=Sum(Coalesce('decided_settlement_amount', 'amount'))
+        )['sum'] or 0
         
-        # Calculate pending claims count
+        # Since all claims are auto-approved, count completed ML predictions instead
         pending_claims = Claim.objects.filter(
-            status='PENDING', 
-            ml_prediction__isnull=False
+            ml_prediction__isnull=True
         ).count()
         
         # Get previous pending count for comparison
         previous_pending = Claim.objects.filter(
-            status='PENDING',
+            ml_prediction__isnull=True,
             created_at__lt=last_month
         ).count()
         
         # Calculate average processing time for approved claims
-        from django.db.models import F, ExpressionWrapper, fields
+        from django.db.models import F, ExpressionWrapper, fields, Value
         
-        # Get claims with both created_at and reviewed_at timestamps
+        # For auto-approved claims, use a consistent processing time based on creation
+        # For claims with reviewed_at, use actual review time
         processing_claims = Claim.objects.filter(
-            status='APPROVED',
-            reviewed_at__isnull=False
+            status='APPROVED'
         ).annotate(
             processing_days=ExpressionWrapper(
-                F('reviewed_at') - F('created_at'),
+                Coalesce(F('reviewed_at'), F('updated_at')) - F('created_at'),
                 output_field=fields.DurationField()
             )
         )
@@ -450,22 +451,22 @@ class BillingDashboardView(APIView):
             total_days = sum([claim.processing_days.days for claim in processing_claims])
             avg_processing_days = total_days / processing_claims.count()
         
-        # Get previous quarter processing time
+        # Get previous quarter processing time - consistent with current processing time calculation
         quarter_ago = timezone.now() - timedelta(days=90)
         previous_processing_claims = Claim.objects.filter(
             status='APPROVED',
-            reviewed_at__isnull=False,
-            reviewed_at__lt=quarter_ago
+            created_at__lt=quarter_ago
         ).annotate(
             processing_days=ExpressionWrapper(
-                F('reviewed_at') - F('created_at'),
+                Coalesce(F('reviewed_at'), F('updated_at')) - F('created_at'),
                 output_field=fields.DurationField()
             )
         )
         
         previous_avg_days = 0
         if previous_processing_claims.exists():
-            previous_total_days = sum([claim.processing_days.days for claim in previous_processing_claims])
+            # Avoid negative values by using abs()
+            previous_total_days = sum([abs(claim.processing_days.days) for claim in previous_processing_claims])
             previous_avg_days = previous_total_days / previous_processing_claims.count()
         
         # Original billing metrics
@@ -495,15 +496,29 @@ class BillingDashboardView(APIView):
         # New metrics for insurance companies
         insurance_companies = InsuranceCompany.objects.filter(is_active=True).count()
         
-        # Billing by company
+        # Billing by company - include this month filter for more relevant data
+        this_month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         billing_by_company = BillingRecord.objects.filter(
-            insurance_company__isnull=False
+            insurance_company__isnull=False,
+            created_at__gte=this_month_start  # Only show current month data
         ).values(
             'insurance_company', 'insurance_company__name'
         ).annotate(
             total_amount=Sum('amount'),
-            records_count=Count('id')
-        ).order_by('-total_amount')[:5]
+            records_count=Count('id'),
+            month=Value(this_month_start.strftime('%Y-%m'))  # Add month info
+        ).order_by('-total_amount')
+        
+        # If no current month data, fall back to all-time data
+        if not billing_by_company:
+            billing_by_company = BillingRecord.objects.filter(
+                insurance_company__isnull=False
+            ).values(
+                'insurance_company', 'insurance_company__name'
+            ).annotate(
+                total_amount=Sum('amount'),
+                records_count=Count('id')
+            ).order_by('-total_amount')[:5]
         
         # Recent invoices to insurance companies
         recent_company_invoices = InvoiceSerializer(
@@ -521,6 +536,67 @@ class BillingDashboardView(APIView):
             many=True
         ).data
         
+        # Force cache refresh by clearing the connection
+        from django.db import connection
+        connection.close()
+        
+        # Count approved claims for frontend stat - use direct SQL to bypass cache
+        approved_claims_query = """
+            SELECT COUNT(*) FROM claims_claim WHERE status = 'APPROVED'
+        """
+        with connection.cursor() as cursor:
+            cursor.execute(approved_claims_query)
+            approved_claims = cursor.fetchone()[0]
+        
+        # Calculate total claimed amount with direct SQL to bypass cache
+        total_claimed_query = """
+            SELECT COALESCE(SUM(COALESCE(decided_settlement_amount, amount)), 0)  
+            FROM claims_claim WHERE status = 'APPROVED'
+        """
+        with connection.cursor() as cursor:
+            cursor.execute(total_claimed_query)
+            total_claimed = float(cursor.fetchone()[0] or 0)
+        
+        # Override the total_claimed with the direct SQL result
+        total_claimed = total_claimed
+        
+        # Get current billable claims data - more suitable for dashboard display
+        from .views import BillableClaimsView
+        billable_view = BillableClaimsView()
+        current_month = timezone.now().month
+        current_year = timezone.now().year
+        
+        # Create a mock request with query params
+        from rest_framework.test import APIRequestFactory
+        factory = APIRequestFactory()
+        mock_request = factory.get('/', {'year': current_year, 'month': current_month})
+        mock_request.user = request.user
+        
+        # Get billable claims for the current month
+        billable_claims_response = billable_view.get(mock_request)
+        billable_claims = billable_claims_response.data
+        
+        # Log count info for debugging
+        logger.info(f"Dashboard stats - approved_claims: {approved_claims}, total_claimed: {total_claimed}")
+        
+        # Get latest billing metrics using direct SQL
+        billing_totals_query = """
+            SELECT 
+                COALESCE(SUM(amount), 0) as total_billed,
+                COALESCE(SUM(CASE WHEN payment_status = 'PAID' THEN amount ELSE 0 END), 0) as total_paid,
+                COALESCE(SUM(CASE WHEN payment_status = 'PENDING' THEN amount ELSE 0 END), 0) as total_pending
+            FROM finance_billingrecord
+        """
+        with connection.cursor() as cursor:
+            cursor.execute(billing_totals_query)
+            row = cursor.fetchone()
+            direct_total_billed = float(row[0] or 0)
+            direct_total_paid = float(row[1] or 0)
+            direct_total_pending = float(row[2] or 0)
+            
+        # Generate timestamp for data freshness
+        current_timestamp = timezone.now().isoformat()
+            
         return Response({
             # Dashboard metrics
             'total_claimed': float(total_claimed),
@@ -529,13 +605,14 @@ class BillingDashboardView(APIView):
             'previous_pending': previous_pending,
             'avg_processing_days': float(avg_processing_days),
             'previous_avg_days': float(previous_avg_days),
+            'approved_claims': approved_claims, # Add this for frontend
             
-            # Original metrics
-            'total_billed': total_billed,
-            'total_paid': total_paid,
-            'total_pending': total_pending,
+            # Original metrics - use direct SQL results for consistency
+            'total_billed': direct_total_billed,
+            'total_paid': direct_total_paid,
+            'total_pending': direct_total_pending,
             'payment_rate_percentage': 
-                (total_paid / total_billed * 100) if total_billed > 0 else 0,
+                (direct_total_paid / direct_total_billed * 100) if direct_total_billed > 0 else 0,
             'active_users': active_users,
             'users_with_billing': users_with_billing,
             'recent_invoices': recent_invoices,
@@ -544,8 +621,13 @@ class BillingDashboardView(APIView):
             # New metrics
             'insurance_companies': insurance_companies,
             'billing_by_company': billing_by_company,
+            'billable_claims': billable_claims, # Include current billable claims
+            'data_timestamp': current_timestamp, # Add timestamp
             'recent_company_invoices': recent_company_invoices,
-            'upcoming_due': upcoming_due
+            'upcoming_due': upcoming_due,
+            
+            # Force cache refresh flag
+            'cache_buster': str(uuid.uuid4())  # Add random value to ensure client doesn't cache
         })
 
 
@@ -913,21 +995,19 @@ class BillableClaimsView(APIView):
         if not month:
             month = current_month
         
-        # Only get claims that have been approved by finance users
+        # Get all approved claims, including auto-approved ones
         claims_queryset = Claim.objects.filter(
-            status='APPROVED',
-            reviewed_by__isnull=False,
-            reviewed_at__isnull=False,
+            status='APPROVED'
         ).select_related('user', 'user__insurance_company')
         
-        # Apply year/month filter
+        # Apply year/month filter using created_at (which is always set) instead of reviewed_at
         if year and month:
             claims_queryset = claims_queryset.filter(
-                reviewed_at__year=year,
-                reviewed_at__month=month
+                created_at__year=year,
+                created_at__month=month
             )
         elif year:
-            claims_queryset = claims_queryset.filter(reviewed_at__year=year)
+            claims_queryset = claims_queryset.filter(created_at__year=year)
             
         # Apply company filter if provided
         if company_id:
@@ -950,7 +1030,17 @@ class BillableClaimsView(APIView):
                 }
                 
             company_claims[company_id]['claim_count'] += 1
-            company_claims[company_id]['total_amount'] += float(claim.decided_settlement_amount or 0)
+            
+            # Use decided_settlement_amount or fall back to ML prediction or original amount
+            settlement_amount = 0
+            if claim.decided_settlement_amount is not None:
+                settlement_amount = float(claim.decided_settlement_amount)
+            elif claim.ml_prediction and claim.ml_prediction.settlement_amount is not None:
+                settlement_amount = float(claim.ml_prediction.settlement_amount)
+            elif claim.amount is not None:
+                settlement_amount = float(claim.amount)
+                
+            company_claims[company_id]['total_amount'] += settlement_amount
         
         # Combine the data and calculate billable amounts
         results = []

@@ -10,6 +10,7 @@ import {
 const FinanceDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [summaryStats, setSummaryStats] = useState({
     totalClaimsValue: 0,
     pendingCount: 0,
@@ -21,27 +22,31 @@ const FinanceDashboard = () => {
   const [recentClaims, setRecentClaims] = useState([]);
   const [billableClaims, setBillableClaims] = useState([]);
 
-  // Fetch data when component mounts
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
+  // Function to fetch dashboard data
+  const fetchDashboardData = async () => {
+    try {
+      // Don't show full loading state on refresh, just the refreshing indicator
+      if (!refreshing) {
         setLoading(true);
-        
-        // Fetch all data in parallel
-        const [summaryResponse, recentResponse, billableResponse] = await Promise.all([
-          getFinanceSummary(),
-          getRecentClaims(5), // Get 5 most recent claims
-          getBillableClaims() // Get billable claims per company/month
-        ]);
-        
-        // Process summary data
+      } else {
+        setRefreshing(true);
+      }
+      
+      // Use a single comprehensive API call first to get the most data
+      try {
+        const summaryResponse = await getFinanceSummary();
         const summaryData = summaryResponse.data;
+        console.log('Finance summary data:', summaryData);
+        
+        // Check if the summary includes billable claims
+        const billableClaimsData = summaryData.billable_claims || [];
         
         // Use the updated API response fields from our improved backend
         setSummaryStats({
           totalClaimsValue: summaryData.total_claimed || 0,
           pendingCount: summaryData.pending_claims || 0,
           avgProcessingTime: summaryData.avg_processing_days || 0,
+          approved_claims: summaryData.approved_claims || 0,
           pendingChange: calculatePercentChange(
             summaryData.previous_pending || 0, 
             summaryData.pending_claims || 0
@@ -50,27 +55,90 @@ const FinanceDashboard = () => {
             summaryData.previous_total || 0, 
             summaryData.total_claimed || 0
           ),
-          processingTimeChange: summaryData.avg_processing_days - (summaryData.previous_avg_days || 0)
+          processingTimeChange: summaryData.avg_processing_days - (summaryData.previous_avg_days || 0),
+          dataTimestamp: summaryData.data_timestamp ? new Date(summaryData.data_timestamp) : new Date()
         });
         
-        // Process recent claims data - handle potential different data structures
+        // Use billing_by_company data if available
+        if (summaryData.billing_by_company && summaryData.billing_by_company.length > 0) {
+          // Transform billing_by_company data to match billable claims format if needed
+          const transformedBillingData = summaryData.billing_by_company.map(item => ({
+            company_id: item.insurance_company,
+            company_name: item.insurance_company__name,
+            month: item.month || new Date().toISOString().slice(0, 7),
+            claim_count: item.records_count || 0,
+            rate_per_claim: 0, // We don't have this in billing_by_company
+            billable_amount: item.total_amount || 0
+          }));
+          
+          setBillableClaims(transformedBillingData);
+        }
+        // If we have billable_claims data directly, use that
+        else if (billableClaimsData.length > 0) {
+          console.log('Using billable_claims data from summary response:', billableClaimsData);
+          setBillableClaims(billableClaimsData);
+        }
+        
+        // Use recent_claims from summary if available
+        if (summaryData.recent_claims && summaryData.recent_claims.length > 0) {
+          setRecentClaims(summaryData.recent_claims);
+        } else {
+          // Fall back to separate claims API call
+          const recentResponse = await getRecentClaims(5);
+          const recentClaimsData = recentResponse.data.results || recentResponse.data || [];
+          setRecentClaims(recentClaimsData);
+        }
+        
+        setError(null);
+        
+      } catch (summaryError) {
+        console.error('Error fetching summary data, falling back to individual calls:', summaryError);
+        
+        // Fall back to individual API calls if the summary endpoint fails
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1; // JavaScript months are 0-indexed
+        
+        // Fetch data in parallel with explicit current month/year parameters
+        const [recentResponse, billableResponse] = await Promise.all([
+          getRecentClaims(5), // Get 5 most recent claims
+          getBillableClaims({ year: currentYear, month: currentMonth }) // Get billable claims for current month
+        ]);
+        
+        // Process recent claims data
         const recentClaimsData = recentResponse.data.results || recentResponse.data || [];
         setRecentClaims(recentClaimsData);
         
         // Process billable claims data
         const billableClaimsData = billableResponse.data.results || billableResponse.data || [];
+        console.log('Received billable claims data from backup call:', billableClaimsData);
         setBillableClaims(billableClaimsData);
-        
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching dashboard data:', err);
-        setError('Failed to load dashboard data. Please try again.');
-      } finally {
-        setLoading(false);
       }
-    };
+      
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard data. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
+  // Handle manual refresh
+  const handleRefresh = () => {
     fetchDashboardData();
+  };
+
+  // Fetch data when component mounts and periodically refresh
+  useEffect(() => {
+    // Fetch immediately when component mounts
+    fetchDashboardData();
+    
+    // Also set up a refresh interval (every 30 seconds)
+    const refreshInterval = setInterval(fetchDashboardData, 30000);
+    
+    // Clean up the interval when component unmounts
+    return () => clearInterval(refreshInterval);
   }, []);
 
   // Helper function to calculate percent change
@@ -181,9 +249,15 @@ const FinanceDashboard = () => {
           <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase mb-2">Auto-Approved Claims</h3>
           <div className="flex items-baseline">
             <span className="text-3xl font-bold text-gray-900 dark:text-white">{summaryStats.approved_claims || 0}</span>
-            <span className="ml-2 text-sm font-medium text-green-600">100%</span>
+            <span className="ml-2 text-sm font-medium text-green-600">
+              {summaryStats.total_claims > 0 
+                ? `${((summaryStats.approved_claims / summaryStats.total_claims) * 100).toFixed(0)}%` 
+                : '100%'}
+            </span>
           </div>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">All claims are automatically approved</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Last updated: {new Date(summaryStats.dataTimestamp || Date.now()).toLocaleTimeString()}
+          </p>
         </div>
         
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
@@ -203,7 +277,31 @@ const FinanceDashboard = () => {
       {/* Billing Summary */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Company Billing</h2>
+          <div className="flex items-center">
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Company Billing</h2>
+            {/* Refresh button */}
+            <button 
+              onClick={handleRefresh} 
+              className="ml-3 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none"
+              disabled={refreshing}
+              title="Refresh billing data"
+            >
+              <svg 
+                className={`w-5 h-5 text-gray-600 dark:text-gray-300 ${refreshing ? 'animate-spin' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24" 
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+              </svg>
+            </button>
+            {summaryStats.dataTimestamp && (
+              <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                Updated: {new Date(summaryStats.dataTimestamp).toLocaleTimeString()}
+              </span>
+            )}
+          </div>
           <Link to="/finance/billing-rates" className="text-green-600 hover:text-green-700 text-sm font-medium">
             Manage rates
           </Link>
@@ -232,31 +330,57 @@ const FinanceDashboard = () => {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {billableClaims.slice(0, 5).map((billing, index) => (
-                  <tr key={`${billing.company_id}-${billing.month}-${index}`}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {billing.company_name || 'Unknown'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {billing.month}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      {billing.claim_count}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                      £{typeof billing.rate_per_claim === 'number' ? billing.rate_per_claim.toFixed(2) : '0.00'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      £{typeof billing.billable_amount === 'number' ? billing.billable_amount.toFixed(2) : '0.00'}
-                    </td>
-                  </tr>
-                ))}
+                {billableClaims.slice(0, 5).map((billing, index) => {
+                  // Calculate billable amount if not explicitly provided
+                  const displayRate = parseFloat(billing.rate_per_claim || 0);
+                  const claimCount = parseInt(billing.claim_count || 0, 10);
+                  const calculatedAmount = displayRate * claimCount;
+                  const billableAmount = parseFloat(billing.billable_amount || billing.total_amount || calculatedAmount || 0);
+
+                  return (
+                    <tr key={`${billing.company_id || index}-${billing.month || 'current'}-${index}`}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        {billing.company_name || billing.insurance_company__name || 'Unknown'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                        {billing.month || new Date().toISOString().slice(0, 7)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                        {billing.claim_count || billing.records_count || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                        £{displayRate.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        £{billableAmount.toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         ) : (
           <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-            No billable claims found.
+            {refreshing ? (
+              <div className="flex justify-center items-center">
+                <svg className="animate-spin h-5 w-5 mr-3 text-gray-500" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Loading billing data...
+              </div>
+            ) : (
+              <div>
+                <p>No billable claims found for the current month.</p>
+                <button 
+                  onClick={handleRefresh}
+                  className="mt-2 text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+                >
+                  Refresh data
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -44,7 +44,17 @@ export const getAllClaims = async () => {
  */
 export const getFinanceSummary = async () => {
   // Use finance dashboard endpoint for financial data
-  return await apiClient.get('/finance/dashboard/');
+  console.log('Fetching financial summary data...');
+  try {
+    // Add a cache busting parameter to force fresh data
+    const cacheBuster = new Date().getTime();
+    const response = await apiClient.get(`/finance/dashboard/?_=${cacheBuster}`);
+    console.log('Finance summary data successfully retrieved');
+    return response;
+  } catch (error) {
+    console.error('Error fetching finance summary:', error);
+    throw error;
+  }
 };
 
 /**
@@ -53,7 +63,17 @@ export const getFinanceSummary = async () => {
  * @returns {Promise} API response with billable claims data
  */
 export const getBillableClaims = async (params = {}) => {
-  return await apiClient.get('/finance/billable-claims/', { params });
+  // Log the request for debugging
+  console.log('Fetching billable claims with params:', params);
+  
+  try {
+    const response = await apiClient.get('/finance/billable-claims/', { params });
+    console.log('Billable claims response:', response.data);
+    return response;
+  } catch (error) {
+    console.error('Error fetching billable claims:', error);
+    throw error;
+  }
 };
 
 /**
