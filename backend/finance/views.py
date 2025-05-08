@@ -4,7 +4,7 @@ from django.db.models import Sum, Count, Avg, Q, F, Case, When, Value, IntegerFi
 from django.utils import timezone
 from rest_framework import viewsets, status, permissions, filters
 from rest_framework.response import Response
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from django.http import HttpResponse
@@ -1427,3 +1427,72 @@ class ExportPredictionsView(APIView):
             ])
         
         return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_company_rate(request):
+    """
+    Get billing rate information for a user's insurance company, 
+    optionally based on a specific claim's creation date.
+    This is used by the ML Usage Invoices page to display billing rates.
+    """
+    claim_id = request.query_params.get('claim_id')
+    
+    if claim_id:
+        # Get the claim to determine the date and user's company at the time
+        from claims.models import Claim
+        try:
+            claim = Claim.objects.get(id=claim_id)
+            user = claim.user
+            claim_date = claim.created_at
+        except Claim.DoesNotExist:
+            return Response(
+                {"error": f"Claim with ID {claim_id} not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+    else:
+        # Use the current user and current date
+        user = request.user
+        claim_date = timezone.now()
+    
+    # Check if user has an insurance company
+    if not user.insurance_company:
+        return Response({
+            "company_name": "Unknown",
+            "rate_per_claim": "0.00"
+        })
+    
+    # Get the billing rate for this company at the claim date
+    company = user.insurance_company
+    
+    try:
+        # First try to find a rate that was specifically active at the claim date
+        billing_rate = BillingRate.objects.filter(
+            insurance_company=company,
+            effective_from__lte=claim_date,
+            is_active=True
+        ).order_by('-effective_from').first()
+        
+        if not billing_rate:
+            # Try to find any rate that covers this period
+            billing_rate = BillingRate.objects.filter(
+                insurance_company=company,
+                effective_from__lte=claim_date,
+                effective_to__gte=claim_date
+            ).order_by('-effective_from').first()
+        
+        if not billing_rate:
+            # Fall back to any rate for this company
+            billing_rate = BillingRate.objects.filter(
+                insurance_company=company
+            ).order_by('-effective_from').first()
+        
+        rate = billing_rate.rate_per_claim if billing_rate else 0
+    except Exception:
+        rate = 0
+    
+    return Response({
+        "company_name": company.name,
+        "rate_per_claim": str(rate)
+    })

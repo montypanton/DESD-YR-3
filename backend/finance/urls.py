@@ -8,7 +8,7 @@ from .views import (
     InsuranceCompanyViewSet, InvoiceViewSet, InvoicingStatsView,
     PublicInsuranceCompanyList, BillingRateViewSet,
     UsageAnalyticsView, UsageSummaryView, ExportPredictionsView,
-    BillableClaimsView, CompanyUsersView
+    BillableClaimsView, CompanyUsersView, user_company_rate
 )
 from .debug_view import debug_create_invoice
 from claims.views import ClaimViewSet
@@ -40,4 +40,7 @@ urlpatterns = [
     
     # Debug endpoint for testing invoice creation
     path('debug/create-invoice/', debug_create_invoice, name='debug-create-invoice'),
+    
+    # User company rate endpoint for ML Usage Invoices
+    path('user-company-rate/', user_company_rate, name='user-company-rate'),
 ]

@@ -802,3 +802,68 @@ class ClaimViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK
         )
+        
+    @action(detail=False, methods=['get'])
+    def ml_usage_invoices(self, request):
+        """
+        Return all claims with ML model usage and their associated billing rates 
+        for the current user. For displaying user's ML Usage Invoice history.
+        """
+        # Get claims for the current user that have ML predictions
+        queryset = self.get_queryset().filter(
+            ml_prediction__isnull=False
+        ).order_by('-created_at')
+        
+        # Serialize the claims
+        serializer = self.get_serializer(queryset, many=True)
+        claims_data = serializer.data
+        
+        # For each claim, fetch the billing rate information
+        try:
+            from finance.models import BillingRate
+            
+            # Get user's insurance company
+            user_company = request.user.insurance_company
+            
+            if user_company:
+                # Get all billing rates for this company
+                billing_rates = BillingRate.objects.filter(
+                    insurance_company=user_company
+                ).order_by('-effective_from')
+                
+                # Create a map of effective dates to rates
+                rate_map = {}
+                for rate in billing_rates:
+                    effective_from = rate.effective_from
+                    effective_to = rate.effective_to or timezone.now().date()
+                    rate_map[(effective_from, effective_to)] = rate.rate_per_claim
+                
+                # Add billing rate information to each claim
+                for claim in claims_data:
+                    claim_date = datetime.fromisoformat(claim['created_at']).date()
+                    rate_per_claim = 0
+                    
+                    # Find the applicable rate for the claim's date
+                    for date_range, rate in rate_map.items():
+                        if date_range[0] <= claim_date and claim_date <= date_range[1]:
+                            rate_per_claim = float(rate)
+                            break
+                    
+                    # Add billing information to claim data
+                    claim['billing_rate'] = rate_per_claim
+                    claim['company_name'] = user_company.name
+            else:
+                # User does not belong to an insurance company
+                for claim in claims_data:
+                    claim['billing_rate'] = 0
+                    claim['company_name'] = 'Unknown'
+                    
+        except Exception as e:
+            logger.error(f"Error fetching billing rates: {str(e)}")
+            logger.debug(f"Stack trace: {traceback.format_exc()}")
+            # Fallback - add zero rates if we can't fetch the real ones
+            for claim in claims_data:
+                claim['billing_rate'] = 0
+                claim['company_name'] = 'Unknown'
+        
+        return Response(claims_data)

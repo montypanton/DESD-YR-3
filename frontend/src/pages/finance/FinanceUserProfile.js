@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Breadcrumb, Spin, message, Tabs, Descriptions, Tag, Card, Timeline, Button } from 'antd';
+import { Breadcrumb, Spin, message, Tabs, Descriptions, Tag, Card, Timeline, Button, Table } from 'antd';
 import { 
   UserOutlined, 
   HomeOutlined, 
@@ -9,10 +9,14 @@ import {
   PhoneOutlined,
   BankOutlined,
   IdcardOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  FilePdfOutlined,
+  DollarOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons';
 import { apiClient } from '../../services/authService';
 import { useTheme } from '../../context/ThemeContext';
+import { getUnbilledRecords, createInvoice } from '../../services/financeService';
 
 const { TabPane } = Tabs;
 
@@ -26,6 +30,9 @@ const FinanceUserProfile = () => {
   const [loading, setLoading] = useState(true);
   const [claimsLoading, setClaimsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [mlRecords, setMlRecords] = useState([]);
+  const [mlRecordsLoading, setMlRecordsLoading] = useState(true);
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
 
   useEffect(() => {
     const fetchUserDetails = async () => {
@@ -34,6 +41,7 @@ const FinanceUserProfile = () => {
         const response = await apiClient.get(`/account/users/${id}/`);
         setUser(response.data);
         fetchUserClaims(response.data.id);
+        fetchUserMlRecords(response.data.id);
       } catch (error) {
         console.error('Error fetching user details:', error);
         setError('Failed to load user profile. Please try again later.');
@@ -56,11 +64,87 @@ const FinanceUserProfile = () => {
         setClaimsLoading(false);
       }
     };
+    
+    const fetchUserMlRecords = async (userId) => {
+      try {
+        setMlRecordsLoading(true);
+        // Get unbilled ML usage records for this user
+        const response = await getUnbilledRecords({ user: userId });
+        
+        // Enhance records with ML model name and claim reference
+        const enhancedRecords = await Promise.all((response.data.results || response.data || []).map(async (record) => {
+          // If the record has a claim_id but no claim_reference, try to get the reference
+          if (record.claim_id && !record.claim_reference) {
+            try {
+              const claimResponse = await apiClient.get(`/claims/${record.claim_id}/`);
+              record.claim_reference = claimResponse.data.reference_number || `#${record.claim_id}`;
+            } catch (error) {
+              console.error(`Error fetching claim reference for claim ${record.claim_id}:`, error);
+              record.claim_reference = `#${record.claim_id}`;
+            }
+          }
+          
+          // Add ML model name if available
+          if (record.ml_model_id && !record.ml_model_name) {
+            try {
+              const mlModelResponse = await apiClient.get(`/ml/models/${record.ml_model_id}/`);
+              record.ml_model_name = mlModelResponse.data.name || 'Unknown Model';
+            } catch (error) {
+              console.error(`Error fetching ML model name for model ${record.ml_model_id}:`, error);
+              record.ml_model_name = 'Unknown Model';
+            }
+          }
+          
+          return record;
+        }));
+        
+        setMlRecords(enhancedRecords);
+      } catch (error) {
+        console.error('Error fetching ML usage records:', error);
+        message.warning('Could not load ML usage billing data');
+      } finally {
+        setMlRecordsLoading(false);
+      }
+    };
 
     if (id) {
       fetchUserDetails();
     }
   }, [id]);
+  
+  const handleGenerateInvoice = async () => {
+    if (mlRecords.length === 0) {
+      message.warning('No unbilled ML usage records to generate an invoice');
+      return;
+    }
+    
+    try {
+      setGeneratingInvoice(true);
+      
+      const recordIds = mlRecords.map(record => record.id);
+      
+      // Create invoice data
+      const invoiceData = {
+        title: `ML Usage Invoice for ${user.first_name} ${user.last_name}`,
+        billing_record_ids: recordIds,
+        notes: `Automated invoice generated for ML usage by ${user.first_name} ${user.last_name} (${user.email})`,
+        user_id: user.id
+      };
+      
+      // Create the invoice
+      const response = await createInvoice(invoiceData);
+      
+      message.success('ML usage invoice generated successfully');
+      
+      // Navigate to the invoice detail page
+      navigate(`/finance/invoices/${response.data.id}`);
+    } catch (error) {
+      console.error('Error generating invoice:', error);
+      message.error('Failed to generate ML usage invoice');
+    } finally {
+      setGeneratingInvoice(false);
+    }
+  };
 
   const formatDate = (dateString) => {
     try {
@@ -310,6 +394,95 @@ const FinanceUserProfile = () => {
                     <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                       <FileTextOutlined style={{ fontSize: '2rem' }} />
                       <p className="mt-2">No claims found for this user.</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </TabPane>
+          
+          <TabPane 
+            tab={
+              <span>
+                <DollarOutlined />
+                ML Usage Billing
+              </span>
+            } 
+            key="ml-billing"
+          >
+            <div className="px-4 py-5 sm:p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  ML Usage Billing
+                </h2>
+                <Button
+                  type="primary"
+                  icon={<FilePdfOutlined />}
+                  onClick={() => handleGenerateInvoice()}
+                  loading={generatingInvoice}
+                >
+                  Generate ML Usage Invoice
+                </Button>
+              </div>
+              
+              {mlRecordsLoading ? (
+                <div className="flex justify-center py-8">
+                  <Spin />
+                  <span className="ml-3">Loading ML usage data...</span>
+                </div>
+              ) : (
+                <>
+                  {mlRecords.length > 0 ? (
+                    <div>
+                      <div className={`mb-4 p-4 rounded-lg ${darkMode ? 'bg-blue-900 text-blue-100' : 'bg-blue-50 text-blue-800'}`}>
+                        <div className="flex items-center">
+                          <InfoCircleOutlined className="mr-2" />
+                          <span>Showing unbilled ML model usage records for this user.</span>
+                        </div>
+                      </div>
+                      
+                      <Table
+                        dataSource={mlRecords}
+                        rowKey="id"
+                        pagination={{ pageSize: 10 }}
+                        className={darkMode ? 'ant-table-dark' : ''}
+                        columns={[
+                          {
+                            title: 'Claim Reference',
+                            dataIndex: 'claim_reference',
+                            key: 'claim_reference',
+                            render: (text, record) => (
+                              <Link to={`/finance/claims/${record.claim_id}`}>
+                                {text || `#${record.claim_id}`}
+                              </Link>
+                            ),
+                          },
+                          {
+                            title: 'ML Model',
+                            dataIndex: 'ml_model_name',
+                            key: 'ml_model_name',
+                          },
+                          {
+                            title: 'Date',
+                            dataIndex: 'created_at',
+                            key: 'created_at',
+                            render: (text) => formatDate(text),
+                            sorter: (a, b) => new Date(b.created_at) - new Date(a.created_at),
+                            defaultSortOrder: 'descend',
+                          },
+                          {
+                            title: 'Rate',
+                            dataIndex: 'rate',
+                            key: 'rate',
+                            render: (text) => `$${parseFloat(text).toFixed(2)}`,
+                          },
+                        ]}
+                      />
+                    </div>
+                  ) : (
+                    <div className={`text-center py-8 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <DollarOutlined style={{ fontSize: '2rem' }} />
+                      <p className="mt-2">No unbilled ML usage records found for this user.</p>
                     </div>
                   )}
                 </>

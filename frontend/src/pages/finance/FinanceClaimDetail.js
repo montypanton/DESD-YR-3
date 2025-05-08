@@ -81,6 +81,12 @@ const FinanceClaimDetail = () => {
       setUserLoading(false);
     }
   };
+  
+  const navigateToUserProfile = () => {
+    if (user && user.id) {
+      navigate(`/finance/users/${user.id}`);
+    }
+  };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', { 
@@ -312,34 +318,45 @@ const FinanceClaimDetail = () => {
               <span className="ml-2 text-gray-400">Loading user details...</span>
             </div>
           ) : (
-            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-6">
-              <div className="sm:col-span-1">
-                <dt className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Full Name</dt>
-                <dd className={`mt-1 text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {userInfo.fullName}
-                </dd>
-              </div>
-              <div className="sm:col-span-1">
-                <dt className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Email</dt>
-                <dd className={`mt-1 text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {userInfo.email || 'Not available'}
-                </dd>
-              </div>
-              <div className="sm:col-span-1">
-                <dt className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>User ID</dt>
-                <dd className={`mt-1 text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  {userInfo.id}
-                </dd>
-              </div>
-              {userInfo.role && (
+            <>
+              <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-6">
                 <div className="sm:col-span-1">
-                  <dt className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Role</dt>
+                  <dt className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Full Name</dt>
                   <dd className={`mt-1 text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {userInfo.role}
+                    {userInfo.fullName}
                   </dd>
                 </div>
-              )}
-            </dl>
+                <div className="sm:col-span-1">
+                  <dt className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Email</dt>
+                  <dd className={`mt-1 text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {userInfo.email || 'Not available'}
+                  </dd>
+                </div>
+                <div className="sm:col-span-1">
+                  <dt className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>User ID</dt>
+                  <dd className={`mt-1 text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {userInfo.id}
+                  </dd>
+                </div>
+                {userInfo.role && (
+                  <div className="sm:col-span-1">
+                    <dt className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Role</dt>
+                    <dd className={`mt-1 text-sm ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {userInfo.role}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+              <div className="mt-6">
+                <Button 
+                  type="primary" 
+                  icon={<UserOutlined />} 
+                  onClick={navigateToUserProfile}
+                >
+                  View User Profile
+                </Button>
+              </div>
+            </>
           )}
         </div>
       </div>

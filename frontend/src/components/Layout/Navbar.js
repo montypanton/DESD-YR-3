@@ -29,6 +29,10 @@ const Navbar = () => {
             <Link to="/predictions" className="text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
               Claims History
             </Link>
+            
+            <Link to="/ml-usage-invoices" className="text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+              ML Usage Invoices
+            </Link>
           </div>
           
           {/* Mobile menu button and user dropdown */}
@@ -76,6 +80,14 @@ const Navbar = () => {
             onClick={() => setIsMobileMenuOpen(false)}
           >
             Claims History
+          </Link>
+          
+          <Link
+            to="/ml-usage-invoices"
+            className="text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white block px-3 py-2 rounded-md text-base font-medium"
+            onClick={() => setIsMobileMenuOpen(false)}
+          >
+            ML Usage Invoices
           </Link>
           
           <Link 

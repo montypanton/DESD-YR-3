@@ -24,6 +24,7 @@ import FinanceClaims from './pages/finance/FinanceClaims';
 import FinanceReports from './pages/finance/FinanceReports';
 import FinanceClaimDetail from './pages/finance/FinanceClaimDetail';
 import FinanceUserProfile from './pages/finance/FinanceUserProfile';
+import FinanceUsers from './pages/finance/FinanceUsers';
 import InsuranceCompanies from './pages/finance/InsuranceCompanies';
 import InsuranceCompanyForm from './pages/finance/InsuranceCompanyForm';
 import Invoices from './pages/finance/Invoices';
@@ -46,6 +47,7 @@ import ClaimDetail from './components/Claims/ClaimDetail';
 // Import the new components
 import UserInteractionData from './pages/MLModels/UserInteractionData';
 import ImprovedSubmitClaim from './pages/MLModels/ImprovedSubmitClaim';
+import MLUsageInvoices from './pages/MLModels/MLUsageInvoices';
 
 const AuthLayout = ({ children }) => (
   <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
@@ -170,6 +172,7 @@ function App() {
           <Route path="predictions" element={<PredictionHistory />} />
           <Route path="submit-claim" element={<ImprovedSubmitClaim />} />
           <Route path="submit-claim-legacy" element={<SubmitClaim />} />
+          <Route path="ml-usage-invoices" element={<MLUsageInvoices />} />
           
           {/* Finance Routes - Main entry point */}
           <Route 
@@ -216,7 +219,17 @@ function App() {
             } 
           />
           
-          {/* New route for viewing user profiles in finance area */}
+          {/* Finance Users Listing */}
+          <Route 
+            path="finance/users" 
+            element={
+              <FinanceRoute>
+                <FinanceUsers />
+              </FinanceRoute>
+            } 
+          />
+          
+          {/* View Individual User Profile in Finance Area */}
           <Route 
             path="finance/users/:id" 
             element={
