@@ -839,6 +839,16 @@ const ImprovedClaimForm = () => {
         // Update step first
         setCurrentStep(currentStep + 1);
         
+        // Calculate the totals for review page
+        const specialDamages = calculateSpecialDamages(values);
+        const generalDamages = calculateGeneralDamages(values);
+        
+        form.setFieldsValue({
+          totalSpecialDamages: specialDamages,
+          totalGeneralDamages: generalDamages,
+          totalClaim: specialDamages + generalDamages
+        });
+        
         // Trigger ML prediction only when reaching the review step
         // Use setTimeout to ensure UI updates first
         setTimeout(() => {
@@ -1119,8 +1129,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
               placeholder="e.g., 1500" 
             />
           </Form.Item>
@@ -1134,8 +1144,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
               placeholder="e.g., 2000" 
             />
           </Form.Item>
@@ -1152,8 +1162,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
               placeholder="e.g., 500" 
             />
           </Form.Item>
@@ -1168,8 +1178,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
               placeholder="e.g., 300" 
             />
           </Form.Item>
@@ -1187,8 +1197,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
               placeholder="e.g., 150" 
             />
           </Form.Item>
@@ -1203,8 +1213,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
               placeholder="e.g., 200" 
             />
           </Form.Item>
@@ -1311,8 +1321,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
               placeholder="e.g., 1000" 
             />
           </Form.Item>
@@ -1326,8 +1336,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
               placeholder="e.g., 200" 
             />
           </Form.Item>
@@ -1341,8 +1351,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
               placeholder="e.g., 500" 
             />
           </Form.Item>
@@ -1359,8 +1369,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
               placeholder="e.g., 300" 
             />
           </Form.Item>
@@ -1374,8 +1384,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
               placeholder="e.g., 1500" 
             />
           </Form.Item>
@@ -1422,8 +1432,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
             />
           </Form.Item>
         </Col>
@@ -1437,8 +1447,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
             />
           </Form.Item>
         </Col>
@@ -1451,8 +1461,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               disabled
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
             />
           </Form.Item>
         </Col>
@@ -1470,8 +1480,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
             />
           </Form.Item>
         </Col>
@@ -1484,8 +1494,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
             />
           </Form.Item>
         </Col>
@@ -1499,8 +1509,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               min={0} 
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
             />
           </Form.Item>
         </Col>
@@ -1516,8 +1526,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               disabled
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
             />
           </Form.Item>
         </Col>
@@ -1530,8 +1540,8 @@ const ImprovedClaimForm = () => {
             <InputNumber 
               disabled
               style={{ width: '100%' }} 
-              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={value => `£ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/£\s?|(,*)/g, '')}
             />
           </Form.Item>
         </Col>
@@ -1678,14 +1688,14 @@ const ImprovedClaimForm = () => {
           <Descriptions.Item label="Injury Type">{form.getFieldValue('DominantInjury')}</Descriptions.Item>
           <Descriptions.Item label="Injury Prognosis">{form.getFieldValue('InjuryPrognosis')}</Descriptions.Item>
           <Descriptions.Item label="Total Special Damages" span={2}>
-            ${parseFloat(form.getFieldValue('totalSpecialDamages') || 0).toFixed(2)}
+            £{parseFloat(form.getFieldValue('totalSpecialDamages') || 0).toFixed(2)}
           </Descriptions.Item>
           <Descriptions.Item label="Total General Damages" span={2}>
-            ${parseFloat(form.getFieldValue('totalGeneralDamages') || 0).toFixed(2)}
+            £{parseFloat(form.getFieldValue('totalGeneralDamages') || 0).toFixed(2)}
           </Descriptions.Item>
           <Descriptions.Item label="Total Claim Amount" span={2}>
             <Text strong style={{ fontSize: 16 }}>
-              ${parseFloat(form.getFieldValue('totalClaim') || 0).toFixed(2)}
+              £{parseFloat(form.getFieldValue('totalClaim') || 0).toFixed(2)}
             </Text>
           </Descriptions.Item>
         </Descriptions>
