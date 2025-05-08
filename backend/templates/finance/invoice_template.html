@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice #{{ invoice.invoice_number }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1cm;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 100%;
+            padding: 20px;
+        }
+        .invoice-header {
+            display: table;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .invoice-header .logo {
+            display: table-cell;
+            width: 30%;
+            vertical-align: top;
+        }
+        .invoice-header .company-info {
+            display: table-cell;
+            width: 40%;
+            vertical-align: top;
+            padding-left: 20px;
+        }
+        .invoice-header .invoice-info {
+            display: table-cell;
+            width: 30%;
+            vertical-align: top;
+            text-align: right;
+        }
+        .invoice-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0066cc;
+            margin-bottom: 10px;
+        }
+        .billing-info {
+            display: table;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .billing-info .from {
+            display: table-cell;
+            width: 50%;
+            vertical-align: top;
+        }
+        .billing-info .to {
+            display: table-cell;
+            width: 50%;
+            vertical-align: top;
+        }
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        table.items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        table.items th {
+            background-color: #0066cc;
+            color: white;
+            font-weight: bold;
+            text-align: left;
+            padding: 8px;
+        }
+        table.items td {
+            border-bottom: 1px solid #ddd;
+            padding: 8px;
+        }
+        table.items tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .totals {
+            width: 40%;
+            float: right;
+        }
+        .totals table {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .totals table td {
+            padding: 5px;
+        }
+        .totals table td:first-child {
+            text-align: left;
+        }
+        .totals table td:last-child {
+            text-align: right;
+        }
+        .total {
+            background-color: #0066cc;
+            color: white;
+            font-weight: bold;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+            font-size: 10px;
+            text-align: center;
+        }
+        .footer p {
+            margin: 3px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="invoice-header">
+            <div class="logo">
+                {% if logo_path %}
+                <img src="{{ logo_path }}" alt="Company Logo" style="max-width: 150px;">
+                {% else %}
+                <div style="font-size: 24px; font-weight: bold; color: #0066cc;">INSURANCE CLAIMS SYSTEM</div>
+                {% endif %}
+            </div>
+            <div class="company-info">
+                <div style="font-weight: bold;">Claims Processing Ltd</div>
+                <div>123 Insurance Street</div>
+                <div>London, SW1A 1AA</div>
+                <div>United Kingdom</div>
+                <div>Tel: +44 123 456 7890</div>
+                <div>Email: billing@claims-system.com</div>
+            </div>
+            <div class="invoice-info">
+                <div class="invoice-title">INVOICE</div>
+                <div><b>Invoice No:</b> {{ invoice.invoice_number }}</div>
+                <div><b>Date Issued:</b> {{ invoice.issued_date }}</div>
+                <div><b>Due Date:</b> {{ invoice.due_date }}</div>
+                <div><b>Status:</b> {{ invoice.status }}</div>
+            </div>
+        </div>
+
+        <div class="billing-info">
+            <div class="from">
+                <div class="section-title">FROM:</div>
+                <div>Claims Processing Ltd</div>
+                <div>123 Insurance Street</div>
+                <div>London, SW1A 1AA</div>
+                <div>VAT: GB123456789</div>
+            </div>
+            <div class="to">
+                <div class="section-title">BILLED TO:</div>
+                <div>{{ company.name }}</div>
+                <div>{{ company.address|default:"Address on file" }}</div>
+                <div>Email: {{ company.billing_email }}</div>
+                <div>Phone: {{ company.contact_phone|default:"N/A" }}</div>
+                <div>Contract: {{ company.contract_number|default:"N/A" }}</div>
+            </div>
+        </div>
+
+        <div class="section-title">INVOICE DETAILS:</div>
+        <table class="items">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Claim Reference</th>
+                    <th>Quantity</th>
+                    <th>Unit Price</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if invoice_items %}
+                    {% for item in invoice_items %}
+                    <tr>
+                        <td>{{ item.description }}</td>
+                        <td>{{ item.billing_record.claim_reference|default:"N/A" }}</td>
+                        <td>{{ item.quantity }}</td>
+                        <td>£{{ item.unit_price }}</td>
+                        <td>£{{ item.total_price }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5">Claims processing services</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+        <div class="totals">
+            <table>
+                <tr>
+                    <td>Net Amount:</td>
+                    <td>£{{ net_amount }}</td>
+                </tr>
+                <tr>
+                    <td>VAT ({{ vat_rate }}):</td>
+                    <td>£{{ vat_amount }}</td>
+                </tr>
+                <tr class="total">
+                    <td>Total Amount:</td>
+                    <td>£{{ total_amount }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div style="clear: both;"></div>
+
+        <div style="margin-top: 40px;">
+            <div class="section-title">PAYMENT INFORMATION:</div>
+            <p>Please make payment to the following account by the due date:</p>
+            <table style="width: 50%;">
+                <tr>
+                    <td style="width: 40%;">Bank:</td>
+                    <td>Insurance Banking Group</td>
+                </tr>
+                <tr>
+                    <td>Account Name:</td>
+                    <td>Claims Processing Ltd</td>
+                </tr>
+                <tr>
+                    <td>Account Number:</td>
+                    <td>12345678</td>
+                </tr>
+                <tr>
+                    <td>Sort Code:</td>
+                    <td>12-34-56</td>
+                </tr>
+                <tr>
+                    <td>Reference:</td>
+                    <td>INV-{{ invoice.invoice_number }}</td>
+                </tr>
+            </table>
+        </div>
+
+        {% if invoice.notes %}
+        <div style="margin-top: 20px;">
+            <div class="section-title">NOTES:</div>
+            <p>{{ invoice.notes }}</p>
+        </div>
+        {% endif %}
+
+        <div class="footer">
+            <p>Claims Processing Ltd - Registered in England and Wales No. 12345678</p>
+            <p>VAT Registration No. GB123456789</p>
+            <p>Document generated on {{ generation_date }}</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -436,6 +436,17 @@ export const generateInvoicePdf = async (invoiceId) => {
 };
 
 /**
+ * Download PDF invoice
+ * @param {number} invoiceId - Invoice ID
+ * @returns {Promise} Response with PDF blob data
+ */
+export const downloadInvoicePdf = async (invoiceId) => {
+  return await apiClient.get(`/finance/invoices/${invoiceId}/generate_pdf/`, {
+    responseType: 'blob'
+  });
+};
+
+/**
  * Send an invoice to the insurance company
  * @param {number} invoiceId - Invoice ID
  * @returns {Promise} API response confirming the invoice was sent

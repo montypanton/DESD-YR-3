@@ -18,9 +18,11 @@ import {
   HomeOutlined, 
   BankOutlined, 
   FileTextOutlined,
-  CheckCircleOutlined
+  CheckCircleOutlined,
+  FilePdfOutlined,
+  DownloadOutlined
 } from '@ant-design/icons';
-import { getInvoices, markInvoiceAsPaid } from '../../services/financeService';
+import { getInvoices, markInvoiceAsPaid, downloadInvoicePdf, generateInvoicePdf } from '../../services/financeService';
 import { submitInvoiceToExternalService } from '../../services/billingServiceIntegration';
 import { useTheme } from '../../context/ThemeContext';
 
@@ -140,6 +142,49 @@ const Invoices = () => {
     }
   };
 
+  const handleDownloadPdf = async (id) => {
+    try {
+      setLoading(true);
+      const response = await downloadInvoicePdf(id);
+      
+      // Create a blob from the PDF data
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      
+      // Create a link element and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `invoice_${id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      window.URL.revokeObjectURL(url);
+      link.remove();
+      
+      message.success('Invoice PDF downloaded successfully');
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      message.error('Failed to download invoice PDF');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGeneratePdf = async (id) => {
+    try {
+      setLoading(true);
+      await generateInvoicePdf(id);
+      message.success('PDF generated and invoice marked as issued');
+      fetchInvoices(); // Refresh to show the updated status
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      message.error('Failed to generate invoice PDF');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getStatusTag = (status) => {
     switch (status) {
       case 'DRAFT':
@@ -233,7 +278,7 @@ const Invoices = () => {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
-        <Space size="small">
+        <Space size="small" wrap>
           <Button 
             type="link" 
             icon={<EditOutlined />} 
@@ -260,6 +305,26 @@ const Invoices = () => {
             onClick={() => handleSubmitToExternalService(record)}
           >
             Send to Billing Service
+          </Button>
+          
+          <Button
+            type="link"
+            icon={<FilePdfOutlined />}
+            size="small"
+            onClick={() => handleGeneratePdf(record.id)}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            Generate PDF
+          </Button>
+          
+          <Button
+            type="link"
+            icon={<DownloadOutlined />}
+            size="small"
+            onClick={() => handleDownloadPdf(record.id)}
+            className="text-orange-600 hover:text-orange-800"
+          >
+            Download PDF
           </Button>
         </Space>
       ),

@@ -135,19 +135,51 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             "total_amount": invoice.total_amount
         })
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['get', 'post'])
     def generate_pdf(self, request, pk=None):
         """Generate a PDF invoice."""
+        from .pdf_utils import generate_invoice_pdf, pdf_response
+        
         invoice = self.get_object()
         
-        # This would normally generate a PDF, but we'll just update the status for now
-        invoice.status = 'ISSUED'
-        invoice.save()
+        # Generate PDF content
+        pdf_content = generate_invoice_pdf(invoice)
         
-        return Response({
-            "message": "Invoice marked as issued",
-            "status": invoice.status
-        })
+        if not pdf_content:
+            return Response(
+                {"error": "Failed to generate PDF"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+        # If it's a POST request, update the status
+        if request.method == 'POST':
+            invoice.status = 'ISSUED'
+            invoice.save()
+            
+            # Store the generated PDF file
+            if pdf_content:
+                import os
+                from django.core.files.base import ContentFile
+                
+                # Create the file name
+                file_name = f"invoice_{invoice.invoice_number}.pdf"
+                
+                # Save the file to the invoice's file field
+                invoice.invoice_file.save(file_name, ContentFile(pdf_content), save=True)
+                
+                return Response({
+                    "message": "Invoice marked as issued and PDF generated",
+                    "status": invoice.status,
+                    "file_url": request.build_absolute_uri(invoice.invoice_file.url) if invoice.invoice_file else None
+                })
+            else:
+                return Response({
+                    "message": "Invoice marked as issued but PDF generation failed",
+                    "status": invoice.status
+                })
+                
+        # For GET requests, return the PDF directly
+        return pdf_response(pdf_content, f"invoice_{invoice.invoice_number}.pdf")
     
     @action(detail=True, methods=['post'])
     def send_invoice(self, request, pk=None):
