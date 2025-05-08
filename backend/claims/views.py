@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from .models import Claim, MLPrediction
 from .serializers import ClaimSerializer, ClaimDashboardSerializer, MLPredictionSerializer
-from account.permissions import IsAdminUser, IsFinanceUser
+from account.permissions import IsAdminUser, IsFinanceUser, AllowAutoApproval
 from ml_interface.models import MLModel
 from ml_interface.ml_processor import MLProcessor
 
@@ -19,17 +19,17 @@ logger = logging.getLogger('django')
 
 class ClaimViewSet(viewsets.ModelViewSet):
     serializer_class = ClaimSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # Use AllowAutoApproval to ensure any authenticated user can submit claims
+    permission_classes = [permissions.IsAuthenticated, AllowAutoApproval]
     
     def get_permissions(self):
         """
         Override to set specific permissions for different actions.
-        - Only finance users can review claims
-        - Only finance users can access pending_review list
+        - All authenticated users can create and view their own claims
+        - Only finance/admin users can see all claims
         """
-        if self.action == 'review':
-            self.permission_classes = [permissions.IsAuthenticated, IsFinanceUser | IsAdminUser]
-        elif self.action == 'pending_review':
+        # These endpoints still restricted to finance/admin users
+        if self.action in ['statistics', 'export_claims', 'finance_dashboard']:
             self.permission_classes = [permissions.IsAuthenticated, IsFinanceUser | IsAdminUser]
         return super().get_permissions()
 
@@ -283,29 +283,41 @@ class ClaimViewSet(viewsets.ModelViewSet):
                 logger.debug(f"Stack trace: {traceback.format_exc()}")
                 raise serializers.ValidationError(f"Error saving prediction: {str(e)}")
             
-            # Update claim with new prediction but maintain PENDING status for finance review
+            # AUTO-APPROVAL CHANGE: Update claim with new prediction and AUTO-APPROVE instead of setting to PENDING
             try:
                 # CRITICAL: This is where the prediction is attached to the claim
                 # First detach any existing prediction to avoid conflicts
                 if claim.ml_prediction_id is not None and claim.ml_prediction_id != prediction.id:
                     logger.info(f"Replacing existing prediction {claim.ml_prediction_id} with new prediction {prediction.id}")
                 
-                # Explicitly set the prediction and save
+                # Explicitly set the prediction
                 claim.ml_prediction = prediction
                 
-                # Keep claim in PENDING status to ensure it appears in finance review queue
-                # PENDING status indicates it needs review by finance team
-                if claim.status != 'PENDING':
-                    claim.status = 'PENDING'
-                    logger.info(f"Updated claim status to PENDING for finance review")
-                    
-                # Save the claim with the attached prediction
-                claim.save(update_fields=['ml_prediction', 'status'])
+                # AUTO-APPROVAL CHANGE: Set claim to APPROVED status automatically
+                claim.status = 'APPROVED'
+                # Set the decided settlement amount to the ML-predicted amount
+                claim.decided_settlement_amount = settlement_amount
+                
+                # AUTO-APPROVAL CHANGE: Record review timestamp using current time
+                claim.reviewed_at = timezone.now()
+                
+                # Save the claim with the attached prediction, status, and settlement amount
+                claim.save(update_fields=['ml_prediction', 'status', 'decided_settlement_amount', 'reviewed_at'])
                 
                 # Verify the attachment worked
                 claim.refresh_from_db()
                 if claim.ml_prediction_id == prediction.id:
                     logger.info(f"Successfully attached ML prediction {prediction.id} to claim {claim.reference_number}")
+                    
+                    # AUTO-APPROVAL CHANGE: Create a billing record for the automatically approved claim
+                    try:
+                        from finance.api_utils import ensure_billing_record_for_approved_claim
+                        billing_result = ensure_billing_record_for_approved_claim(claim)
+                        logger.info(f"Auto-approval billing record creation result: {billing_result['message']}")
+                    except Exception as billing_error:
+                        logger.error(f"Error creating billing record for auto-approved claim {claim.reference_number}: {str(billing_error)}")
+                        logger.debug(f"Billing error stack trace: {traceback.format_exc()}")
+                        # Continue processing even if billing record creation fails
                 else:
                     logger.error(f"Failed to attach prediction {prediction.id} to claim {claim.reference_number}. Current prediction ID: {claim.ml_prediction_id}")
                     raise serializers.ValidationError(f"Failed to attach prediction to claim")
@@ -336,6 +348,10 @@ class ClaimViewSet(viewsets.ModelViewSet):
             claim = serializer.save(user=self.request.user, reference_number=reference_number)
             logger.info(f"Claim created with ID: {claim.id} and reference: {reference_number}")
             
+            # AUTO-APPROVAL CHANGE: Set initial status to APPROVED
+            claim.status = 'APPROVED'
+            claim.save(update_fields=['status'])
+            
             # Try to use ML prediction from request first if it's complete
             if ml_prediction_data and isinstance(ml_prediction_data, dict):
                 try:
@@ -360,10 +376,24 @@ class ClaimViewSet(viewsets.ModelViewSet):
                             processing_time=float(ml_prediction_data.get('processing_time', 0.5))
                         )
                         
-                        # Set prediction on claim and save
+                        # Set prediction and decided settlement amount on claim
                         claim.ml_prediction = prediction
-                        claim.save()
+                        claim.decided_settlement_amount = float(ml_prediction_data.get('settlement_amount', 0))
+                        claim.reviewed_at = timezone.now()  # Record automatic review time
+                        claim.save(update_fields=['ml_prediction', 'decided_settlement_amount', 'reviewed_at'])
+                        
                         logger.info(f"Successfully attached ML prediction {prediction.id} to claim {claim.reference_number}")
+                        
+                        # AUTO-APPROVAL CHANGE: Create billing record
+                        try:
+                            from finance.api_utils import ensure_billing_record_for_approved_claim
+                            billing_result = ensure_billing_record_for_approved_claim(claim)
+                            logger.info(f"Auto-approval billing record creation result: {billing_result['message']}")
+                        except Exception as billing_error:
+                            logger.error(f"Error creating billing record for auto-approved claim {claim.reference_number}: {str(billing_error)}")
+                            logger.debug(f"Billing error stack trace: {traceback.format_exc()}")
+                            # Continue processing even if billing record creation fails
+                        
                         return claim
                     else:
                         logger.warning(f"Incomplete ML prediction data in request: {ml_prediction_data}")
@@ -380,8 +410,23 @@ class ClaimViewSet(viewsets.ModelViewSet):
                 # Log error but don't fail the claim submission
                 logger.error(f"Error processing ML prediction: {str(e)}")
                 logger.debug(f"Stack trace: {traceback.format_exc()}")
-                claim.status = 'PENDING'
-                claim.save()
+                
+                # Even if ML processing fails, keep the claim approved with the claimed amount
+                if claim.status != 'APPROVED':
+                    claim.status = 'APPROVED'
+                if not claim.decided_settlement_amount and claim.amount:
+                    claim.decided_settlement_amount = claim.amount
+                claim.reviewed_at = timezone.now()
+                claim.save(update_fields=['status', 'decided_settlement_amount', 'reviewed_at'])
+                
+                # Try to create a billing record even if ML processing failed
+                try:
+                    from finance.api_utils import ensure_billing_record_for_approved_claim
+                    billing_result = ensure_billing_record_for_approved_claim(claim)
+                    logger.info(f"Auto-approval billing record creation result (fallback): {billing_result['message']}")
+                except Exception as billing_error:
+                    logger.error(f"Error creating fallback billing record for claim {claim.reference_number}: {str(billing_error)}")
+                
                 return claim
 
         except Exception as e:
@@ -398,6 +443,7 @@ class ClaimViewSet(viewsets.ModelViewSet):
     def dashboard(self, request):
         """
         Returns aggregated statistics for the current user's claims.
+        Updated to reflect automatic approval workflow.
         """
         # For finance users, show stats for all claims
         if request.user.is_finance or request.user.is_admin or request.user.is_superuser:
@@ -407,22 +453,24 @@ class ClaimViewSet(viewsets.ModelViewSet):
             queryset = Claim.objects.filter(user=request.user)
         
         total_claims = queryset.count()
+        # All claims are now approved by default
         approved_claims = queryset.filter(status='APPROVED').count()
-        rejected_claims = queryset.filter(status='REJECTED').count()
-        pending_claims = queryset.filter(Q(status='PENDING') | Q(status='PROCESSING')).count()
-        completed_claims = queryset.filter(status='COMPLETED').count()
+        # These statuses are no longer used but kept for API compatibility
+        rejected_claims = 0
+        pending_claims = 0
+        completed_claims = total_claims
         
         total_claimed = queryset.aggregate(sum=Sum('amount'))['sum'] or 0
         
-        # Calculate total settlements including both decided amounts and ML predictions
-        # First, get claims with decided settlement amounts
+        # Calculate total settlements - now all claims should have a decided_settlement_amount
         decided_settlements = queryset.filter(
             decided_settlement_amount__isnull=False
         ).aggregate(
             sum=Sum('decided_settlement_amount')
         )['sum'] or 0
         
-        # Then get claims with ML predictions but no decided amount
+        # This section is kept for backward compatibility but should be 0
+        # since all claims now have a decided settlement amount
         ml_settlements = queryset.filter(
             decided_settlement_amount__isnull=True,
             ml_prediction__isnull=False
@@ -439,19 +487,20 @@ class ClaimViewSet(viewsets.ModelViewSet):
         return Response({
             'total_claims': total_claims,
             'approved_claims': approved_claims,
-            'rejected_claims': rejected_claims,
-            'pending_claims': pending_claims,
+            'rejected_claims': rejected_claims,  # Always 0 with new auto-approval flow
+            'pending_claims': pending_claims,    # Always 0 with new auto-approval flow
             'completed_claims': completed_claims,
             'total_claimed': total_claimed,
-            'approved_settlements': total_settlements,  # Renamed this to be more accurate
+            'approved_settlements': total_settlements,
+            'auto_approval_active': True,  # New flag to indicate auto-approval is active
             'recent_claims': recent_serializer.data
         })
         
     @action(detail=False, methods=['get'])
     def pending_review(self, request):
         """
-        Returns claims that need to be reviewed by finance team members.
-        Only accessible to finance users and admins.
+        This endpoint is now deprecated as claims are automatically approved.
+        Returns an empty list with a message explaining the change.
         """
         if not (request.user.is_finance or request.user.is_admin):
             return Response(
@@ -459,41 +508,11 @@ class ClaimViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
             
-        # Get all pending claims that have ML predictions and need review
-        queryset = Claim.objects.filter(
-            status='PENDING',
-            ml_prediction__isnull=False
-        ).order_by('-created_at')
-        
-        # Apply filters if provided
-        user_id = request.query_params.get('user_id')
-        if user_id:
-            queryset = queryset.filter(user_id=user_id)
-            
-        date_from = request.query_params.get('date_from')
-        if date_from:
-            try:
-                date_from = datetime.strptime(date_from, '%Y-%m-%d').date()
-                queryset = queryset.filter(created_at__date__gte=date_from)
-            except ValueError:
-                pass
-                
-        date_to = request.query_params.get('date_to')
-        if date_to:
-            try:
-                date_to = datetime.strptime(date_to, '%Y-%m-%d').date()
-                queryset = queryset.filter(created_at__date__lte=date_to)
-            except ValueError:
-                pass
-                
-        # Use pagination if it's set up
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = ClaimDashboardSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-            
-        serializer = ClaimDashboardSerializer(queryset, many=True)
-        return Response(serializer.data)
+        # Return an empty list with a message about the auto-approval flow
+        return Response({
+            'message': 'All claims are now automatically approved upon submission. There are no claims pending review.',
+            'claims': []
+        })
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
@@ -735,81 +754,15 @@ class ClaimViewSet(viewsets.ModelViewSet):
             
     @action(detail=True, methods=['post'])
     def review(self, request, pk=None):
-        """Review a claim (approve or reject) and set final settlement amount"""
-        if not (request.user.is_finance or request.user.is_admin):
-            return Response(
-                {'error': 'Only finance team members can review claims'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-            
-        try:
-            claim = self.get_object()
-            
-            # Validate the decision (APPROVED or REJECTED)
-            decision = request.data.get('status')
-            if not decision or decision not in ['APPROVED', 'REJECTED']:
-                return Response(
-                    {'error': 'Status must be APPROVED or REJECTED'}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Validate settlement amount if approving
-            settlement_amount = request.data.get('final_settlement_amount')
-            if decision == 'APPROVED':
-                if settlement_amount is None:
-                    return Response(
-                        {'error': 'Settlement amount is required for approval'}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                
-                try:
-                    # Convert to decimal and validate
-                    settlement_amount = float(settlement_amount)
-                    if settlement_amount < 0:
-                        return Response(
-                            {'error': 'Settlement amount must be a positive number'}, 
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
-                except (ValueError, TypeError):
-                    return Response(
-                        {'error': 'Settlement amount must be a valid number'}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-            
-            # Update the claim
-            claim.status = decision
-            if decision == 'APPROVED' and settlement_amount is not None:
-                claim.decided_settlement_amount = settlement_amount
-            
-            # Record who reviewed the claim and when
-            claim.reviewed_by = request.user
-            claim.reviewed_at = timezone.now()
-            claim.save()
-            
-            # Log the action
-            logger.info(
-                f"Claim {claim.reference_number} {decision.lower()} by {request.user.email} "
-                f"with settlement amount {settlement_amount if decision == 'APPROVED' else 'N/A'}"
-            )
-            
-            # Create billing record for approved claims
-            if decision == 'APPROVED':
-                try:
-                    from finance.api_utils import ensure_billing_record_for_approved_claim
-                    billing_result = ensure_billing_record_for_approved_claim(claim)
-                    logger.info(f"Billing record creation result: {billing_result['message']}")
-                except Exception as billing_error:
-                    logger.error(f"Error creating billing record for claim {claim.reference_number}: {str(billing_error)}")
-                    logger.debug(f"Billing error stack trace: {traceback.format_exc()}")
-            
-            # Return the updated claim
-            serializer = self.get_serializer(claim)
-            return Response(serializer.data)
-            
-        except Exception as e:
-            logger.error(f"Error reviewing claim: {str(e)}")
-            logger.debug(f"Stack trace: {traceback.format_exc()}")
-            return Response(
-                {'error': f"Failed to review claim: {str(e)}"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        """
+        This endpoint is deprecated as claims are now automatically approved.
+        Retained for API compatibility but returns a message indicating the change.
+        """
+        # Return a message explaining the new automated approval flow
+        return Response(
+            {
+                'message': 'All claims are now automatically approved upon submission.',
+                'status': 'auto_approved'
+            },
+            status=status.HTTP_200_OK
+        )

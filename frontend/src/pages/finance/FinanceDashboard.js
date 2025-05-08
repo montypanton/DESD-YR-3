@@ -178,16 +178,12 @@ const FinanceDashboard = () => {
         </div>
         
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-          <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase mb-2">Pending Approval</h3>
+          <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase mb-2">Auto-Approved Claims</h3>
           <div className="flex items-baseline">
-            <span className="text-3xl font-bold text-gray-900 dark:text-white">{summaryStats.pendingCount}</span>
-            {summaryStats.pendingChange !== 0 && (
-              <span className={`ml-2 text-sm font-medium ${parseFloat(summaryStats.pendingChange) <= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {summaryStats.pendingChange > 0 ? '+' : ''}{summaryStats.pendingChange}%
-              </span>
-            )}
+            <span className="text-3xl font-bold text-gray-900 dark:text-white">{summaryStats.approved_claims || 0}</span>
+            <span className="ml-2 text-sm font-medium text-green-600">100%</span>
           </div>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{parseFloat(summaryStats.pendingChange) > 0 ? 'Increase' : 'Decrease'} in pending claims</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">All claims are automatically approved</p>
         </div>
         
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
@@ -327,7 +323,7 @@ const FinanceDashboard = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <Link to={`/finance/claims/${claim.id}`} className="text-green-600 hover:text-green-700">
-                        {claim.status === 'PENDING' ? 'Review' : 'View'}
+                        View
                       </Link>
                     </td>
                   </tr>

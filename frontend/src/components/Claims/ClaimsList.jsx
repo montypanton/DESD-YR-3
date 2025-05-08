@@ -159,9 +159,9 @@ const ClaimsList = () => {
         </div>
         
         <Alert
-          message="AI-Powered Claims Processing"
-          description="Our system uses machine learning to assess and determine the optimal settlement amount for your insurance claims."
-          type="info"
+          message="Automated Claims Processing"
+          description="Our system now automatically approves all claims and uses machine learning to determine the optimal settlement amount instantly."
+          type="success"
           showIcon
           className={darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : ''}
         />

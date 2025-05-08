@@ -35,3 +35,25 @@ class IsResourceOwner(BasePermission):
         elif hasattr(obj, 'id') and hasattr(request.user, 'id'):
             return obj.id == request.user.id
         return False
+
+
+class AllowAutoApproval(BasePermission):
+    """
+    Permission class that allows all authenticated users to create and auto-approve claims.
+    Use this to bypass role-specific restrictions for auto-approval flows.
+    """
+    message = 'Auto-approval requires an authenticated user.'
+    
+    def has_permission(self, request, view):
+        # Any authenticated user can auto-approve claims
+        return bool(request.user and request.user.is_authenticated)
+    
+    def has_object_permission(self, request, view, obj):
+        # Any authenticated user can interact with approved claims
+        # Either own claims or, for finance/admin users, all claims
+        if hasattr(obj, 'user'):
+            if obj.user == request.user:
+                return True
+            if request.user.role in ['ADMIN', 'FINANCE']:
+                return True
+        return False

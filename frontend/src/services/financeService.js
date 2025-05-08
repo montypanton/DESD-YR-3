@@ -202,14 +202,20 @@ export const getFinancialInsights = async (params = {}) => {
 };
 
 /**
- * Process a claim (approve or reject)
+ * Process a claim (approve or reject) - DEPRECATED
+ * Claims are now automatically approved, but kept for backwards compatibility
  * @param {string} claimId - ID of the claim to process
  * @param {Object} actionData - Action data (status, notes, etc.)
- * @returns {Promise} API response confirming the action
+ * @returns {Promise} API response with auto-approval message
  */
 export const processClaim = async (claimId, actionData) => {
-  // Use the claims endpoint directly instead of finance-specific endpoint
-  return await apiClient.post(`/claims/${claimId}/review/`, actionData);
+  // Simply return a successful response since manual review is no longer needed
+  return Promise.resolve({
+    data: {
+      message: 'All claims are now automatically approved upon submission.',
+      status: 'auto_approved'
+    }
+  });
 };
 
 /* 
