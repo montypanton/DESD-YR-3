@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Row, Col, Select, DatePicker, Button, Table, Statistic, 
-  Spin, Alert, Space, Radio, Typography, Calendar, Badge, Tag
+  Spin, Alert, Space, Radio, Typography, Calendar, Badge, Tag, Empty
 } from 'antd';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
@@ -9,7 +9,7 @@ import {
 } from 'recharts';
 import { 
   FilterOutlined, CalendarOutlined, BarChartOutlined, 
-  LineChartOutlined, TrophyOutlined
+  LineChartOutlined, TrophyOutlined, FileTextOutlined
 } from '@ant-design/icons';
 import moment from 'moment';
 import { 
@@ -24,11 +24,11 @@ const { Title, Text } = Typography;
 const CHART_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
 const UsageAnalytics = () => {
-  // State variables
+  // State variables 
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState([]);
   const [summary, setSummary] = useState({
-    total_predictions: 0,
+    total_claims: 0,
     total_billable_amount: '0.00',
     companies: [],
     date_range: {}
@@ -47,6 +47,7 @@ const UsageAnalytics = () => {
   const [topClients, setTopClients] = useState([]);
   const [calendarData, setCalendarData] = useState({});
   const [viewMode, setViewMode] = useState('overview'); // 'overview', 'timeseries', 'topcompanies', 'calendar'
+  const [hasData, setHasData] = useState(false);
 
   // Fetch initial data when component mounts
   useEffect(() => {
@@ -111,11 +112,14 @@ const UsageAnalytics = () => {
       const response = await getUsageAnalytics(params);
       console.log('Analytics API response:', response.data);
       
-      setAnalytics(response.data || []);
-      return response.data || [];
+      const analyticsData = response.data || [];
+      setAnalytics(analyticsData);
+      setHasData(analyticsData.length > 0);
+      return analyticsData;
     } catch (err) {
       console.error('Error fetching analytics:', err);
       setError('Failed to load analytics data. Please try again.');
+      setHasData(false);
       return [];
     }
   };
@@ -133,19 +137,21 @@ const UsageAnalytics = () => {
       
       // Ensure we have valid data, use empty values if not
       const validData = response.data || {
-        total_predictions: 0,
+        total_claims: 0,
         total_billable_amount: '0.00',
         companies: [],
         date_range: {}
       };
       
       setSummary(validData);
+      setHasData(validData.companies && validData.companies.length > 0);
       return validData;
     } catch (err) {
       console.error('Error fetching summary:', err);
       setError('Failed to load summary data. Please try again.');
+      setHasData(false);
       return {
-        total_predictions: 0,
+        total_claims: 0,
         total_billable_amount: '0.00',
         companies: [],
         date_range: {}
@@ -172,13 +178,13 @@ const UsageAnalytics = () => {
         };
       }
       
-      calendarMap[item.date].count += item.predictions_count;
+      calendarMap[item.date].count += item.claims_count;
       
       if (!calendarMap[item.date].companies[item.company_name]) {
         calendarMap[item.date].companies[item.company_name] = 0;
       }
       
-      calendarMap[item.date].companies[item.company_name] += item.predictions_count;
+      calendarMap[item.date].companies[item.company_name] += item.claims_count;
     });
     
     console.log('Prepared calendar data:', Object.keys(calendarMap).length, 'dates');
@@ -187,7 +193,7 @@ const UsageAnalytics = () => {
 
   // Prepare time series data from analytics data
   const prepareTimeSeriesData = () => {
-    // Group analytics by date and count predictions for time series chart
+    // Group analytics by date and count claims for time series chart
     const groupedByDate = {};
     
     if (!analytics || analytics.length === 0) {
@@ -204,13 +210,13 @@ const UsageAnalytics = () => {
         };
       }
       
-      groupedByDate[item.date].total += item.predictions_count;
+      groupedByDate[item.date].total += item.claims_count;
       
       if (!groupedByDate[item.date].companies[item.company_name]) {
         groupedByDate[item.date].companies[item.company_name] = 0;
       }
       
-      groupedByDate[item.date].companies[item.company_name] += item.predictions_count;
+      groupedByDate[item.date].companies[item.company_name] += item.claims_count;
     });
     
     // Convert grouped data to array and sort by date
@@ -234,9 +240,9 @@ const UsageAnalytics = () => {
   // Calculate top clients based on usage and revenue
   const calculateTopClients = () => {
     if (summary.companies && summary.companies.length > 0) {
-      // Sort companies by predictions count or total amount
+      // Sort companies by claims count or total amount
       const sortedByUsage = [...summary.companies].sort((a, b) => 
-        b.predictions_count - a.predictions_count
+        b.claims_count - a.claims_count
       );
       
       const sortedByRevenue = [...summary.companies].sort((a, b) => 
@@ -304,16 +310,22 @@ const UsageAnalytics = () => {
       sorter: (a, b) => a.date.localeCompare(b.date)
     },
     {
-      title: 'Predictions Count',
-      dataIndex: 'predictions_count',
-      key: 'predictions_count',
-      sorter: (a, b) => a.predictions_count - b.predictions_count
+      title: 'Claims Count',
+      dataIndex: 'claims_count',
+      key: 'claims_count',
+      sorter: (a, b) => a.claims_count - b.claims_count
     },
     {
-      title: 'Successful',
-      dataIndex: 'successful_predictions',
-      key: 'successful_predictions',
-      sorter: (a, b) => a.successful_predictions - b.successful_predictions
+      title: 'Approved',
+      dataIndex: 'approved_claims',
+      key: 'approved_claims',
+      sorter: (a, b) => a.approved_claims - b.approved_claims
+    },
+    {
+      title: 'Rejected',
+      dataIndex: 'rejected_claims',
+      key: 'rejected_claims',
+      sorter: (a, b) => a.rejected_claims - b.rejected_claims
     },
     {
       title: 'Rate Per Claim (£)',
@@ -339,9 +351,9 @@ const UsageAnalytics = () => {
       key: 'company_name'
     },
     {
-      title: 'Predictions',
-      dataIndex: 'predictions_count',
-      key: 'predictions_count'
+      title: 'Claims',
+      dataIndex: 'claims_count',
+      key: 'claims_count'
     },
     {
       title: 'Rate (£)',
@@ -373,9 +385,9 @@ const UsageAnalytics = () => {
       key: 'company_name'
     },
     {
-      title: 'Predictions',
-      dataIndex: 'predictions_count',
-      key: 'predictions_count'
+      title: 'Claims',
+      dataIndex: 'claims_count',
+      key: 'claims_count'
     },
     {
       title: 'Total Revenue (£)',
@@ -401,16 +413,16 @@ const UsageAnalytics = () => {
         if (!companyGroups[item.company_name]) {
           companyGroups[item.company_name] = {
             company_name: item.company_name,
-            predictions_count: 0,
-            successful_predictions: 0,
-            failed_predictions: 0,
+            claims_count: 0,
+            approved_claims: 0,
+            rejected_claims: 0,
             total_cost: 0
           };
         }
         
-        companyGroups[item.company_name].predictions_count += item.predictions_count;
-        companyGroups[item.company_name].successful_predictions += item.successful_predictions;
-        companyGroups[item.company_name].failed_predictions += item.failed_predictions;
+        companyGroups[item.company_name].claims_count += item.claims_count;
+        companyGroups[item.company_name].approved_claims += item.approved_claims;
+        companyGroups[item.company_name].rejected_claims += item.rejected_claims;
         companyGroups[item.company_name].total_cost += parseFloat(item.total_cost);
       });
       
@@ -539,7 +551,7 @@ const UsageAnalytics = () => {
               <Card className="dark:bg-gray-800">
                 <Statistic
                   title="Total Claims"
-                  value={summary.total_predictions}
+                  value={summary.total_claims || 0}
                   valueStyle={{ color: '#3f8600' }}
                 />
               </Card>
@@ -549,7 +561,7 @@ const UsageAnalytics = () => {
               <Card className="dark:bg-gray-800">
                 <Statistic
                   title="Total Billable Amount"
-                  value={parseFloat(summary.total_billable_amount).toFixed(2)}
+                  value={parseFloat(summary.total_billable_amount || 0).toFixed(2)}
                   prefix="£"
                   valueStyle={{ color: '#3f8600' }}
                 />
@@ -560,7 +572,7 @@ const UsageAnalytics = () => {
               <Card className="dark:bg-gray-800">
                 <Statistic
                   title="Insurance Companies"
-                  value={summary.companies.length}
+                  value={(summary.companies && summary.companies.length) || 0}
                   valueStyle={{ color: '#3f8600' }}
                 />
               </Card>
@@ -573,7 +585,7 @@ const UsageAnalytics = () => {
               <div className="flex justify-center items-center h-64">
                 <Spin size="large" />
               </div>
-            ) : (
+            ) : hasData ? (
               <Row gutter={[16, 16]}>
                 <Col xs={24} lg={12}>
                   <Table
@@ -589,7 +601,7 @@ const UsageAnalytics = () => {
                             <strong>Total</strong>
                           </Table.Summary.Cell>
                           <Table.Summary.Cell index={1}>
-                            <strong>{summary.total_predictions}</strong>
+                            <strong>{summary.total_claims}</strong>
                           </Table.Summary.Cell>
                           <Table.Summary.Cell index={2}>
                             <strong>£{parseFloat(summary.total_billable_amount).toFixed(2)}</strong>
@@ -601,7 +613,7 @@ const UsageAnalytics = () => {
                 </Col>
                 
                 <Col xs={24} lg={12}>
-                  {summary.companies.length > 0 ? (
+                  {summary.companies && summary.companies.length > 0 ? (
                     <ResponsiveContainer width="100%" height={400}>
                       <BarChart
                         data={summary.companies}
@@ -617,14 +629,14 @@ const UsageAnalytics = () => {
                         <YAxis />
                         <Tooltip 
                           formatter={(value, name) => {
-                            if (name === 'predictions_count') {
+                            if (name === 'claims_count') {
                               return [value, 'Claims'];
                             }
                             return [value, 'Claims'];
                           }} 
                         />
                         <Legend />
-                        <Bar dataKey="predictions_count" name="Claims" fill="#0088FE" />
+                        <Bar dataKey="claims_count" name="Claims" fill="#0088FE" />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -634,19 +646,39 @@ const UsageAnalytics = () => {
                   )}
                 </Col>
               </Row>
+            ) : (
+              <Empty 
+                description={
+                  <span>
+                    No claims found for this time period. Only real claims submitted by users will appear here.
+                  </span>
+                }
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
             )}
           </Card>
           
           {/* Detailed Analytics */}
           <Card title="Detailed Analytics" className="dark:bg-gray-800 mt-4">
-            <Table
-              columns={columns.filter(col => col.key !== 'rate_per_claim' && col.key !== 'total_cost')}
-              dataSource={analytics}
-              rowKey={(record) => `${record.company_id}-${record.date}`}
-              loading={loading}
-              pagination={{ pageSize: 10 }}
-              scroll={{ x: 'max-content' }}
-            />
+            {hasData ? (
+              <Table
+                columns={columns}
+                dataSource={analytics}
+                rowKey={(record) => `${record.company_id}-${record.date}`}
+                loading={loading}
+                pagination={{ pageSize: 10 }}
+                scroll={{ x: 'max-content' }}
+              />
+            ) : (
+              <Empty 
+                description={
+                  <span>
+                    No claims found for this time period. Only real claims submitted by users will appear here.
+                  </span>
+                }
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            )}
           </Card>
         </>
       )}
@@ -661,7 +693,7 @@ const UsageAnalytics = () => {
           ) : timeSeriesData.length > 0 ? (
             <>
               <div className="mb-4">
-                <Text>This visualization shows the trend of claim submissions over time. Use the filters above to adjust the time period.</Text>
+                <Text>This visualization shows the trend of claims submitted by insurance companies over time. Use the filters above to adjust the time period.</Text>
               </div>
               <ResponsiveContainer width="100%" height={500}>
                 <AreaChart
@@ -703,9 +735,14 @@ const UsageAnalytics = () => {
               </ResponsiveContainer>
             </>
           ) : (
-            <div className="text-center p-8 text-gray-500 dark:text-gray-400">
-              No time series data available for the selected filters. Please adjust your filters or check that there is data in the system.
-            </div>
+            <Empty 
+              description={
+                <span>
+                  No claims found for this time period. Only real claims submitted by users will appear here.
+                </span>
+              }
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
           )}
         </Card>
       )}
@@ -720,7 +757,7 @@ const UsageAnalytics = () => {
             <div className="flex justify-center items-center h-64">
               <Spin size="large" />
             </div>
-          ) : topClients && topClients.byUsage ? (
+          ) : hasData && topClients && topClients.byUsage ? (
             <>
               <div className="mb-4">
                 <Text>This shows the ranking of insurance companies by total number of claims submitted within the selected time period.</Text>
@@ -740,16 +777,16 @@ const UsageAnalytics = () => {
                   },
                   {
                     title: 'Claims Count',
-                    dataIndex: 'predictions_count',
-                    key: 'predictions_count',
-                    sorter: (a, b) => a.predictions_count - b.predictions_count,
+                    dataIndex: 'claims_count',
+                    key: 'claims_count',
+                    sorter: (a, b) => a.claims_count - b.claims_count,
                     defaultSortOrder: 'descend'
                   },
                   {
                     title: 'Percentage of Total',
                     key: 'percentage',
                     render: (_, record) => {
-                      const percentage = (record.predictions_count / summary.total_predictions * 100).toFixed(1);
+                      const percentage = (record.claims_count / summary.total_claims * 100).toFixed(1);
                       return `${percentage}%`;
                     }
                   }
@@ -777,15 +814,20 @@ const UsageAnalytics = () => {
                     />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="predictions_count" name="Claims" fill="#0088FE" />
+                    <Bar dataKey="claims_count" name="Claims" fill="#0088FE" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </>
           ) : (
-            <div className="text-center p-8 text-gray-500 dark:text-gray-400">
-              No company ranking data available. Please adjust your filters or check that there is data in the system.
-            </div>
+            <Empty 
+              description={
+                <span>
+                  No claims found for this time period. Only real claims submitted by users will appear here.
+                </span>
+              }
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
           )}
         </Card>
       )}
@@ -797,10 +839,10 @@ const UsageAnalytics = () => {
             <div className="flex justify-center items-center h-64">
               <Spin size="large" />
             </div>
-          ) : (
+          ) : hasData && Object.keys(calendarData).length > 0 ? (
             <>
               <div className="mb-4">
-                <Text>This calendar heat map shows claim submission frequency by day. Darker color indicates more claims.</Text>
+                <Text>This calendar heat map shows real claim submission frequency by day. Darker color indicates more claims.</Text>
               </div>
               <Calendar 
                 fullscreen={true}
@@ -818,6 +860,15 @@ const UsageAnalytics = () => {
                 </div>
               </div>
             </>
+          ) : (
+            <Empty 
+              description={
+                <span>
+                  No claims found for this time period. Only real claims submitted by users will appear here.
+                </span>
+              }
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
           )}
         </Card>
       )}

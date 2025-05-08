@@ -714,12 +714,12 @@ class BillingRateViewSet(viewsets.ModelViewSet):
 
 
 class UsageAnalyticsView(APIView):
-    """API endpoint for ML predictions usage analytics."""
+    """API endpoint for claims usage analytics for finance team."""
     permission_classes = [IsAuthenticated, (IsFinanceUser | IsAdminUser)]
     
     def get(self, request):
         """
-        Get usage analytics for ML predictions grouped by insurance company and time period.
+        Get usage analytics for claims grouped by insurance company and time period.
         Supports filtering by:
         - company_id: Insurance company ID
         - time_range: 'weekly', 'monthly', 'yearly'
@@ -732,8 +732,11 @@ class UsageAnalyticsView(APIView):
         from_date = request.query_params.get('from_date')
         to_date = request.query_params.get('to_date')
         
-        # Base queryset
-        queryset = Prediction.objects.all()
+        # Import Claim model - only using direct claims data
+        from claims.models import Claim
+        
+        # Base queryset using only the Claim model
+        queryset = Claim.objects.select_related('user', 'user__insurance_company')
         
         # Apply company filter if provided
         if company_id:
@@ -767,7 +770,7 @@ class UsageAnalyticsView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
-        # Define date truncation based on time_range - using database-agnostic solution
+        # Define date truncation based on time_range
         from django.db.models.functions import TruncDay, TruncMonth, TruncYear
         
         if time_range == 'weekly':
@@ -781,20 +784,20 @@ class UsageAnalyticsView(APIView):
             queryset = queryset.annotate(date=TruncMonth('created_at'))
             date_format = '%Y-%m'
         
-        # Group by company and date
+        # Group by company and date - only using real claims
         results = queryset.values(
             'user__insurance_company',
             'user__insurance_company__name',
             'date'
         ).annotate(
             count=Count('id'),
-            successful=Sum(Case(
-                When(status='COMPLETED', then=Value(1)),
+            approved=Sum(Case(
+                When(status='APPROVED', then=Value(1)),
                 default=Value(0),
                 output_field=IntegerField()
             )),
-            failed=Sum(Case(
-                When(status='FAILED', then=Value(1)),
+            rejected=Sum(Case(
+                When(status='REJECTED', then=Value(1)),
                 default=Value(0),
                 output_field=IntegerField()
             ))
@@ -837,9 +840,9 @@ class UsageAnalyticsView(APIView):
                 'company_name': result['user__insurance_company__name'],
                 'date': date_str,
                 'time_range': time_range,
-                'predictions_count': result['count'],
-                'successful_predictions': result['successful'],
-                'failed_predictions': result['failed'],
+                'claims_count': result['count'],
+                'approved_claims': result['approved'],
+                'rejected_claims': result['rejected'],
                 'rate_per_claim': str(rate),
                 'total_cost': str(rate * result['count']) if rate else '0.00'
             })
@@ -1118,12 +1121,12 @@ class CompanyUsersView(APIView):
         
 
 class UsageSummaryView(APIView):
-    """API endpoint for ML predictions usage summary."""
+    """API endpoint for claims usage summary for finance team."""
     permission_classes = [IsAuthenticated, (IsFinanceUser | IsAdminUser)]
     
     def get(self, request):
         """
-        Get a summary of ML predictions usage with billing information.
+        Get a summary of claims usage with billing information.
         Supports filtering by:
         - from_date: Start date (YYYY-MM-DD)
         - to_date: End date (YYYY-MM-DD)
@@ -1132,8 +1135,11 @@ class UsageSummaryView(APIView):
         from_date = request.query_params.get('from_date')
         to_date = request.query_params.get('to_date')
         
-        # Base queryset
-        queryset = Prediction.objects.all()
+        # Import the Claim model - using only real claims data
+        from claims.models import Claim
+        
+        # Base queryset - only using claims
+        queryset = Claim.objects.select_related('user', 'user__insurance_company')
         
         # Apply date filters if provided
         if from_date:
@@ -1156,8 +1162,8 @@ class UsageSummaryView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
-        # Get total predictions count
-        total_predictions = queryset.count()
+        # Get total claims count
+        total_claims = queryset.count()
         
         # Group by company
         company_stats = queryset.values(
@@ -1192,7 +1198,7 @@ class UsageSummaryView(APIView):
                 company_data.append({
                     'company_id': company_id,
                     'company_name': stat['user__insurance_company__name'],
-                    'predictions_count': stat['count'],
+                    'claims_count': stat['count'],
                     'rate_per_claim': str(rate),
                     'total_amount': str(total_amount)
                 })
@@ -1201,12 +1207,12 @@ class UsageSummaryView(APIView):
                 company_data.append({
                     'company_id': company_id,
                     'company_name': stat['user__insurance_company__name'],
-                    'predictions_count': stat['count'],
+                    'claims_count': stat['count'],
                     'rate_per_claim': '0.00',
                     'total_amount': '0.00'
                 })
         
-        # Get predictions without company
+        # Get claims without company
         unassigned_count = queryset.filter(
             user__insurance_company__isnull=True
         ).count()
@@ -1218,10 +1224,10 @@ class UsageSummaryView(APIView):
         }
         
         return Response({
-            'total_predictions': total_predictions,
+            'total_claims': total_claims,
             'total_billable_amount': str(total_billable_amount),
             'companies': company_data,
-            'unassigned_predictions': unassigned_count,
+            'unassigned_claims': unassigned_count,
             'date_range': date_range
         })
 
