@@ -39,7 +39,19 @@ const FinanceUserProfile = () => {
       try {
         setLoading(true);
         const response = await apiClient.get(`/account/users/${id}/`);
-        setUser(response.data);
+        // Make sure we have the full user data including insurance company
+        if (response.data && !response.data.insurance_company) {
+          try {
+            const detailResponse = await apiClient.get(`/finance/user-detail/${id}/`);
+            setUser({...response.data, ...detailResponse.data});
+          } catch (detailError) {
+            console.error('Could not fetch extended user details, using basic data:', detailError);
+            setUser(response.data);
+          }
+        } else {
+          setUser(response.data);
+        }
+        
         fetchUserClaims(response.data.id);
         fetchUserMlRecords(response.data.id);
       } catch (error) {
@@ -121,20 +133,51 @@ const FinanceUserProfile = () => {
     try {
       setGeneratingInvoice(true);
       
+      // Get user's insurance company
+      if (!user.insurance_company) {
+        message.error('User does not have an associated insurance company');
+        return;
+      }
+      
       const recordIds = mlRecords.map(record => record.id);
       
-      // Create invoice data
+      // Calculate total amount from records
+      const totalAmount = mlRecords.reduce((sum, record) => {
+        return sum + parseFloat(record.rate || 0);
+      }, 0);
+      
+      // Set issued and due dates
+      const today = new Date();
+      const dueDate = new Date();
+      dueDate.setDate(today.getDate() + 30); // Due in 30 days
+      
+      // Create invoice data with all required fields
       const invoiceData = {
         title: `ML Usage Invoice for ${user.first_name} ${user.last_name}`,
         billing_record_ids: recordIds,
         notes: `Automated invoice generated for ML usage by ${user.first_name} ${user.last_name} (${user.email})`,
-        user_id: user.id
+        user_id: user.id,
+        is_ml_usage_invoice: true, // Mark this as an ML usage invoice
+        send_to_user: true, // Indicate this should be visible to the end user
+        // Required fields that were missing:
+        insurance_company: user.insurance_company,
+        issued_date: today.toISOString().split('T')[0], // YYYY-MM-DD format
+        due_date: dueDate.toISOString().split('T')[0], // YYYY-MM-DD format
+        total_amount: totalAmount.toFixed(2)
       };
+      
+      console.log('Creating invoice with data:', invoiceData);
       
       // Create the invoice
       const response = await createInvoice(invoiceData);
       
-      message.success('ML usage invoice generated successfully');
+      // Generate PDF immediately after creating the invoice
+      await apiClient.post(`/finance/invoices/${response.data.id}/generate_pdf/`);
+      
+      message.success('ML usage invoice generated and sent to user successfully');
+      
+      // Show user option to view or download the invoice
+      message.info('Invoice is now available to the user in their ML Usage Invoices page');
       
       // Navigate to the invoice detail page
       navigate(`/finance/invoices/${response.data.id}`);
