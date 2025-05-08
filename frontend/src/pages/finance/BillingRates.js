@@ -57,7 +57,8 @@ const BillingRates = () => {
     form.setFieldsValue({
       insurance_company: rate.insurance_company,
       rate_per_claim: rate.rate_per_claim,
-      is_active: rate.is_active
+      is_active: rate.is_active,
+      effective_from: rate.effective_from || new Date().toISOString().split('T')[0]
     });
     setIsModalVisible(true);
   };
@@ -75,7 +76,8 @@ const BillingRates = () => {
       // Prepare values for API
       const formattedValues = {
         ...values,
-        is_active: true // Always set active to true to simplify
+        is_active: true, // Always set active to true to simplify
+        effective_from: new Date().toISOString().split('T')[0] // Set effective_from to today's date
       };
       
       if (editingRate) {
