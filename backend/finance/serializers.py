@@ -5,7 +5,9 @@ from .models import BillingRecord, UsageStatistics, InsuranceCompany, Invoice, I
 from account.serializers import UserSerializer
 from ml_interface.serializers import PredictionSerializer
 from django.utils import timezone
+import logging
 
+logger = logging.getLogger(__name__)
 
 class InsuranceCompanySerializer(serializers.ModelSerializer):
     class Meta:
@@ -26,7 +28,8 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
 
 class InvoiceSerializer(serializers.ModelSerializer):
     items = InvoiceItemSerializer(many=True, read_only=True)
-    insurance_company_name = serializers.ReadOnlyField(source='insurance_company.name')
+    insurance_company_name = serializers.CharField(required=False, read_only=True)
+    invoice_number = serializers.CharField(required=False)  # Made optional
     
     class Meta:
         model = Invoice
@@ -34,6 +37,32 @@ class InvoiceSerializer(serializers.ModelSerializer):
                  'created_at', 'issued_date', 'due_date', 'status', 'total_amount',
                  'currency', 'notes', 'paid_date', 'invoice_file', 'items']
         read_only_fields = ['id', 'created_at', 'insurance_company_name']
+        
+    def to_representation(self, instance):
+        """
+        Override to always provide the current insurance_company_name from the related company
+        This ensures we always display the up-to-date company name, even if it changed after invoice creation
+        """
+        ret = super().to_representation(instance)
+        # Always use the current company name from the relationship if available
+        if instance.insurance_company:
+            ret['insurance_company_name'] = instance.insurance_company.name
+        return ret
+        
+    def create(self, validated_data):
+        """
+        Override create to ensure we handle invoice creation correctly
+        """
+        logger.info("Creating invoice with data: %s", validated_data)
+        
+        # Create the invoice - The invoice_number will be automatically generated in the view's perform_create method
+        try:
+            invoice = super().create(validated_data)
+            logger.info("Invoice created successfully with ID: %s", invoice.id)
+            return invoice
+        except Exception as e:
+            logger.error("Error creating invoice: %s", str(e))
+            raise
 
 
 class BillingRecordSerializer(serializers.ModelSerializer):

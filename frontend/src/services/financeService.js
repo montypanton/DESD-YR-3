@@ -1,6 +1,8 @@
 // financeService.js - Handles API requests for Finance user functionality
 import { apiClient } from './authService';
 import axios from 'axios';
+// Import the billing service integration
+import { submitInvoiceToExternalService, checkInvoiceStatus, getPaymentMethods } from './billingServiceIntegration';
 
 // Base URL for API requests
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
@@ -319,7 +321,78 @@ export const getInvoice = async (id) => {
  * @returns {Promise} API response with created invoice
  */
 export const createInvoice = async (invoiceData) => {
-  return await apiClient.post('/finance/invoices/', invoiceData);
+  try {
+    // Standard config without custom headers that could trigger CORS issues
+    const config = {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    };
+    
+    console.log('createInvoice request payload (stringified):', JSON.stringify(invoiceData));
+    
+    // Try with direct Axios call first
+    try {
+      const response = await apiClient.post('/finance/invoices/', invoiceData, config);
+      console.log('createInvoice response:', response.data);
+      return response;
+    } catch (axiosError) {
+      console.error('Axios attempt failed:', axiosError);
+      
+      // Fall back to fetch API if axios fails
+      console.log('Attempting with fetch API directly');
+      const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+      const token = localStorage.getItem('token');
+      
+      const fetchResponse = await fetch(`${baseUrl}/finance/invoices/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify(invoiceData)
+      });
+      
+      if (!fetchResponse.ok) {
+        const errorText = await fetchResponse.text();
+        console.error('Fetch API error:', {
+          status: fetchResponse.status,
+          statusText: fetchResponse.statusText,
+          body: errorText
+        });
+        throw new Error(`Fetch API failed: ${fetchResponse.status} ${fetchResponse.statusText}`);
+      }
+      
+      const data = await fetchResponse.json();
+      return { data };
+    }
+  } catch (error) {
+    console.error('createInvoice error details:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+      stack: error.stack
+    });
+    
+    // If it's an HTML response (like a Django error page), try to extract useful info
+    if (error.response?.data && typeof error.response.data === 'string' && 
+        error.response.data.includes('<!DOCTYPE html>')) {
+      
+      // Extract Django error message if available
+      const errorMatch = error.response.data.match(/<pre class="exception_value">(.*?)<\/pre>/s);
+      if (errorMatch && errorMatch[1]) {
+        console.error('Django error:', errorMatch[1].trim());
+      }
+      
+      // Extract traceback if available
+      const tracebackMatch = error.response.data.match(/<div id="traceback">(.*?)<\/div>/s);
+      if (tracebackMatch && tracebackMatch[1]) {
+        console.error('Django traceback found - check server logs');
+      }
+    }
+    
+    throw error;
+  }
 };
 
 /**

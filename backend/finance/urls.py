@@ -10,6 +10,7 @@ from .views import (
     UsageAnalyticsView, UsageSummaryView, ExportPredictionsView,
     BillableClaimsView, CompanyUsersView
 )
+from .debug_view import debug_create_invoice
 from claims.views import ClaimViewSet
 
 router = DefaultRouter()
@@ -36,4 +37,7 @@ urlpatterns = [
     
     # Public endpoint for insurance companies - doesn't require authentication
     path('public/insurance-companies/', PublicInsuranceCompanyList.as_view(), name='public-insurance-companies'),
+    
+    # Debug endpoint for testing invoice creation
+    path('debug/create-invoice/', debug_create_invoice, name='debug-create-invoice'),
 ]

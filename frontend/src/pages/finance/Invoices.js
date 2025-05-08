@@ -32,6 +32,7 @@ const Invoices = () => {
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [viewMode, setViewMode] = useState('table'); // 'table' or 'grouped'
   const navigate = useNavigate();
   const { darkMode } = useTheme();
 
@@ -116,12 +117,24 @@ const Invoices = () => {
   const handleSubmitToExternalService = async (invoice) => {
     try {
       setLoading(true);
+      console.log('Submitting invoice to external service:', invoice);
       const result = await submitInvoiceToExternalService(invoice);
+      console.log('External service response:', result);
       message.success('Invoice submitted to billing service: ' + result.reference);
       fetchInvoices(); // Refresh the list
     } catch (error) {
       console.error('Error submitting to billing service:', error);
-      message.error('Failed to submit invoice to billing service');
+      
+      // Provide more detailed error messages
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        message.error(`Failed to submit invoice: ${error.response.status} error`);
+      } else if (error.request) {
+        console.error('Error request:', error.request);
+        message.error('Failed to submit invoice: No response received');
+      } else {
+        message.error(`Failed to submit invoice: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -140,6 +153,22 @@ const Invoices = () => {
     }
   };
 
+  // Group invoices by company for better organization
+  const getGroupedInvoices = () => {
+    // Create a map of companies to their invoices
+    const groupedByCompany = {};
+    
+    invoices.forEach(invoice => {
+      const companyName = invoice.insurance_company_name || 'Unknown Company';
+      if (!groupedByCompany[companyName]) {
+        groupedByCompany[companyName] = [];
+      }
+      groupedByCompany[companyName].push(invoice);
+    });
+    
+    return groupedByCompany;
+  };
+
   const columns = [
     {
       title: 'Invoice Number',
@@ -149,36 +178,56 @@ const Invoices = () => {
         <Link to={`/finance/invoices/${record.id}`} className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
           {text}
         </Link>
-      )
+      ),
+      sorter: (a, b) => a.invoice_number.localeCompare(b.invoice_number)
     },
     {
       title: 'Company',
       dataIndex: 'insurance_company_name',
       key: 'insurance_company_name',
+      sorter: (a, b) => {
+        const nameA = a.insurance_company_name || '';
+        const nameB = b.insurance_company_name || '';
+        return nameA.localeCompare(nameB);
+      },
+      filters: [...new Set(invoices.map(inv => inv.insurance_company_name))].map(name => ({
+        text: name || 'Unknown',
+        value: name
+      })),
+      onFilter: (value, record) => record.insurance_company_name === value
     },
     {
       title: 'Date Issued',
       dataIndex: 'issued_date',
       key: 'issued_date',
-      render: (date) => new Date(date).toLocaleDateString()
+      render: (date) => date ? new Date(date).toLocaleDateString() : 'Not issued',
+      sorter: (a, b) => new Date(a.issued_date) - new Date(b.issued_date)
     },
     {
       title: 'Due Date',
       dataIndex: 'due_date',
       key: 'due_date',
-      render: (date) => new Date(date).toLocaleDateString()
+      render: (date) => date ? new Date(date).toLocaleDateString() : 'No due date',
+      sorter: (a, b) => new Date(a.due_date) - new Date(b.due_date)
     },
     {
       title: 'Amount',
       dataIndex: 'total_amount',
       key: 'total_amount',
-      render: (amount) => `£${parseFloat(amount).toFixed(2)}`
+      render: (amount) => `£${parseFloat(amount).toFixed(2)}`,
+      sorter: (a, b) => a.total_amount - b.total_amount
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (status) => getStatusTag(status)
+      render: (status) => getStatusTag(status),
+      filters: [
+        { text: 'Draft', value: 'DRAFT' },
+        { text: 'Issued', value: 'ISSUED' },
+        { text: 'Paid', value: 'PAID' }
+      ],
+      onFilter: (value, record) => record.status === value
     },
     {
       title: 'Actions',
@@ -220,21 +269,32 @@ const Invoices = () => {
   return (
     <div className={`max-w-6xl mx-auto py-10 px-4 sm:px-6 lg:px-8 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
       {/* Breadcrumbs */}
-      <Breadcrumb className="mb-6">
-        <Breadcrumb.Item>
-          <Link to="/" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
-            <HomeOutlined /> Home
-          </Link>
-        </Breadcrumb.Item>
-        <Breadcrumb.Item>
-          <Link to="/finance/dashboard" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
-            <BankOutlined /> Finance
-          </Link>
-        </Breadcrumb.Item>
-        <Breadcrumb.Item className={darkMode ? 'text-gray-100' : 'text-gray-800'}>
-          <FileTextOutlined /> Invoices
-        </Breadcrumb.Item>
-      </Breadcrumb>
+      <Breadcrumb 
+        className="mb-6"
+        items={[
+          {
+            title: (
+              <Link to="/" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
+                <HomeOutlined /> Home
+              </Link>
+            ),
+          },
+          {
+            title: (
+              <Link to="/finance/dashboard" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}>
+                <BankOutlined /> Finance
+              </Link>
+            ),
+          },
+          {
+            title: (
+              <span className={darkMode ? 'text-gray-100' : 'text-gray-800'}>
+                <FileTextOutlined /> Invoices
+              </span>
+            ),
+          },
+        ]}
+      />
 
       <div className="flex justify-between items-center mb-6">
         <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Invoices</h1>
@@ -249,7 +309,7 @@ const Invoices = () => {
         </Link>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
         <Input
           placeholder="Search invoices..."
           prefix={<SearchOutlined />}
@@ -277,18 +337,53 @@ const Invoices = () => {
           onChange={handleDateRangeFilter}
           format="YYYY-MM-DD"
         />
+        
+        <Select
+          placeholder="View Mode"
+          value={viewMode}
+          onChange={setViewMode}
+          className={`w-full ${darkMode ? 'dark-select' : ''}`}
+        >
+          <Option value="table">Table View</Option>
+          <Option value="grouped">Grouped by Company</Option>
+        </Select>
       </div>
 
-      <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-md ${darkMode ? 'text-white' : ''}`}>
-        <Table
-          columns={columns}
-          dataSource={invoices}
-          rowKey="id"
-          loading={loading}
-          pagination={{ pageSize: 10 }}
-          className={darkMode ? 'ant-table-dark' : ''}
-        />
-      </div>
+      {viewMode === 'table' ? (
+        // Standard table view
+        <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-md ${darkMode ? 'text-white' : ''}`}>
+          <Table
+            columns={columns}
+            dataSource={invoices}
+            rowKey="id"
+            loading={loading}
+            pagination={{ pageSize: 10 }}
+            className={darkMode ? 'ant-table-dark' : ''}
+          />
+        </div>
+      ) : (
+        // Grouped by company view
+        <div className="space-y-6">
+          {Object.entries(getGroupedInvoices()).map(([companyName, companyInvoices]) => (
+            <div key={companyName} className={`bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden ${darkMode ? 'text-white' : ''}`}>
+              <div className={`p-4 border-b ${darkMode ? 'border-gray-700 bg-gray-700' : 'border-gray-200 bg-gray-50'}`}>
+                <h3 className="text-lg font-medium">{companyName}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {companyInvoices.length} invoice{companyInvoices.length !== 1 ? 's' : ''} | 
+                  Total: £{companyInvoices.reduce((sum, inv) => sum + parseFloat(inv.total_amount || 0), 0).toFixed(2)}
+                </p>
+              </div>
+              <Table
+                columns={columns.filter(col => col.dataIndex !== 'insurance_company_name')}
+                dataSource={companyInvoices}
+                rowKey="id"
+                pagination={companyInvoices.length > 5 ? { pageSize: 5 } : false}
+                className={darkMode ? 'ant-table-dark' : ''}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

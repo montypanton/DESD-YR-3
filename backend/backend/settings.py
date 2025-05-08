@@ -174,6 +174,20 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+# Allow all headers to fix CORS issues with custom headers
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-debug-mode',
+]
+
 # ML Model Settings
 ML_MODELS_DIR = os.path.join(BASE_DIR.parent, 'DESD-YR-3', 'models')
 DEFAULT_MODEL_PATH = os.path.join(ML_MODELS_DIR, 'random_forest_model.pkl')
