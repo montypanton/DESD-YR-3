@@ -133,7 +133,22 @@ const Dashboard = () => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
+        // Try the consolidated endpoint first (which uses consistent field names)
+        try {
+          const dashboardResponse = await apiClient.get('/api/claims/dashboard/');
+          if (dashboardResponse.data) {
+            console.log('Dashboard data from consolidated endpoint:', dashboardResponse.data);
+            setDashboardData(dashboardResponse.data);
+            setError(null);
+            return;
+          }
+        } catch (consolidated_err) {
+          console.warn('Could not fetch from consolidated endpoint, trying fallback', consolidated_err);
+        }
+        
+        // Fallback to the original endpoint
         const dashboardResponse = await apiClient.get('/claims/dashboard/');
+        console.log('Dashboard data from original endpoint:', dashboardResponse.data);
         setDashboardData(dashboardResponse.data);
         setError(null);
       } catch (err) {
@@ -220,7 +235,7 @@ const Dashboard = () => {
           <Col xs={24} sm={12} md={6}>
             <Statistic
               title={<span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Completed Claims</span>}
-              value={dashboardData.recent_claims.filter(claim => claim.status === 'COMPLETED').length}
+              value={dashboardData.approved_claims || dashboardData.recent_claims.filter(claim => claim.status === 'APPROVED').length}
               valueStyle={{ color: darkMode ? '#93c5fd' : '#3b82f6' }}
               prefix={<CheckCircleOutlined />}
             />
@@ -228,7 +243,7 @@ const Dashboard = () => {
           <Col xs={24} sm={12} md={6}>
             <Statistic
               title={<span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Pending Claims</span>}
-              value={dashboardData.pending_claims}
+              value={dashboardData.pending_claims || 0}
               valueStyle={{ color: darkMode ? '#fcd34d' : '#f59e0b' }}
               prefix={<ClockCircleOutlined />}
             />
@@ -236,7 +251,7 @@ const Dashboard = () => {
           <Col xs={24} sm={12} md={6}>
             <Statistic
               title={<span className={darkMode ? 'text-gray-300' : 'text-gray-600'}>Total Settlements</span>}
-              value={formatCurrency(dashboardData.approved_settlements)}
+              value={formatCurrency(dashboardData.approved_settlements || dashboardData.total_settlements || 0)}
               valueStyle={{ color: darkMode ? '#86efac' : '#10b981' }}
             />
           </Col>

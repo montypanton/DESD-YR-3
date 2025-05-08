@@ -7,11 +7,6 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 const PredictionHistory = () => {
   const [predictions, setPredictions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalClaims: 0,
-    approvedClaims: 0,
-    rejectedClaims: 0
-  });
   const [totalPredicted, setTotalPredicted] = useState(0);
   const [rerunningClaims, setRerunningClaims] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,13 +31,6 @@ const PredictionHistory = () => {
         // Check if amount is a valid number
         return sum + (typeof amount === 'number' ? amount : 0);
       }, 0);
-      
-      setStats({
-        totalClaims: claimsData.length,
-        approvedClaims: claimsData.filter(claim => claim.status === 'APPROVED').length,
-        rejectedClaims: claimsData.filter(claim => claim.status === 'REJECTED').length
-      });
-      
       setTotalPredicted(predictedTotal);
     } catch (error) {
       console.error('Error fetching claims:', error);
@@ -74,22 +62,6 @@ const PredictionHistory = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Prediction History</h1>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Total Claims</h3>
-            <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{stats.totalClaims}</p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Completed Predictions</h3>
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{predictions.filter(claim => claim.status === 'COMPLETED').length}</p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Pending Predictions</h3>
-            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{predictions.filter(claim => claim.status === 'PENDING').length}</p>
-          </div>
-        </div>
-
         <div className="flex justify-between items-center mb-6">
           <div className="flex space-x-4">
             <button
