@@ -1,82 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getAllClaims, getClaimsByStatus } from '../../services/financeService';
+import { getAllClaims } from '../../services/financeService';
 
 const FinanceClaims = () => {
-  const [activeTab, setActiveTab] = useState('all'); // Show all claims by default
-  const [claims, setClaims] = useState({
-    all: [],
-    pending: [],
-    approved: [],
-    rejected: []
-  });
+  const [claims, setClaims] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // This effect runs once on component mount to load all claims
   useEffect(() => {
-    const fetchClaims = async () => {
+    const fetchAllClaims = async () => {
       try {
+        console.log('Fetching all claims');
         setLoading(true);
-        let response;
-
-        const statusMap = {
-          'pending': 'PENDING',
-          'approved': 'APPROVED',
-          'rejected': 'REJECTED',
-          'all': ''  // Empty string to fetch all claims
-        };
         
-        if (activeTab === 'all') {
-          response = await getAllClaims();
-          let allClaims = [];
-          if (response.data) {
-            if (Array.isArray(response.data)) {
-              allClaims = response.data;
-            } else if (response.data.results && Array.isArray(response.data.results)) {
-              allClaims = response.data.results;
-            } else if (typeof response.data === 'object') {
-              const possibleArrayProps = Object.keys(response.data).filter(key => 
-                Array.isArray(response.data[key])
-              );
-              
-              if (possibleArrayProps.length > 0) {
-                allClaims = response.data[possibleArrayProps[0]];
-              }
+        // Get all claims
+        const response = await getAllClaims();
+        
+        // Process the response to extract claims
+        let allClaims = [];
+        if (response.data) {
+          if (Array.isArray(response.data)) {
+            allClaims = response.data;
+          } else if (response.data.results && Array.isArray(response.data.results)) {
+            allClaims = response.data.results;
+          } else if (typeof response.data === 'object') {
+            const possibleArrayProps = Object.keys(response.data).filter(key => 
+              Array.isArray(response.data[key])
+            );
+            
+            if (possibleArrayProps.length > 0) {
+              allClaims = response.data[possibleArrayProps[0]];
             }
           }
-          
-          setClaims({
-            all: allClaims,
-            pending: [],
-            approved: [],
-            rejected: []
-          });
-        } else {
-          response = await getClaimsByStatus(statusMap[activeTab]);
-          
-          let fetchedClaims = [];
-          if (response.data) {
-            if (Array.isArray(response.data)) {
-              fetchedClaims = response.data;
-            } else if (response.data.results && Array.isArray(response.data.results)) {
-              fetchedClaims = response.data.results;
-            } else if (typeof response.data === 'object') {
-              const possibleArrayProps = Object.keys(response.data).filter(key => 
-                Array.isArray(response.data[key])
-              );
-              
-              if (possibleArrayProps.length > 0) {
-                fetchedClaims = response.data[possibleArrayProps[0]];
-              }
-            }
-          }
-
-          setClaims(prevClaims => ({
-            ...prevClaims,
-            [activeTab]: fetchedClaims
-          }));
         }
-
+        
+        setClaims(allClaims);
         setError(null);
       } catch (err) {
         console.error('Error fetching claims:', err);
@@ -86,8 +45,8 @@ const FinanceClaims = () => {
       }
     };
 
-    fetchClaims();
-  }, [activeTab]);
+    fetchAllClaims();
+  }, []);
 
   const formatDate = (dateString) => {
     try {
@@ -109,7 +68,12 @@ const FinanceClaims = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Claims Management</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Claims Management</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+            View and manage all insurance claims in the system.
+          </p>
+        </div>
       </div>
 
       {error && (
@@ -118,57 +82,12 @@ const FinanceClaims = () => {
         </div>
       )}
 
-      <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="-mb-px flex flex-wrap" aria-label="Tabs">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`py-4 px-6 text-sm font-medium ${
-              activeTab === 'all'
-                ? 'border-green-500 text-green-600 border-b-2'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            All Claims ({claims.all.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('pending')}
-            className={`py-4 px-6 text-sm font-medium ${
-              activeTab === 'pending'
-                ? 'border-green-500 text-green-600 border-b-2'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Pending Review ({claims.pending.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('approved')}
-            className={`py-4 px-6 text-sm font-medium ${
-              activeTab === 'approved'
-                ? 'border-green-500 text-green-600 border-b-2'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Approved ({claims.approved.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('rejected')}
-            className={`py-4 px-6 text-sm font-medium ${
-              activeTab === 'rejected'
-                ? 'border-green-500 text-green-600 border-b-2'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Rejected ({claims.rejected.length})
-          </button>
-        </nav>
-      </div>
-
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
           </div>
-        ) : claims[activeTab].length > 0 ? (
+        ) : claims.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-700">
@@ -181,6 +100,9 @@ const FinanceClaims = () => {
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Title
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Status
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Amount
@@ -197,7 +119,7 @@ const FinanceClaims = () => {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {claims[activeTab].map((claim) => (
+                {claims.map((claim) => (
                   <tr key={claim.id || claim.reference_number}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {claim.reference_number || claim.id}
@@ -207,6 +129,14 @@ const FinanceClaims = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                       {claim.title || (claim.claim_data?.incidentType || 'General Claim')}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        ${claim.status === 'APPROVED' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 
+                          claim.status === 'REJECTED' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 
+                          'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}`}>
+                        {claim.status}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       £{parseFloat(claim.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -224,7 +154,7 @@ const FinanceClaims = () => {
                       {formatDate(claim.created_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      {activeTab === 'pending' ? (
+                      {claim.status === 'PENDING' ? (
                         <Link
                           to={`/finance/claims/${claim.id}`}
                           className="text-green-600 hover:text-green-700"
@@ -253,7 +183,7 @@ const FinanceClaims = () => {
               </svg>
               <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No claims found</h3>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                No {activeTab} claims are available at this time.
+                No claims are available at this time.
               </p>
             </div>
           </div>
