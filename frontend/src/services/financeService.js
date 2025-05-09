@@ -48,8 +48,30 @@ export const getFinanceSummary = async () => {
   try {
     // Add a cache busting parameter to force fresh data
     const cacheBuster = new Date().getTime();
-    const response = await apiClient.get(`/finance/dashboard/?_=${cacheBuster}`);
+    
+    // Add no-cache headers to ensure we get fresh data
+    const config = {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    };
+    
+    // Make request with cache buster and no-cache headers
+    const response = await apiClient.get(`/finance/dashboard/?_=${cacheBuster}`, config);
+    
     console.log('Finance summary data successfully retrieved');
+    
+    // Log key metrics for debugging
+    if (response.data) {
+      console.log('Dashboard metrics:', {
+        total_claimed: response.data.total_claimed,
+        approved_claims: response.data.approved_claims,
+        avg_processing_days: response.data.avg_processing_days
+      });
+    }
+    
     return response;
   } catch (error) {
     console.error('Error fetching finance summary:', error);

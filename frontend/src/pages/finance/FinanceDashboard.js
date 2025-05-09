@@ -32,6 +32,9 @@ const FinanceDashboard = () => {
         setRefreshing(true);
       }
       
+      // Add cache buster to ensure we're getting fresh data
+      const cacheBuster = new Date().getTime();
+      
       // Use a single comprehensive API call first to get the most data
       try {
         const summaryResponse = await getFinanceSummary();
@@ -41,12 +44,25 @@ const FinanceDashboard = () => {
         // Check if the summary includes billable claims
         const billableClaimsData = summaryData.billable_claims || [];
         
+        // Extract the total_claimed value directly from the response
+        const totalClaimedValue = parseFloat(summaryData.total_claimed || 0);
+        console.log('Total claimed value from API:', totalClaimedValue);
+        
+        // Extract approved claims count - ensure we use the value from direct SQL query
+        const approvedClaimsCount = parseInt(summaryData.approved_claims || 0, 10);
+        console.log('Approved claims from API:', approvedClaimsCount);
+        
+        // Extract average processing time - ensure this is parsed from the direct DB query
+        const avgProcessingDays = parseFloat(summaryData.avg_processing_days || 0);
+        console.log('Avg processing days from API:', avgProcessingDays);
+        
         // Use the updated API response fields from our improved backend
         setSummaryStats({
-          totalClaimsValue: summaryData.total_claimed || 0,
+          totalClaimsValue: totalClaimedValue,
           pendingCount: summaryData.pending_claims || 0,
-          avgProcessingTime: summaryData.avg_processing_days || 0,
-          approved_claims: summaryData.approved_claims || 0,
+          avgProcessingTime: avgProcessingDays,
+          approved_claims: approvedClaimsCount,
+          total_claims: summaryData.total_claims || 0,
           pendingChange: calculatePercentChange(
             summaryData.previous_pending || 0, 
             summaryData.pending_claims || 0
@@ -55,7 +71,7 @@ const FinanceDashboard = () => {
             summaryData.previous_total || 0, 
             summaryData.total_claimed || 0
           ),
-          processingTimeChange: summaryData.avg_processing_days - (summaryData.previous_avg_days || 0),
+          processingTimeChange: avgProcessingDays - (summaryData.previous_avg_days || 0),
           dataTimestamp: summaryData.data_timestamp ? new Date(summaryData.data_timestamp) : new Date()
         });
         
@@ -134,8 +150,11 @@ const FinanceDashboard = () => {
     // Fetch immediately when component mounts
     fetchDashboardData();
     
-    // Also set up a refresh interval (every 30 seconds)
-    const refreshInterval = setInterval(fetchDashboardData, 30000);
+    // Also set up a refresh interval (every 15 seconds for more frequent updates)
+    const refreshInterval = setInterval(() => {
+      console.log('Auto-refreshing dashboard data...');
+      fetchDashboardData();
+    }, 15000);
     
     // Clean up the interval when component unmounts
     return () => clearInterval(refreshInterval);
@@ -235,7 +254,9 @@ const FinanceDashboard = () => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
           <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase mb-2">Total Claims Value</h3>
           <div className="flex items-baseline">
-            <span className="text-3xl font-bold text-gray-900 dark:text-white">£{summaryStats.totalClaimsValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span className="text-3xl font-bold text-gray-900 dark:text-white">
+              £{parseFloat(summaryStats.totalClaimsValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
             {summaryStats.valueChange !== 0 && (
               <span className={`ml-2 text-sm font-medium ${parseFloat(summaryStats.valueChange) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {summaryStats.valueChange > 0 ? '+' : ''}{summaryStats.valueChange}%
@@ -248,10 +269,10 @@ const FinanceDashboard = () => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
           <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase mb-2">Auto-Approved Claims</h3>
           <div className="flex items-baseline">
-            <span className="text-3xl font-bold text-gray-900 dark:text-white">{summaryStats.approved_claims || 0}</span>
+            <span className="text-3xl font-bold text-gray-900 dark:text-white">{parseInt(summaryStats.approved_claims || 0, 10)}</span>
             <span className="ml-2 text-sm font-medium text-green-600">
               {summaryStats.total_claims > 0 
-                ? `${((summaryStats.approved_claims / summaryStats.total_claims) * 100).toFixed(0)}%` 
+                ? `${((parseInt(summaryStats.approved_claims || 0, 10) / parseInt(summaryStats.total_claims || 1, 10)) * 100).toFixed(0)}%` 
                 : '100%'}
             </span>
           </div>
@@ -263,10 +284,10 @@ const FinanceDashboard = () => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
           <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase mb-2">Average Processing Time</h3>
           <div className="flex items-baseline">
-            <span className="text-3xl font-bold text-gray-900 dark:text-white">{summaryStats.avgProcessingTime} days</span>
+            <span className="text-3xl font-bold text-gray-900 dark:text-white">{parseFloat(summaryStats.avgProcessingTime || 0).toFixed(1)} days</span>
             {summaryStats.processingTimeChange !== 0 && (
               <span className={`ml-2 text-sm font-medium ${parseFloat(summaryStats.processingTimeChange) <= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {summaryStats.processingTimeChange > 0 ? '+' : ''}{summaryStats.processingTimeChange} days
+                {summaryStats.processingTimeChange > 0 ? '+' : ''}{parseFloat(summaryStats.processingTimeChange).toFixed(1)} days
               </span>
             )}
           </div>
