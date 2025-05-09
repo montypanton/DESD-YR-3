@@ -322,7 +322,8 @@ class MLProcessor:
                 'settlement_amount': float(prediction),
                 'confidence_score': confidence_score,
                 'processing_time': processing_time,
-                'input_data': input_data
+                'input_data': input_data,
+                'timestamp': datetime.now().isoformat()
             }
 
             logger.info(f"Successfully generated prediction: {result}")
