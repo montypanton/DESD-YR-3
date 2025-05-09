@@ -12,6 +12,8 @@ import {
 import { apiClient } from '../../services/authService';
 import { getCompanyUsers } from '../../services/financeService';
 import { useTheme } from '../../context/ThemeContext';
+// Import the shared invoice registry helper to check for paid invoices
+import { getUserInvoices, getInvoicePayment } from '../../services/sharedInvoiceRegistry';
 
 const { Option } = Select;
 
@@ -42,11 +44,17 @@ const FinanceUsers = () => {
       
       const response = await getCompanyUsers(params);
       
+      // Get payments from localStorage to check for any paid invoices
+      let payments = {};
+      try {
+        payments = JSON.parse(localStorage.getItem('ml_invoice_payments') || '{}');
+      } catch (e) {
+        console.error('Error parsing payments from localStorage:', e);
+      }
+      
       // Process the response to ensure we have paid_claims_count for each user
       const processedUsers = (response.data || []).map(user => {
-        // Ensure paid_claims_count is included
-        // This will use the value from API if available, or try to calculate it
-        // from invoices if possible, or default to 0
+        // Start with API-provided count or 0
         let paidClaimsCount = user.paid_claims_count || 0;
         
         // If the API doesn't provide paid_claims_count but does provide paid_invoices
@@ -54,7 +62,43 @@ const FinanceUsers = () => {
           paidClaimsCount = user.paid_invoices.length;
         }
         
-        // Return the user with the paid_claims_count included
+        // ENHANCEMENT: Check the shared invoice registry for this user
+        try {
+          // First get all invoice numbers registered for this user
+          const userInvoiceNumbers = getUserInvoices(user.id);
+          console.log(`Found ${userInvoiceNumbers.length} invoices in registry for user ${user.id}`);
+          
+          if (userInvoiceNumbers && userInvoiceNumbers.length > 0) {
+            // For each invoice, check if it has a payment record
+            let paidInvoicesCount = 0;
+            
+            userInvoiceNumbers.forEach(invoiceNumber => {
+              // Look for payments by invoice number
+              const paymentByNumber = Object.values(payments).find(p => 
+                p.invoice_number === invoiceNumber && 
+                (p.status === 'PAID' || p.status === 'PAYMENT_PENDING')
+              );
+              
+              if (paymentByNumber) {
+                console.log(`Found payment for invoice ${invoiceNumber} for user ${user.id}`);
+                paidInvoicesCount++;
+              }
+            });
+            
+            // Also check if there are any payments directly by user ID
+            const userPayments = Object.values(payments).filter(
+              p => p.user_id === user.id && (p.status === 'PAID' || p.status === 'PAYMENT_PENDING')
+            );
+            
+            // Total paid invoices is the greater of registry count or API count
+            paidClaimsCount = Math.max(paidClaimsCount, paidInvoicesCount, userPayments.length);
+            console.log(`User ${user.id} has ${paidClaimsCount} paid invoices`);
+          }
+        } catch (e) {
+          console.error(`Error checking paid invoices for user ${user.id}:`, e);
+        }
+        
+        // Return the user with the updated paid_claims_count
         return {
           ...user,
           paid_claims_count: paidClaimsCount
@@ -86,6 +130,18 @@ const FinanceUsers = () => {
     fetchUsers();
     fetchCompanies();
   }, [selectedCompany]);
+  
+  // Add an effect to refresh the user list periodically to catch payment updates
+  useEffect(() => {
+    // Set up an interval to refresh the user list every 30 seconds
+    const refreshInterval = setInterval(() => {
+      console.log('Refreshing user list to check for payment updates');
+      fetchUsers();
+    }, 30000); // 30 seconds
+    
+    // Clean up the interval when the component unmounts
+    return () => clearInterval(refreshInterval);
+  }, []);
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Never';
@@ -144,13 +200,23 @@ const FinanceUsers = () => {
     {
       title: 'ML Usage Paid',
       key: 'ml_usage_paid',
-      render: (_, record) => (
-        <div>
-          <span className={`${darkMode ? 'text-green-400' : 'text-green-600'} font-medium`}>
-            {record.paid_claims_count || 0} Paid
-          </span>
-        </div>
-      ),
+      render: (_, record) => {
+        const paidCount = record.paid_claims_count || 0;
+        let tagColor = 'default';
+        
+        if (paidCount > 0) {
+          tagColor = 'green';
+        }
+        
+        return (
+          <div>
+            <Tag color={tagColor} className="text-center" style={{ minWidth: '60px' }}>
+              {paidCount} Paid
+            </Tag>
+          </div>
+        );
+      },
+      sorter: (a, b) => (a.paid_claims_count || 0) - (b.paid_claims_count || 0),
     },
     {
       title: 'ML Usage Billing',

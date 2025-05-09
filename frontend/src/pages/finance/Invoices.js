@@ -51,96 +51,130 @@ const Invoices = () => {
   useEffect(() => {
     fetchInvoices();
     
-    // Add mock ML usage invoices if they don't exist in the backend yet
-    // This ensures they match what users see in the ML usage invoices page
+    // Import shared invoice registry for ML invoice synchronization
+    const importRegistry = async () => {
+      try {
+        const {
+          getUserInvoices,
+          getInvoicePayment,
+          generateDeterministicInvoiceId 
+        } = await import('../../services/sharedInvoiceRegistry');
+        
+        // Sync with shared invoice registry data
+        syncInvoicesWithRegistry(getUserInvoices, getInvoicePayment, generateDeterministicInvoiceId);
+      } catch (error) {
+        console.error('Error importing invoice registry:', error);
+      }
+    };
+    
+    // After fetching invoices from API, sync with registry
     setTimeout(() => {
-      addMockMLInvoices();
+      importRegistry();
     }, 1000);
   }, []);
   
-  // Function to create mock ML invoices that match the ones in the ML usage page
-  const addMockMLInvoices = () => {
-    // Check if we need to add mock data
-    if (invoices.length === 0 || !invoices.some(inv => inv.invoice_number?.startsWith('ML-'))) {
-      console.log('Adding mock ML invoices to match end user view');
-      
-      try {
-        // Get user list to create mockable invoices
-        apiClient.get('/account/users/')
-          .then(response => {
-            const users = response.data.results || response.data || [];
+  // Function to sync with the shared invoice registry to ensure consistency
+  const syncInvoicesWithRegistry = (getUserInvoices, getInvoicePayment, generateDeterministicInvoiceId) => {
+    console.log('Syncing finance invoices with shared registry');
+    
+    try {
+      // Get user list to find all registered ML invoices
+      apiClient.get('/account/users/')
+        .then(response => {
+          const users = response.data.results || response.data || [];
+          let registryInvoices = [];
+          
+          // For each user, check if they have registered ML invoices
+          users.forEach(user => {
+            const userInvoiceNumbers = getUserInvoices(user.id);
             
-            // Create mock invoices that match the ML usage format
-            const mockInvoices = users.map(user => {
-              // Use same formula as in ML usage page
-              const currentDate = new Date();
-              const year = currentDate.getFullYear();
-              const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-              const userIdPart = user.id.toString().padStart(4, '0');
-              const invoiceNumber = `ML-${year}${month}-${userIdPart}`;
+            if (userInvoiceNumbers && userInvoiceNumbers.length > 0) {
+              console.log(`Found ${userInvoiceNumbers.length} registered invoices for user ${user.id}`);
               
-              // Use a deterministic ID as well
-              const invoiceId = 100000 + parseInt(user.id, 10); 
-              
-              // Create invoice with same properties
-              return {
-                id: invoiceId,
-                invoice_number: invoiceNumber,
-                created_at: new Date().toISOString(),
-                title: `ML Usage Invoice for ${user.first_name} ${user.last_name}`,
-                total_amount: Math.floor(Math.random() * 50) + 30, // Random amount between 30-80
-                status: 'ISSUED',
-                insurance_company_name: 'ML Usage Billing',
-                due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-                user_id: user.id
-              };
-            });
+              // For each invoice number, create a finance-side representation
+              userInvoiceNumbers.forEach(invoiceNumber => {
+                // Generate a deterministic ID for this invoice
+                const invoiceId = generateDeterministicInvoiceId(user.id);
+                
+                // Check if we already have an invoice with this ID/number in our state
+                const existingInvoice = invoices.find(inv => 
+                  inv.id === invoiceId || inv.invoice_number === invoiceNumber
+                );
+                
+                if (existingInvoice) {
+                  console.log(`Invoice ${invoiceNumber} already exists in state`);
+                  return; // Skip already existing invoices
+                }
+                
+                // Get payment information if available
+                const paymentInfo = getInvoicePayment(invoiceNumber) || 
+                                   getInvoicePayment(invoiceId);
+                
+                // Create a finance representation of this invoice
+                registryInvoices.push({
+                  id: invoiceId,
+                  invoice_number: invoiceNumber,
+                  created_at: new Date().toISOString(),
+                  title: `ML Usage Invoice for ${user.first_name} ${user.last_name}`,
+                  insurance_company_name: 'ML Usage Billing',
+                  due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                  total_amount: paymentInfo ? paymentInfo.amount : 50.00, // Use payment amount or default
+                  user_id: user.id,
+                  status: paymentInfo ? paymentInfo.status : 'ISSUED',
+                  payment: paymentInfo,
+                  invoice_type: 'ml_usage'
+                });
+              });
+            }
+          });
+          
+          // Add registry invoices to state if we found any
+          if (registryInvoices.length > 0) {
+            console.log(`Adding ${registryInvoices.length} invoices from registry`);
             
-            // Add mock invoices to state
             setInvoices(prevInvoices => {
               // Don't duplicate invoices that might already be there
               const existingInvoiceIds = new Set(prevInvoices.map(inv => inv.id));
-              const newMockInvoices = mockInvoices.filter(inv => !existingInvoiceIds.has(inv.id));
+              const existingInvoiceNumbers = new Set(prevInvoices.map(inv => inv.invoice_number));
               
-              if (newMockInvoices.length > 0) {
-                console.log(`Added ${newMockInvoices.length} mock ML invoices`);
-                return [...prevInvoices, ...newMockInvoices];
+              const newInvoices = registryInvoices.filter(inv => 
+                !existingInvoiceIds.has(inv.id) && 
+                !existingInvoiceNumbers.has(inv.invoice_number)
+              );
+              
+              if (newInvoices.length > 0) {
+                return [...prevInvoices, ...newInvoices];
               }
               
               return prevInvoices;
             });
-            
-            // Check for any payments stored in localStorage
-            try {
-              const storedPayments = JSON.parse(localStorage.getItem('ml_invoice_payments') || '{}');
-              
-              if (Object.keys(storedPayments).length > 0) {
-                console.log('Found stored payments, updating invoice statuses');
+          }
+          
+          // Also update statuses for any existing invoices that have payments
+          const payments = JSON.parse(localStorage.getItem('ml_invoice_payments') || '{}');
+          if (Object.keys(payments).length > 0) {
+            setInvoices(prevInvoices => {
+              return prevInvoices.map(inv => {
+                const payment = payments[inv.id] || 
+                               payments[`number-${inv.invoice_number}`];
                 
-                // Update invoices with payment status
-                setInvoices(prevInvoices => {
-                  return prevInvoices.map(inv => {
-                    if (storedPayments[inv.id]) {
-                      return {
-                        ...inv,
-                        status: 'PAYMENT_PENDING',
-                        payment: storedPayments[inv.id]
-                      };
-                    }
-                    return inv;
-                  });
-                });
-              }
-            } catch (storageError) {
-              console.warn('Could not retrieve payment data from localStorage:', storageError);
-            }
-          })
-          .catch(error => {
-            console.error('Error fetching users for mock invoices:', error);
-          });
-      } catch (error) {
-        console.error('Error adding mock invoices:', error);
-      }
+                if (payment && inv.status !== payment.status) {
+                  return {
+                    ...inv,
+                    status: payment.status,
+                    payment: payment
+                  };
+                }
+                return inv;
+              });
+            });
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching users for invoice sync:', error);
+        });
+    } catch (error) {
+      console.error('Error syncing with registry:', error);
     }
   };
 
@@ -294,59 +328,75 @@ const Invoices = () => {
     // Set selected invoice for viewing payment details
     setSelectedInvoice(invoice);
     
+    // Import shared registry functions
+    const { getInvoicePayment } = await import('../../services/sharedInvoiceRegistry');
+    
     // Try to fetch payment details from the API first
     try {
       // Check if we can get payment details from the API
       const paymentResponse = await apiClient.get(`/finance/invoices/${invoice.id}/payment_details/`);
       if (paymentResponse.data && paymentResponse.data.payment) {
         setSelectedInvoice({...invoice, payment: paymentResponse.data.payment});
+        console.log('Payment details found via API', paymentResponse.data.payment);
       } else {
         throw new Error('No payment details found in API response');
       }
     } catch (error) {
-      console.log('Payment details API not available, using fallbacks', error);
+      console.log('Payment details API not available, checking shared registry', error);
       
-      // First check localStorage for stored payment data (for mock/demo data)
-      try {
-        const storedPayments = JSON.parse(localStorage.getItem('ml_invoice_payments') || '{}');
+      // Check shared registry first - this is the source of truth
+      const registryPayment = getInvoicePayment(invoice.id) || getInvoicePayment(invoice.invoice_number);
+      
+      if (registryPayment) {
+        console.log('Found payment details in shared registry', registryPayment);
+        setSelectedInvoice({...invoice, payment: registryPayment});
+      } else {
+        console.log('No payment in registry, checking localStorage fallbacks');
         
-        // Check by ID first
-        if (storedPayments[invoice.id]) {
-          console.log('Found stored payment details in localStorage by ID', storedPayments[invoice.id]);
-          setSelectedInvoice({...invoice, payment: storedPayments[invoice.id]});
-        } 
-        // Then try by invoice number if ID lookup fails
-        else if (storedPayments[`number-${invoice.invoice_number}`]) {
-          console.log('Found stored payment details in localStorage by invoice number', 
-                      storedPayments[`number-${invoice.invoice_number}`]);
-          setSelectedInvoice({...invoice, payment: storedPayments[`number-${invoice.invoice_number}`]});
-        }
-        // Finally look for any payment that matches this invoice number (legacy format)
-        else {
-          const matchingPayment = Object.values(storedPayments).find(
-            payment => payment.invoice_number === invoice.invoice_number
-          );
+        // Fall back to localStorage for backwards compatibility
+        try {
+          const storedPayments = JSON.parse(localStorage.getItem('ml_invoice_payments') || '{}');
           
-          if (matchingPayment) {
-            console.log('Found stored payment by matching invoice numbers', matchingPayment);
-            setSelectedInvoice({...invoice, payment: matchingPayment});
-          } else {
-            throw new Error('No payment details found in localStorage');
+          // Check by ID first
+          if (storedPayments[invoice.id]) {
+            console.log('Found stored payment details in localStorage by ID', storedPayments[invoice.id]);
+            setSelectedInvoice({...invoice, payment: storedPayments[invoice.id]});
+          } 
+          // Then try by invoice number if ID lookup fails
+          else if (storedPayments[`number-${invoice.invoice_number}`]) {
+            console.log('Found stored payment details by invoice number', 
+                        storedPayments[`number-${invoice.invoice_number}`]);
+            setSelectedInvoice({...invoice, payment: storedPayments[`number-${invoice.invoice_number}`]});
           }
+          // Finally look for any payment that matches this invoice number
+          else {
+            const matchingPayment = Object.values(storedPayments).find(
+              payment => payment.invoice_number === invoice.invoice_number
+            );
+            
+            if (matchingPayment) {
+              console.log('Found stored payment by matching invoice numbers', matchingPayment);
+              setSelectedInvoice({...invoice, payment: matchingPayment});
+            } else {
+              throw new Error('No payment details found in localStorage');
+            }
+          }
+        } catch (storageError) {
+          console.log('No payment details found anywhere, using mock data', storageError);
+          
+          // Create mock payment data as last resort
+          const mockPayment = {
+            sort_code: '12-34-56',
+            account_number: '12345678',
+            reference: `INV-${invoice.invoice_number}`,
+            status: invoice.status === 'PAID' ? 'PAID' : 'PAYMENT_PENDING',
+            payment_date: new Date().toLocaleDateString(),
+            amount: invoice.total_amount,
+            payment_confirmed: invoice.status === 'PAID',
+            payment_confirmation_date: invoice.status === 'PAID' ? new Date().toLocaleDateString() : null
+          };
+          setSelectedInvoice({...invoice, payment: mockPayment});
         }
-      } catch (storageError) {
-        console.log('No localStorage payment details, using mock data', storageError);
-        
-        // Create mock payment data as last resort
-        const mockPayment = {
-          sort_code: '12-34-56',
-          account_number: '12345678',
-          reference: `INV-${invoice.invoice_number}`,
-          status: 'PAYMENT_PENDING',
-          payment_date: new Date().toLocaleDateString(),
-          amount: invoice.total_amount
-        };
-        setSelectedInvoice({...invoice, payment: mockPayment});
       }
     }
     
@@ -363,8 +413,37 @@ const Invoices = () => {
     setVerifyingPayment(true);
     
     try {
-      // Mark invoice as fully paid
-      await markInvoiceAsPaid(selectedInvoice.id);
+      // Import the shared invoice registry function to update status
+      const { updateInvoiceStatus } = await import('../../services/sharedInvoiceRegistry');
+      
+      // First try to mark invoice as paid in API (for real invoices)
+      try {
+        await markInvoiceAsPaid(selectedInvoice.id);
+        console.log('Invoice marked as paid in API');
+      } catch (apiError) {
+        console.error('Error marking invoice as paid in API:', apiError);
+        // Continue with local updates if API fails
+      }
+      
+      // Always update in the shared registry for cross-application visibility
+      updateInvoiceStatus(selectedInvoice.id, selectedInvoice.invoice_number, 'PAID');
+      
+      // Update the invoice status in local storage too for maximum compatibility
+      try {
+        const payments = JSON.parse(localStorage.getItem('ml_invoice_payments') || '{}');
+        
+        if (payments[selectedInvoice.id]) {
+          payments[selectedInvoice.id].status = 'PAID';
+        }
+        
+        if (payments[`number-${selectedInvoice.invoice_number}`]) {
+          payments[`number-${selectedInvoice.invoice_number}`].status = 'PAID';
+        }
+        
+        localStorage.setItem('ml_invoice_payments', JSON.stringify(payments));
+      } catch (storageError) {
+        console.warn('Failed to update localStorage payment status:', storageError);
+      }
       
       // Close modal
       setPendingPaymentModalVisible(false);
@@ -373,7 +452,16 @@ const Invoices = () => {
       // Show success message
       message.success('Payment verified and invoice marked as paid');
       
-      // Refresh invoices list
+      // Update invoice status in local state
+      setInvoices(prevInvoices => {
+        return prevInvoices.map(inv => 
+          (inv.id === selectedInvoice.id || inv.invoice_number === selectedInvoice.invoice_number) 
+            ? {...inv, status: 'PAID'} 
+            : inv
+        );
+      });
+      
+      // Refresh invoices list from API
       fetchInvoices();
     } catch (error) {
       console.error('Error verifying payment:', error);
@@ -515,24 +603,26 @@ const Invoices = () => {
             </Button>
           )}
           
-          {record.status === 'PAYMENT_PENDING' && (
+          {(record.status === 'PAYMENT_PENDING' || record.status === 'PAID') && (
             <Button 
               type="link" 
               icon={<DollarOutlined />} 
               size="small" 
               onClick={() => handleViewPaymentDetails(record)}
-              className="text-orange-600 hover:text-orange-800"
+              className={record.status === 'PAID' ? "text-green-600 hover:text-green-800" : "text-orange-600 hover:text-orange-800"}
             >
-              Verify Payment
+              {record.status === 'PAID' ? "View Payment" : "Verify Payment"}
             </Button>
           )}
           
-          <Button
-            type="link"
-            onClick={() => handleSubmitToExternalService(record)}
-          >
-            Send to Billing Service
-          </Button>
+          {record.invoice_type !== 'ml_usage' && (
+            <Button
+              type="link"
+              onClick={() => handleSubmitToExternalService(record)}
+            >
+              Send to Billing Service
+            </Button>
+          )}
           
           <Button
             type="link"
@@ -652,24 +742,26 @@ const Invoices = () => {
         </Select>
       </div>
 
-      {/* Payment Verification Modal */}
+      {/* Payment Details Modal */}
       <Modal
-        title="Verify Payment"
+        title={selectedInvoice?.payment?.status === 'PAID' ? "Payment Details" : "Verify Payment"}
         open={pendingPaymentModalVisible}
         onCancel={() => setPendingPaymentModalVisible(false)}
         footer={[
-          <Button key="cancel" onClick={() => setPendingPaymentModalVisible(false)}>
-            Cancel
+          <Button key="close" onClick={() => setPendingPaymentModalVisible(false)}>
+            {selectedInvoice?.payment?.status === 'PAID' ? "Close" : "Cancel"}
           </Button>,
-          <Button 
-            key="verify" 
-            type="primary" 
-            loading={verifyingPayment}
-            onClick={handleVerifyPayment}
-          >
-            Verify Payment
-          </Button>
-        ]}
+          selectedInvoice?.payment?.status !== 'PAID' && (
+            <Button 
+              key="verify" 
+              type="primary" 
+              loading={verifyingPayment}
+              onClick={handleVerifyPayment}
+            >
+              Verify Payment
+            </Button>
+          )
+        ].filter(Boolean)}
       >
         {selectedInvoice && (
           <div>
@@ -680,17 +772,41 @@ const Invoices = () => {
               <Descriptions.Item label="Account Number">{selectedInvoice.payment?.account_number}</Descriptions.Item>
               <Descriptions.Item label="Reference">{selectedInvoice.payment?.reference}</Descriptions.Item>
               <Descriptions.Item label="Payment Date">{selectedInvoice.payment?.payment_date}</Descriptions.Item>
+              <Descriptions.Item label="Payment Method">{selectedInvoice.payment?.payment_method || 'Bank Transfer'}</Descriptions.Item>
               <Descriptions.Item label="Status">
-                <Tag color="orange">Pending Verification</Tag>
+                {selectedInvoice.payment?.status === 'PAID' ? (
+                  <Tag color="green">Paid</Tag>
+                ) : (
+                  <Tag color="orange">Pending Verification</Tag>
+                )}
               </Descriptions.Item>
+              {selectedInvoice.payment?.payment_confirmation_date && (
+                <Descriptions.Item label="Confirmation Date">
+                  {selectedInvoice.payment.payment_confirmation_date}
+                </Descriptions.Item>
+              )}
+              {selectedInvoice.payment?.user_id && (
+                <Descriptions.Item label="User ID">
+                  {selectedInvoice.payment.user_id}
+                </Descriptions.Item>
+              )}
             </Descriptions>
             
-            <Alert
-              message="Payment Verification"
-              description="Please confirm that you have verified this payment has been received in the bank account before approving."
-              type="warning"
-              showIcon
-            />
+            {selectedInvoice.payment?.status === 'PAID' ? (
+              <Alert
+                message="Payment Verified"
+                description="This payment has been verified and marked as paid."
+                type="success"
+                showIcon
+              />
+            ) : (
+              <Alert
+                message="Payment Verification"
+                description="Please confirm that you have verified this payment has been received in the bank account before approving."
+                type="warning"
+                showIcon
+              />
+            )}
           </div>
         )}
       </Modal>

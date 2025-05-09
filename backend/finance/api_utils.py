@@ -189,11 +189,74 @@ def ensure_billing_record_for_approved_claim(claim):
     
     # Check if billing record already exists for this claim
     existing_records = BillingRecord.objects.filter(claim_reference=claim.reference_number)
+    
+    # Even if a billing record exists, we still want to generate a new ML invoice
+    # for this claim, so we don't return early here.
+    
+    # Import the Invoice model
+    from finance.models import Invoice
+    
+    # Generate a unique ML invoice number based on the user ID and timestamp
+    user_id = str(claim.user.id).zfill(4)
+    ml_invoice_number = f"ML-{timezone.now().strftime('%Y%m')}-{user_id}-{uuid.uuid4().hex[:4]}"
+    
+    # Calculate the ML usage fee
+    ml_usage_fee = 30.00  # Default ML usage fee if no billing rate found
+    try:
+        from finance.models import BillingRate
+        user_company = getattr(claim.user, 'insurance_company', None)
+        if user_company:
+            # Get the active billing rate for the company
+            billing_rate = BillingRate.objects.filter(
+                insurance_company=user_company,
+                is_active=True
+            ).first()
+            
+            if billing_rate and billing_rate.rate_per_claim:
+                ml_usage_fee = float(billing_rate.rate_per_claim)
+                logger.info(f"Using company billing rate: {ml_usage_fee} for user {claim.user.email}")
+            else:
+                logger.warning(f"No active billing rate found for company {user_company.name}")
+        else:
+            logger.info(f"User {claim.user.email} does not belong to any insurance company, using default rate")
+    except Exception as e:
+        logger.error(f"Error fetching billing rate: {str(e)}")
+    
+    # Create the ML usage invoice
+    try:
+        ml_invoice = Invoice.objects.create(
+            user=claim.user,
+            insurance_company=getattr(claim.user, 'insurance_company', None),
+            title=f"ML Model Usage for Claim #{claim.reference_number}",
+            description=f"ML prediction service fee for claim #{claim.reference_number}",
+            invoice_number=ml_invoice_number,
+            total_amount=ml_usage_fee,
+            currency='USD',
+            status='ISSUED',
+            issued_date=timezone.now().date(),
+            due_date=timezone.now().date() + timedelta(days=30),
+            created_by=claim.user,
+            invoice_type='ml_usage',  # Special type for ML usage invoices
+            metadata={
+                'claim_reference': claim.reference_number,
+                'is_ml_usage': True,
+                'ml_prediction_id': getattr(claim.ml_prediction, 'id', None),
+                'user_id': claim.user.id
+            }
+        )
+        logger.info(f"Created ML usage invoice {ml_invoice.invoice_number} for claim {claim.reference_number}")
+        
+    except Exception as ml_invoice_error:
+        logger.error(f"Error creating ML usage invoice: {str(ml_invoice_error)}")
+        # Continue processing even if ML invoice creation fails
+    
+    # Now check if we already have a billing record for this claim
+    # If so, we can return it (we've already created a new ML invoice above)
     if existing_records.exists():
         return {
             'success': True,
             'billing_record': existing_records.first(),
-            'message': f"Using existing billing record for claim {claim.reference_number}"
+            'message': f"Using existing billing record for claim {claim.reference_number}, created new ML invoice {ml_invoice_number}"
         }
     
     # Calculate billing amount (using decided settlement amount if available)
@@ -209,6 +272,8 @@ def ensure_billing_record_for_approved_claim(claim):
         if float(claim.amount) > 0:
             amount = float(claim.amount)
     
+    # Note: We've already calculated ml_usage_fee earlier in the function
+    
     # Create unique invoice number with timestamp to ensure uniqueness
     timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
     invoice_number = f"BR-{claim.reference_number}-{timestamp}"
@@ -218,6 +283,8 @@ def ensure_billing_record_for_approved_claim(claim):
     
     # Default currency
     currency = 'USD'
+    
+    # We've already generated the ML invoice earlier in the function
     
     # Wrap the entire creation process in a transaction to ensure atomicity
     with transaction.atomic():
