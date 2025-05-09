@@ -11,7 +11,7 @@ import {
 import { apiClient } from '../../services/authService';
 
 const AdminClaims = () => {
-  const [activeTab, setActiveTab] = useState('pending');
+  const [activeTab, setActiveTab] = useState('billable');
   const [claims, setClaims] = useState({
     pending: [],
     approved: [],
@@ -73,107 +73,13 @@ const AdminClaims = () => {
     fetchUsers();
   }, []);
 
-  useEffect(() => {
-    const fetchClaims = async () => {
-      try {
-        setLoading(true);
-        console.log('Fetching claims for tab:', activeTab);
-
-        let response;
-
-        const statusMap = {
-          'pending': 'PENDING',
-          'approved': 'APPROVED',
-          'rejected': 'REJECTED',
-          'processed': 'PROCESSED'
-        };
-
-        if (activeTab === 'all') {
-          response = await getAllClaims();
-          console.log('All claims API response:', response.data);
-
-          const allClaims = response.data.results || response.data || [];
-          console.log('Processing all claims, total count:', allClaims.length);
-
-          const sortedClaims = {
-            pending: allClaims.filter(claim => claim.status === 'PENDING'),
-            approved: allClaims.filter(claim => claim.status === 'APPROVED'),
-            rejected: allClaims.filter(claim => claim.status === 'REJECTED'),
-            processed: allClaims.filter(claim => claim.status === 'PROCESSED')
-          };
-          setClaims(sortedClaims);
-
-          Object.keys(sortedClaims).forEach(key => {
-            console.log(`${key} claims:`, sortedClaims[key].length);
-          });
-        } else {
-          response = await getClaimsByStatus(statusMap[activeTab]);
-          console.log(`${activeTab} claims API response:`, response.data);
-
-          let fetchedClaims = response.data.results || response.data || [];
-          console.log('Fetched claims before filtering:', fetchedClaims.length);
-
-          console.log('User IDs from claims:', fetchedClaims.map(claim => {
-            const userId = typeof claim.user === 'object' ? claim.user?.id : claim.user;
-            return {
-              claimId: claim.id,
-              userId: userId,
-              userObject: claim.user
-            };
-          }));
-
-          if (filters.dateFrom) {
-            fetchedClaims = fetchedClaims.filter(claim =>
-              new Date(claim.created_at) >= new Date(filters.dateFrom)
-            );
-          }
-
-          if (filters.dateTo) {
-            fetchedClaims = fetchedClaims.filter(claim =>
-              new Date(claim.created_at) <= new Date(filters.dateTo)
-            );
-          }
-
-          if (filters.claimType) {
-            fetchedClaims = fetchedClaims.filter(claim =>
-              claim.title?.toLowerCase().includes(filters.claimType.toLowerCase()) ||
-              claim.description?.toLowerCase().includes(filters.claimType.toLowerCase())
-            );
-          }
-
-          if (filters.confidenceScore > 0) {
-            fetchedClaims = fetchedClaims.filter(claim =>
-              claim.ml_prediction &&
-              claim.ml_prediction.confidence_score >= (filters.confidenceScore / 100)
-            );
-          }
-
-          console.log('Fetched claims after filtering:', fetchedClaims.length);
-
-          setClaims(prevClaims => ({
-            ...prevClaims,
-            [activeTab]: fetchedClaims
-          }));
-        }
-
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching claims:', err);
-        setError('Failed to load claims. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchClaims();
-  }, [activeTab, filters]);
+  // We don't need the fetchClaims effect since we've removed all the regular claim tabs
+  // and are only showing the billable activity tab which uses fetchBillingData instead
   
-  // New effect for fetching billing data when the filters change
+  // Effect for fetching billing data when filters change 
   useEffect(() => {
-    if (activeTab === 'billable') {
-      fetchBillingData();
-    }
-  }, [activeTab, filters]);
+    fetchBillingData();
+  }, [filters]);
   
   // Function to fetch billing data
   const fetchBillingData = async () => {
@@ -184,8 +90,21 @@ const AdminClaims = () => {
       // Prepare filter parameters
       const params = {};
       if (filters.dateFrom) {
+        // Format date for different API endpoints - some use from_date, others date_from
         params.from_date = filters.dateFrom;
         params.date_from = filters.dateFrom;
+        // Also add year/month filtering if dates are provided
+        const fromDate = new Date(filters.dateFrom);
+        if (!isNaN(fromDate.getTime())) {
+          params.year = fromDate.getFullYear();
+          // Only add month if both dates are in the same year
+          if (filters.dateTo) {
+            const toDate = new Date(filters.dateTo);
+            if (toDate.getFullYear() === fromDate.getFullYear()) {
+              params.month = fromDate.getMonth() + 1; // API expects 1-12
+            }
+          }
+        }
       }
       if (filters.dateTo) {
         params.to_date = filters.dateTo;
@@ -206,16 +125,72 @@ const AdminClaims = () => {
       console.log('Company users response:', companyUsersResponse.data);
       
       // Process billable claims data
-      const billableClaims = billableResponse.data || [];
+      let billableClaims = billableResponse.data || [];
+      
+      // Create date objects once for all filtering operations
+      const fromDate = filters.dateFrom ? new Date(filters.dateFrom) : null;
+      const toDate = filters.dateTo ? new Date(filters.dateTo) : null;
+      
+      // Additional client-side date filtering for safety (in case the backend filtering isn't precise)
+      if (filters.dateFrom || filters.dateTo) {
+        
+        billableClaims = billableClaims.filter(record => {
+          let recordDate = null;
+          
+          // First try to use the month field (YYYY-MM format)
+          if (record.month) {
+            const [year, month] = record.month.split('-').map(Number);
+            recordDate = new Date(year, month - 1, 15); // Middle of the month as a proxy date
+          } 
+          // Fall back to created_at date if available
+          else if (record.created_at) {
+            recordDate = new Date(record.created_at);
+          }
+          
+          // Skip record if we can't determine a date
+          if (!recordDate) return true;
+          
+          // Apply date filters
+          if (fromDate && recordDate < fromDate) return false;
+          if (toDate && recordDate > toDate) return false;
+          
+          return true;
+        });
+      }
+      
       setBillingRecords(billableClaims);
       
       // Get real claims data from the billing claims response
       const claimsData = [];
       
-      // Process each billable record and extract the claim info
+      // Process each billable record and extract the claim info with proper date handling
+      // Using the fromDate and toDate variables defined earlier
+      
       billableClaims.forEach(record => {
+        // Skip records outside the date range
+        if (record.month) {
+          const [year, month] = record.month.split('-').map(Number);
+          const recordDate = new Date(year, month - 1, 15); // Middle of month
+          
+          if ((fromDate && recordDate < fromDate) || 
+              (toDate && recordDate > toDate)) {
+            return; // Skip this record
+          }
+        }
+        
+        // Get current date for the date field
+        const currentDate = new Date();
+        const displayDate = currentDate.toISOString().split('T')[0];
+        
+        // Format the dates for displaying in the title
+        let dateText = '';
+        if (record.month) {
+          const [year, month] = record.month.split('-').map(Number);
+          const date = new Date(year, month - 1, 1);
+          dateText = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+        }
+        
         // Find or create a claim object from the billing data
-        // This will vary based on your API response structure
         const claim = {
           id: record.id || record.company_id,
           reference_number: record.month || 'Unknown', 
@@ -223,10 +198,10 @@ const AdminClaims = () => {
             id: record.company_id,
             email: record.company_name 
           },
-          title: `${record.claim_count} Claims`,
+          title: `${record.claim_count} Claims${dateText ? ` (${dateText})` : ''}`,
           description: `Rate: $${record.rate_per_claim} per claim`,
           amount: record.billable_amount || 0,
-          created_at: new Date(),
+          created_at: displayDate,
           ml_prediction: {
             settlement_amount: record.total_settlement_amount || 0,
             confidence_score: 1.0
@@ -291,11 +266,21 @@ const AdminClaims = () => {
         companySummary[companyId].amount += parseFloat(record.billable_amount || 0);
       });
       
-      // By User - use the company users data
+      // By User - use the company users data with date filtering
       const userSummary = {};
       if (companyUsersResponse.data && Array.isArray(companyUsersResponse.data)) {
+        // Use the date range variables defined earlier
+        
         companyUsersResponse.data.forEach(user => {
           const userId = user.id || 'unknown';
+          
+          // Skip users with no approved claims in the date range
+          if (fromDate || toDate) {
+            // If the API doesn't provide date-filtered data directly,
+            // we'll rely on the backend filtering and the counts it provides
+            if (user.approved_claims_count === 0) return;
+          }
+          
           userSummary[userId] = {
             id: userId,
             name: user.email || user.full_name || 'Unknown User',
@@ -305,14 +290,29 @@ const AdminClaims = () => {
         });
       }
       
-      // By Month - extract from billable claims if they have month data
+      // By Month - extract from billable claims with strict date filtering
       const monthSummary = {};
+      
       billableClaims.forEach(record => {
         if (record.month) {
           const monthKey = record.month;
-          const [year, month] = monthKey.split('-');
-          const date = new Date(parseInt(year), parseInt(month) - 1, 1);
-          const monthName = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+          const [year, month] = monthKey.split('-').map(Number);
+          
+          // Create a date object for the first day of the month
+          const monthStartDate = new Date(year, month - 1, 1);
+          // And for the last day of the month
+          const monthEndDate = new Date(year, month, 0);
+          
+          // Check if the month is within the date range
+          if (
+            (fromDate && monthEndDate < fromDate) || 
+            (toDate && monthStartDate > toDate)
+          ) {
+            // Month is outside the date range, skip it
+            return;
+          }
+          
+          const monthName = monthStartDate.toLocaleString('default', { month: 'long', year: 'numeric' });
           
           if (!monthSummary[monthKey]) {
             monthSummary[monthKey] = {
@@ -481,7 +481,7 @@ const AdminClaims = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Claims Management</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Claims Management - Billing Activity</h1>
         <div className="flex items-center space-x-3">
           {showExportOptions ? (
             <div className="flex items-center bg-white dark:bg-gray-800 p-2 rounded-md shadow-md">
@@ -652,60 +652,16 @@ const AdminClaims = () => {
       <div className="border-b border-gray-200 dark:border-gray-700">
         <nav className="-mb-px flex" aria-label="Tabs">
           <button
-            onClick={() => setActiveTab('pending')}
-            className={`py-4 px-6 text-sm font-medium ${
-              activeTab === 'pending'
-                ? 'border-purple-500 text-purple-600 border-b-2'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Pending Review ({claims.pending.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('approved')}
-            className={`py-4 px-6 text-sm font-medium ${
-              activeTab === 'approved'
-                ? 'border-purple-500 text-purple-600 border-b-2'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Approved ({claims.approved.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('rejected')}
-            className={`py-4 px-6 text-sm font-medium ${
-              activeTab === 'rejected'
-                ? 'border-purple-500 text-purple-600 border-b-2'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Rejected ({claims.rejected.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('processed')}
-            className={`py-4 px-6 text-sm font-medium ${
-              activeTab === 'processed'
-                ? 'border-purple-500 text-purple-600 border-b-2'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Processed ({claims.processed.length})
-          </button>
-          <button
             onClick={() => setActiveTab('billable')}
-            className={`py-4 px-6 text-sm font-medium ${
-              activeTab === 'billable'
-                ? 'border-purple-500 text-purple-600 border-b-2'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+            className="py-4 px-6 text-sm font-medium border-purple-500 text-purple-600 border-b-2"
           >
             Billable Activity ({claims.billable?.length || 0})
           </button>
         </nav>
       </div>
 
-      {/* Billing Summary - Only shown when billable tab is active */}
-      {activeTab === 'billable' && !loading && (
+      {/* Billing Summary */}
+      {!loading && (
         <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Total Billed Amount Card */}

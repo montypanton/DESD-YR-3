@@ -64,7 +64,7 @@ const MLPerformance = () => {
       { name: 'Min Processing Time', value: `${(0.125 + (Math.random() - 0.5) * 0.01).toFixed(3)}s`, trend: 0 },
       { name: 'Processing Time Std Dev', value: `${(0.112 + (Math.random() - 0.5) * 0.007).toFixed(3)}s`, trend: 0 },
       { name: 'Success Rate', value: getVariation(0.98, 0.005), trend: getVariation(0.01, 0.002) },
-      { name: 'Model Accuracy', value: getVariation(0.94, 0.006), trend: getVariation(0.02, 0.003) },
+      { name: 'Model Accuracy', value: 0.9353, trend: getVariation(0.02, 0.003) },
       { name: 'Error Rate', value: getVariation(0.06, 0.004), trend: getVariation(0.02, 0.003) * -1 }
     ];
     
@@ -338,7 +338,9 @@ const MLPerformance = () => {
                                 ? `${(metric.value * 100).toFixed(1)}%` 
                                 : typeof metric.value === 'number' && metric.name.toLowerCase().includes('confidence')
                                   ? `${(metric.value * 100).toFixed(1)}%`
-                                  : metric.value}
+                                  : typeof metric.value === 'number' && metric.name.toLowerCase().includes('accuracy')
+                                    ? `${(metric.value * 100).toFixed(2)}%`
+                                    : metric.value}
                             </div>
                             {metric.trend && (
                               <div className={`ml-2 flex items-baseline text-sm font-semibold ${
