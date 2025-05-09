@@ -5,7 +5,9 @@ import { apiClient } from '../../services/authService';
 
 const ModelSchema = Yup.object().shape({
   name: Yup.string().required('Model name is required'),
+  version: Yup.string().required('Version is required'),
   model_file: Yup.mixed().required('Model file is required'),
+  description: Yup.string(),
 });
 
 const MLModels = () => {
@@ -13,10 +15,14 @@ const MLModels = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [currentModel, setCurrentModel] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
   const initialFormState = {
     name: '',
+    version: '1.0',
+    description: '',
     model_file: null,
   };
 
@@ -43,22 +49,36 @@ const MLModels = () => {
       const formData = new FormData();
       formData.append('name', values.name);
       formData.append('model_file', values.model_file);
-      formData.append('version', '1.0');
+      formData.append('version', values.version);
+      formData.append('description', values.description || '');
       formData.append('model_type', 'classifier');
       formData.append('input_format', JSON.stringify({}));
       formData.append('output_format', JSON.stringify({}));
 
-      await apiClient.post('/ml/models/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      setSuccessMessage('Model uploaded successfully!');
+      if (editMode && currentModel) {
+        // Update existing model
+        await apiClient.patch(`/ml/models/${currentModel.id}/`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        setSuccessMessage('Model updated successfully!');
+      } else {
+        // Create new model
+        await apiClient.post('/ml/models/', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        setSuccessMessage('Model uploaded successfully!');
+      }
+      
       setTimeout(() => setSuccessMessage(null), 3000);
 
       resetForm();
       setShowForm(false);
+      setEditMode(false);
+      setCurrentModel(null);
       fetchModels();
     } catch (error) {
       console.error('Error uploading model:', error);
@@ -66,6 +86,12 @@ const MLModels = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+  
+  const editModel = (model) => {
+    setCurrentModel(model);
+    setEditMode(true);
+    setShowForm(true);
   };
 
   const toggleModelStatus = async (modelId, isActive) => {
@@ -148,8 +174,16 @@ const MLModels = () => {
       {showForm && (
         <div className="mb-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
           <div className="px-4 py-5 sm:p-6">
+            <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4">
+              {editMode ? 'Update Model' : 'Upload New Model'}
+            </h3>
             <Formik
-              initialValues={initialFormState}
+              initialValues={editMode && currentModel ? {
+                name: currentModel.name,
+                version: currentModel.version,
+                description: currentModel.description || '',
+                model_file: null, // File inputs can't be pre-filled for security reasons
+              } : initialFormState}
               validationSchema={ModelSchema}
               onSubmit={handleModelSubmit}
             >
@@ -171,8 +205,38 @@ const MLModels = () => {
                   </div>
 
                   <div>
+                    <label htmlFor="version" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Version
+                    </label>
+                    <div className="mt-1">
+                      <Field
+                        type="text"
+                        name="version"
+                        id="version"
+                        className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                      />
+                      <ErrorMessage name="version" component="div" className="mt-1 text-sm text-red-600" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Description (optional)
+                    </label>
+                    <div className="mt-1">
+                      <Field
+                        as="textarea"
+                        name="description"
+                        id="description"
+                        rows={3}
+                        className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Model File
+                      Model File {editMode && "(Upload new file to replace current model)"}
                     </label>
                     <div className="mt-1">
                       <input
@@ -186,19 +250,29 @@ const MLModels = () => {
                           file:text-sm file:font-semibold
                           file:bg-indigo-50 file:text-indigo-700
                           hover:file:bg-indigo-100"
-                        accept=".h5,.pkl,.pt,.onnx,.pb"
+                        accept=".h5,.pkl,.pt,.onnx,.pb,.joblib"
                       />
                       <p className="mt-2 text-sm text-gray-500">
-                        Supported formats: .h5, .pkl, .pt, .onnx, .pb
+                        Supported formats: .h5, .pkl, .pt, .onnx, .pb, .joblib
                       </p>
+                      {editMode && (
+                        <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+                          Note: If you don't upload a new file, the current model will be kept.
+                        </p>
+                      )}
                     </div>
+                    <ErrorMessage name="model_file" component="div" className="mt-1 text-sm text-red-600" />
                   </div>
 
                   <div className="pt-5">
                     <div className="flex justify-end">
                       <button
                         type="button"
-                        onClick={() => setShowForm(false)}
+                        onClick={() => {
+                          setShowForm(false);
+                          setEditMode(false);
+                          setCurrentModel(null);
+                        }}
                         className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                       >
                         Cancel
@@ -207,7 +281,7 @@ const MLModels = () => {
                         type="submit"
                         className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                       >
-                        Upload Model
+                        {editMode ? 'Update Model' : 'Upload Model'}
                       </button>
                     </div>
                   </div>
@@ -256,6 +330,12 @@ const MLModels = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex space-x-2">
+                    <button
+                      onClick={() => editModel(model)}
+                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200"
+                    >
+                      Edit/Replace
+                    </button>
                     <button
                       onClick={() => toggleModelStatus(model.id, model.is_active)}
                       className={`inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md ${

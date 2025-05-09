@@ -140,19 +140,37 @@ async def upload_model(
         if not file_name:
             file_name = model_file.filename
         
-        # Ensure .pkl extension if not present
-        if not file_name.endswith((".pkl", ".joblib")):
-            file_name = f"{file_name}.pkl"
+        # Ensure a proper extension if not present
+        if not file_name.endswith((".pkl", ".joblib", ".h5", ".pt", ".onnx", ".pb")):
+            file_name = f"{file_name}.joblib"
+        
+        # Normalize the file_name to remove any dangerous characters
+        file_name = file_name.replace('..', '_').replace('/', '_').replace('\\', '_')
+        
+        # Create the models directory if it doesn't exist
+        os.makedirs(MODELS_DIR, exist_ok=True)
         
         file_path = os.path.join(MODELS_DIR, file_name)
         
+        # If file exists, add a timestamp to avoid overwriting
+        if os.path.exists(file_path):
+            # Remove the old file to overwrite it
+            logger.info(f"Removing existing model file at {file_path}")
+            os.remove(file_path)
+        
         # Save the file
+        logger.info(f"Saving new model file to {file_path}")
         with open(file_path, "wb") as f:
-            shutil.copyfileobj(model_file.file, f)
+            # Reset the file pointer to the start
+            await model_file.seek(0)
+            # Copy contents
+            content = await model_file.read()
+            f.write(content)
         
         # Try to load the model to validate it
         try:
-            model_manager.get_model(file_path)
+            logger.info(f"Validating model file at {file_path}")
+            model = model_manager.get_model(file_path)
             
             # Refresh the model list
             models = model_manager.scan_models()
@@ -165,12 +183,14 @@ async def upload_model(
             }
         except Exception as val_err:
             # If model fails to load, delete the file
+            logger.error(f"Model validation failed: {str(val_err)}")
             if os.path.exists(file_path):
                 os.remove(file_path)
             raise val_err
                 
     except Exception as e:
         logger.error(f"Error uploading model: {str(e)}")
+        logger.exception("Detailed stack trace:")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error uploading model: {str(e)}",

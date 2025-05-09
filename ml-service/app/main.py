@@ -15,6 +15,8 @@ from typing import Dict, Any, Optional
 
 # Import our models module
 from app.models import predict as model_predict, list_available_models
+# Import API routes
+from app.api.routes import router as api_router
 
 # Setup logging
 logging.basicConfig(
@@ -34,6 +36,9 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all methods
     allow_headers=["*"],  # Allow all headers
 )
+
+# Include API routes from app.api.routes
+app.include_router(api_router, prefix="/api/v1")
 
 # Request log middleware
 @app.middleware("http")

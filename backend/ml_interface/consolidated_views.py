@@ -96,23 +96,28 @@ class MLModelViewSet(viewsets.ModelViewSet):
                 temp_file.flush()
 
                 try:
-                    # Get model name from serializer
+                    # Get model name and version from serializer
                     model_name = serializer.validated_data.get('name')
+                    version = serializer.validated_data.get('version', '1.0')
+                    
+                    # Create a more descriptive name for the model in ML service
+                    full_model_name = f"{model_name}_v{version}"
                     
                     # Upload model to ML service
-                    result = ml_client.upload_model(temp_file.name, model_name)
+                    result = ml_client.upload_model(temp_file.name, full_model_name)
                     
                     if isinstance(result, dict) and 'error' in result:
+                        logger.error(f"ML service rejected model: {result['error']}")
                         raise ValueError(f"ML service rejected model: {result['error']}")
                     
-                    logger.info(f"Model successfully uploaded to ML service as {model_name}")
+                    logger.info(f"Model successfully uploaded to ML service as {full_model_name}")
                     
                     # Create the media directory if it doesn't exist
                     media_path = os.path.join(settings.MEDIA_ROOT, 'ml_models')
                     os.makedirs(media_path, exist_ok=True)
                     
-                    # Save the file in the correct location
-                    output_filename = f"{model_file.name.rsplit('.', 1)[0]}_converted.joblib"
+                    # Save the file in the correct location with a standardized name
+                    output_filename = f"{model_name}_v{version}.joblib"
                     output_path = os.path.join(media_path, output_filename)
                     
                     # Copy the file to the media location
@@ -147,7 +152,10 @@ class MLModelViewSet(viewsets.ModelViewSet):
         try:
             # Handle model file update similar to create
             model_file = self.request.FILES.get('model_file')
+            instance = self.get_object()  # Get the existing model instance
+            
             if model_file:
+                logger.info(f"Updating model file for {instance.name} v{instance.version}")
                 # Similar processing as in perform_create
                 with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                     for chunk in model_file.chunks():
@@ -156,16 +164,22 @@ class MLModelViewSet(viewsets.ModelViewSet):
 
                     try:
                         # Upload model to ML service
-                        model_name = serializer.validated_data.get('name')
-                        result = ml_client.upload_model(temp_file.name, model_name)
+                        model_name = serializer.validated_data.get('name', instance.name)
+                        version = serializer.validated_data.get('version', instance.version)
+                        # Use the name format expected by ML service
+                        full_model_name = f"{model_name}_v{version}"
+                        
+                        # Upload the model to the ML service
+                        result = ml_client.upload_model(temp_file.name, full_model_name)
                         
                         if isinstance(result, dict) and 'error' in result:
+                            logger.error(f"ML service rejected model: {result['error']}")
                             raise ValueError(f"ML service rejected model: {result['error']}")
                         
-                        logger.info(f"Model successfully uploaded to ML service as {model_name}")
+                        logger.info(f"Model successfully uploaded to ML service as {full_model_name}")
                         
                         # Save to media location
-                        output_filename = f"{model_file.name.rsplit('.', 1)[0]}_converted.joblib"
+                        output_filename = f"{model_name}_v{version}.joblib"
                         output_path = os.path.join(settings.MEDIA_ROOT, 'ml_models', output_filename)
                         
                         # Copy the file to the media location
@@ -184,10 +198,13 @@ class MLModelViewSet(viewsets.ModelViewSet):
                         # Clean up the temporary file
                         if os.path.exists(temp_file.name):
                             os.unlink(temp_file.name)
+            else:
+                logger.info(f"No new model file provided, keeping existing model file for {instance.name} v{instance.version}")
 
-            instance = serializer.save()
-            logger.info(f"Successfully updated MLModel: {instance.name} v{instance.version}")
-            return instance
+            # Save the model with or without a new file
+            updated_instance = serializer.save()
+            logger.info(f"Successfully updated MLModel: {updated_instance.name} v{updated_instance.version}")
+            return updated_instance
 
         except Exception as e:
             logger.error(f"Error updating MLModel: {str(e)}")
