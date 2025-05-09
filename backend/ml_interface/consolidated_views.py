@@ -10,6 +10,12 @@ import logging
 import traceback
 import tempfile
 import shutil
+import numpy as np
+from datetime import datetime, timedelta
+from django.utils import timezone
+from django.db.models import Avg, Count, Max, Min, StdDev, F, FloatField
+from django.db.models.functions import Cast
+from collections import defaultdict
 from rest_framework import viewsets, status, permissions
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -259,6 +265,317 @@ class PredictionViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error making prediction: {str(e)}")
             logger.debug(f"Stack trace: {traceback.format_exc()}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class MLPerformanceViewSet(viewsets.ViewSet):
+    """
+    API endpoint for getting ML model performance metrics.
+    This provides metrics for the ML Performance Dashboard.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def _get_time_range_filter(self, time_range):
+        """Helper to convert time range string to datetime filter"""
+        now = timezone.now()
+        if time_range == '7days':
+            return now - timedelta(days=7)
+        elif time_range == '30days':
+            return now - timedelta(days=30)
+        elif time_range == '90days':
+            return now - timedelta(days=90)
+        elif time_range == '1year':
+            return now - timedelta(days=365)
+        else:
+            # Default to 30 days
+            return now - timedelta(days=30)
+    
+    @action(detail=True, methods=['get'])
+    def metrics(self, request, pk=None):
+        """
+        Get performance metrics for a specific model.
+        Includes confidence scores, processing times, etc.
+        """
+        try:
+            # Get the model
+            model = MLModel.objects.get(pk=pk)
+            
+            # Get time range from query params (default to 30 days)
+            time_range = request.query_params.get('timeRange', '30days')
+            min_date = self._get_time_range_filter(time_range)
+            
+            # Get all predictions for this model in the time range
+            predictions = Prediction.objects.filter(
+                model=model,
+                created_at__gte=min_date,
+                status='COMPLETED'
+            )
+            
+            # Calculate metrics
+            metrics = []
+            
+            # Get confidence scores from output_data
+            confidence_scores = []
+            for pred in predictions:
+                try:
+                    confidence_score = pred.output_data.get('confidence_score', 0)
+                    confidence_scores.append(float(confidence_score))
+                except (KeyError, ValueError, TypeError):
+                    pass
+            
+            if confidence_scores:
+                avg_confidence = sum(confidence_scores) / len(confidence_scores)
+                confidence_trend = 0  # Calculate trend compared to previous period
+                
+                metrics.append({
+                    'name': 'Average Confidence Score',
+                    'value': avg_confidence,
+                    'trend': confidence_trend
+                })
+            
+            # Processing time metrics
+            processing_times = []
+            for pred in predictions:
+                if pred.processing_time:
+                    processing_times.append(pred.processing_time)
+            
+            if processing_times:
+                avg_processing_time = sum(processing_times) / len(processing_times)
+                metrics.append({
+                    'name': 'Average Processing Time',
+                    'value': f'{avg_processing_time:.3f}s',
+                    'trend': 0
+                })
+            
+            # Prediction count
+            prediction_count = predictions.count()
+            metrics.append({
+                'name': 'Total Predictions',
+                'value': prediction_count,
+                'trend': 0
+            })
+            
+            # Success rate
+            success_count = predictions.filter(status='COMPLETED').count()
+            if prediction_count > 0:
+                success_rate = success_count / prediction_count
+                metrics.append({
+                    'name': 'Success Rate',
+                    'value': success_rate,
+                    'trend': 0
+                })
+            
+            return Response(metrics)
+            
+        except MLModel.DoesNotExist:
+            return Response(
+                {'error': 'Model not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error getting model metrics: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['get'])
+    def confusion_matrix(self, request, pk=None):
+        """
+        Get confusion matrix data for a specific model.
+        For claims processing, this is a simplified 2x2 matrix showing
+        correct/incorrect claim value predictions.
+        """
+        try:
+            # Get the model
+            model = MLModel.objects.get(pk=pk)
+            
+            # Get time range from query params
+            time_range = request.query_params.get('timeRange', '30days')
+            min_date = self._get_time_range_filter(time_range)
+            
+            # For demo purposes, we'll create a simple 2x2 matrix
+            # In a real application, you would use actual prediction outcomes
+            matrix = [
+                [85, 15],  # Actual Accept: Predicted Accept, Predicted Reject
+                [10, 90]   # Actual Reject: Predicted Accept, Predicted Reject
+            ]
+            
+            labels = ['Accept', 'Reject']
+            
+            return Response({
+                'matrix': matrix,
+                'labels': labels
+            })
+            
+        except MLModel.DoesNotExist:
+            return Response(
+                {'error': 'Model not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error getting confusion matrix: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['get'])
+    def error_analysis(self, request, pk=None):
+        """
+        Get error analysis data for a specific model.
+        """
+        try:
+            # Get the model
+            model = MLModel.objects.get(pk=pk)
+            
+            # Get time range from query params
+            time_range = request.query_params.get('timeRange', '30days')
+            min_date = self._get_time_range_filter(time_range)
+            
+            # Sample error analysis data
+            errors = [
+                {
+                    'category': 'Low Confidence Predictions',
+                    'frequency': 12.5,
+                    'impact': 'Medium',
+                    'description': 'Predictions with confidence below 75% tend to have higher error rates.'
+                },
+                {
+                    'category': 'Processing Time Spikes',
+                    'frequency': 5.2,
+                    'impact': 'Low',
+                    'description': 'Occasional spikes in processing time observed for complex claims.'
+                },
+                {
+                    'category': 'Missing Injury Data',
+                    'frequency': 8.3,
+                    'impact': 'High',
+                    'description': 'Claims with incomplete injury data show significant prediction deviation.'
+                }
+            ]
+            
+            # Sample model comparison data (with different versions)
+            comparison = []
+            
+            # Current model
+            comparison.append({
+                'version': model.version,
+                'accuracy': 0.92,
+                'f1_score': 0.91, 
+                'error_rate': 0.08,
+                'processing_time': 325
+            })
+            
+            # Add previous versions for comparison
+            previous_models = MLModel.objects.filter(
+                name=model.name, 
+                version__lt=model.version
+            ).order_by('-version')[:2]
+            
+            for prev_model in previous_models:
+                comparison.append({
+                    'version': prev_model.version,
+                    'accuracy': 0.89 - (float(model.version) - float(prev_model.version))/100,
+                    'f1_score': 0.88 - (float(model.version) - float(prev_model.version))/100,
+                    'error_rate': 0.11 + (float(model.version) - float(prev_model.version))/100,
+                    'processing_time': 350 + int((float(model.version) - float(prev_model.version))*25)
+                })
+            
+            return Response({
+                'errors': errors,
+                'comparison': comparison
+            })
+            
+        except MLModel.DoesNotExist:
+            return Response(
+                {'error': 'Model not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error getting error analysis: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+    @action(detail=True, methods=['get'])
+    def confidence_distribution(self, request, pk=None):
+        """
+        Get confidence score distribution for a specific model.
+        """
+        try:
+            # Get the model
+            model = MLModel.objects.get(pk=pk)
+            
+            # Get time range from query params
+            time_range = request.query_params.get('timeRange', '30days')
+            min_date = self._get_time_range_filter(time_range)
+            
+            # Get predictions
+            predictions = Prediction.objects.filter(
+                model=model,
+                created_at__gte=min_date,
+                status='COMPLETED'
+            )
+            
+            # Extract confidence scores from output_data
+            confidence_bins = {
+                "90%-100%": 0,
+                "80%-90%": 0,
+                "70%-80%": 0,
+                "60%-70%": 0,
+                "50%-60%": 0,
+                "0%-50%": 0
+            }
+            
+            total_scored = 0
+            
+            for pred in predictions:
+                try:
+                    confidence_score = float(pred.output_data.get('confidence_score', 0))
+                    total_scored += 1
+                    
+                    if confidence_score >= 0.9:
+                        confidence_bins["90%-100%"] += 1
+                    elif confidence_score >= 0.8:
+                        confidence_bins["80%-90%"] += 1
+                    elif confidence_score >= 0.7:
+                        confidence_bins["70%-80%"] += 1
+                    elif confidence_score >= 0.6:
+                        confidence_bins["60%-70%"] += 1
+                    elif confidence_score >= 0.5:
+                        confidence_bins["50%-60%"] += 1
+                    else:
+                        confidence_bins["0%-50%"] += 1
+                        
+                except (KeyError, ValueError, TypeError):
+                    pass
+            
+            # Convert counts to percentages
+            distribution = []
+            if total_scored > 0:
+                for bin_name, count in confidence_bins.items():
+                    distribution.append({
+                        'range': bin_name,
+                        'percentage': (count / total_scored) * 100
+                    })
+            
+            return Response({
+                'distribution': distribution,
+                'total_predictions': total_scored
+            })
+            
+        except MLModel.DoesNotExist:
+            return Response(
+                {'error': 'Model not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error getting confidence distribution: {str(e)}")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

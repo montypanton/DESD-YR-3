@@ -88,9 +88,77 @@ export const getPredictionHistory = async (limit = 10, options = {}) => {
   });
 };
 
+/**
+ * Gets model performance metrics
+ * @param {string} modelId - ID of the model to get metrics for
+ * @param {string} timeRange - Time range for metrics (e.g., '7days', '30days')
+ * @param {Object} options - Options for the API call
+ * @returns {Promise} - Promise with model metrics data
+ */
+export const getModelMetrics = async (modelId, timeRange = '30days', options = {}) => {
+  return await safeApiClient.get(`/ml/performance/${modelId}/metrics/`, {
+    params: { timeRange }
+  }, {
+    errorMessage: 'Failed to retrieve model metrics',
+    ...options
+  });
+};
+
+/**
+ * Gets confusion matrix data for a model
+ * @param {string} modelId - ID of the model
+ * @param {string} timeRange - Time range for data
+ * @param {Object} options - Options for the API call
+ * @returns {Promise} - Promise with confusion matrix data
+ */
+export const getConfusionMatrix = async (modelId, timeRange = '30days', options = {}) => {
+  return await safeApiClient.get(`/ml/performance/${modelId}/confusion-matrix/`, {
+    params: { timeRange }
+  }, {
+    errorMessage: 'Failed to retrieve confusion matrix',
+    ...options
+  });
+};
+
+/**
+ * Gets error analysis data for a model
+ * @param {string} modelId - ID of the model
+ * @param {string} timeRange - Time range for data
+ * @param {Object} options - Options for the API call
+ * @returns {Promise} - Promise with error analysis data
+ */
+export const getErrorAnalysis = async (modelId, timeRange = '30days', options = {}) => {
+  return await safeApiClient.get(`/ml/performance/${modelId}/error-analysis/`, {
+    params: { timeRange }
+  }, {
+    errorMessage: 'Failed to retrieve error analysis',
+    ...options
+  });
+};
+
+/**
+ * Gets confidence score distribution for a model
+ * @param {string} modelId - ID of the model
+ * @param {string} timeRange - Time range for data
+ * @param {Object} options - Options for the API call
+ * @returns {Promise} - Promise with confidence distribution data
+ */
+export const getConfidenceDistribution = async (modelId, timeRange = '30days', options = {}) => {
+  return await safeApiClient.get(`/ml/performance/${modelId}/confidence-distribution/`, {
+    params: { timeRange }
+  }, {
+    errorMessage: 'Failed to retrieve confidence distribution',
+    ...options
+  });
+};
+
 export default {
   getServiceHealth,
   getModels,
   makePrediction,
-  getPredictionHistory
+  getPredictionHistory,
+  getModelMetrics,
+  getConfusionMatrix,
+  getErrorAnalysis,
+  getConfidenceDistribution
 };

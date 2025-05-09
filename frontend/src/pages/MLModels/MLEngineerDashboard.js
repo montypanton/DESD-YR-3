@@ -115,7 +115,7 @@ const MLEngineerDashboard = () => {
           </div>
           <div className="bg-gray-50 dark:bg-gray-700 px-5 py-3">
             <div className="text-sm">
-              <Link to="/ml-models" className="font-medium text-indigo-600 hover:text-indigo-500">
+              <Link to="/ml-engineer/model-management" className="font-medium text-indigo-600 hover:text-indigo-500">
                 View all models
               </Link>
             </div>
@@ -145,7 +145,7 @@ const MLEngineerDashboard = () => {
           </div>
           <div className="bg-gray-50 dark:bg-gray-700 px-5 py-3">
             <div className="text-sm">
-              <Link to="/ml-engineer/performance" className="font-medium text-indigo-600 hover:text-indigo-500">
+              <Link to="/ml-engineer/model-performance" className="font-medium text-indigo-600 hover:text-indigo-500">
                 View performance metrics
               </Link>
             </div>
@@ -185,7 +185,7 @@ const MLEngineerDashboard = () => {
 
       {/* Quick Actions */}
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        <Link to="/ml-models" className="relative group bg-white dark:bg-gray-800 p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500 rounded-lg overflow-hidden hover:bg-gray-50 dark:hover:bg-gray-700">
+        <Link to="/ml-engineer/model-management" className="relative group bg-white dark:bg-gray-800 p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500 rounded-lg overflow-hidden hover:bg-gray-50 dark:hover:bg-gray-700">
           <div>
             <span className="rounded-lg inline-flex p-3 bg-indigo-50 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-200 ring-4 ring-white">
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -203,7 +203,7 @@ const MLEngineerDashboard = () => {
           </div>
         </Link>
 
-        <Link to="/user-interactions" className="relative group bg-white dark:bg-gray-800 p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500 rounded-lg overflow-hidden hover:bg-gray-50 dark:hover:bg-gray-700">
+        <Link to="/ml-engineer/user-interactions" className="relative group bg-white dark:bg-gray-800 p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500 rounded-lg overflow-hidden hover:bg-gray-50 dark:hover:bg-gray-700">
           <div>
             <span className="rounded-lg inline-flex p-3 bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-200 ring-4 ring-white">
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

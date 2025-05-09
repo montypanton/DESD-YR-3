@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../../services/authService';
+import mlService from '../../services/mlService';
 
 const MLPerformance = () => {
   const [performanceData, setPerformanceData] = useState({
     modelMetrics: [],
     confusionMatrix: null,
-    roc: null,
-    precisionRecall: null,
+    confidenceDistribution: [],
     errorAnalysis: [],
     modelComparison: [],
   });
@@ -22,7 +22,7 @@ const MLPerformance = () => {
 
   const fetchModels = async () => {
     try {
-      const response = await apiClient.get('/ml/models/');
+      const response = await mlService.getModels();
       const activeModels = response.data.filter(model => model.is_active);
       setModels(activeModels);
       if (activeModels.length > 0) {
@@ -37,15 +37,17 @@ const MLPerformance = () => {
   const fetchPerformanceData = useCallback(async () => {
     try {
       setLoading(true);
-      const [metricsResponse, confusionResponse, analysisResponse] = await Promise.all([
-        apiClient.get(`/ml/performance/${selectedModel}/metrics/?timeRange=${timeRange}`),
-        apiClient.get(`/ml/performance/${selectedModel}/confusion-matrix/?timeRange=${timeRange}`),
-        apiClient.get(`/ml/performance/${selectedModel}/error-analysis/?timeRange=${timeRange}`)
+      const [metricsResponse, confusionResponse, analysisResponse, confidenceResponse] = await Promise.all([
+        mlService.getModelMetrics(selectedModel, timeRange),
+        mlService.getConfusionMatrix(selectedModel, timeRange),
+        mlService.getErrorAnalysis(selectedModel, timeRange),
+        mlService.getConfidenceDistribution(selectedModel, timeRange)
       ]);
 
       setPerformanceData({
         modelMetrics: metricsResponse.data,
         confusionMatrix: confusionResponse.data,
+        confidenceDistribution: confidenceResponse.data.distribution || [],
         errorAnalysis: analysisResponse.data.errors,
         modelComparison: analysisResponse.data.comparison
       });
@@ -104,6 +106,36 @@ const MLPerformance = () => {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderConfidenceDistribution = () => {
+    if (!performanceData.confidenceDistribution || performanceData.confidenceDistribution.length === 0) return null;
+
+    return (
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Confidence Score Distribution</h4>
+        <div className="bg-white dark:bg-gray-700 shadow rounded-lg p-4">
+          <div className="grid grid-cols-6 gap-2">
+            {performanceData.confidenceDistribution.map((item, idx) => (
+              <div key={idx} className="flex flex-col items-center">
+                <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-t-lg overflow-hidden">
+                  <div
+                    className="bg-indigo-500 h-32 rounded-t-lg"
+                    style={{ height: `${Math.min(Math.max(item.percentage, 5), 100)}%` }}
+                  ></div>
+                </div>
+                <div className="w-full text-center text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">
+                  {item.range}
+                </div>
+                <div className="w-full text-center text-xs text-gray-500 dark:text-gray-400">
+                  {item.percentage.toFixed(1)}%
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -201,7 +233,11 @@ const MLPerformance = () => {
                           </dt>
                           <dd className="flex items-baseline">
                             <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                              {typeof metric.value === 'number' ? `${(metric.value * 100).toFixed(1)}%` : metric.value}
+                              {typeof metric.value === 'number' && metric.name.toLowerCase().includes('rate') 
+                                ? `${(metric.value * 100).toFixed(1)}%` 
+                                : typeof metric.value === 'number' && metric.name.toLowerCase().includes('confidence')
+                                  ? `${(metric.value * 100).toFixed(1)}%`
+                                  : metric.value}
                             </div>
                             {metric.trend && (
                               <div className={`ml-2 flex items-baseline text-sm font-semibold ${
@@ -218,6 +254,9 @@ const MLPerformance = () => {
                 </div>
               ))}
             </div>
+
+            {/* Confidence Distribution */}
+            {renderConfidenceDistribution()}
 
             {/* Confusion Matrix */}
             {renderConfusionMatrix()}
