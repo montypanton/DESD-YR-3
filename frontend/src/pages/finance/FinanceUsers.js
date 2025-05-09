@@ -32,13 +32,36 @@ const FinanceUsers = () => {
       setLoading(true);
       
       // Use the finance service to get users with billing info
-      const params = {};
+      const params = {
+        include_paid_claims: true, // Request paid claims count
+      };
+      
       if (selectedCompany) {
         params.company_id = selectedCompany;
       }
       
       const response = await getCompanyUsers(params);
-      setUsers(response.data || []);
+      
+      // Process the response to ensure we have paid_claims_count for each user
+      const processedUsers = (response.data || []).map(user => {
+        // Ensure paid_claims_count is included
+        // This will use the value from API if available, or try to calculate it
+        // from invoices if possible, or default to 0
+        let paidClaimsCount = user.paid_claims_count || 0;
+        
+        // If the API doesn't provide paid_claims_count but does provide paid_invoices
+        if (!user.paid_claims_count && user.paid_invoices) {
+          paidClaimsCount = user.paid_invoices.length;
+        }
+        
+        // Return the user with the paid_claims_count included
+        return {
+          ...user,
+          paid_claims_count: paidClaimsCount
+        };
+      });
+      
+      setUsers(processedUsers);
       setError(null);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -119,18 +142,13 @@ const FinanceUsers = () => {
       render: text => text || 'No Company',
     },
     {
-      title: 'Claims',
-      key: 'claims',
+      title: 'ML Usage Paid',
+      key: 'ml_usage_paid',
       render: (_, record) => (
         <div>
-          <span className={`${darkMode ? 'text-green-400' : 'text-green-600'} mr-2`}>
-            {record.approved_claims_count || 0} Approved
+          <span className={`${darkMode ? 'text-green-400' : 'text-green-600'} font-medium`}>
+            {record.paid_claims_count || 0} Paid
           </span>
-          {record.pending_claims_count > 0 && (
-            <span className={`${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
-              {record.pending_claims_count || 0} Pending
-            </span>
-          )}
         </div>
       ),
     },

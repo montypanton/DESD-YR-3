@@ -482,6 +482,16 @@ export const sendInvoice = async (invoiceId) => {
 };
 
 /**
+ * Mark an invoice as payment pending
+ * @param {number} invoiceId - Invoice ID
+ * @param {Object} paymentData - Payment details including bank information
+ * @returns {Promise} API response confirming the invoice was marked as payment pending
+ */
+export const markInvoiceAsPaymentPending = async (invoiceId, paymentData) => {
+  return await apiClient.post(`/finance/invoices/${invoiceId}/mark_payment_pending/`, paymentData);
+};
+
+/**
  * Mark an invoice as paid
  * @param {number} invoiceId - Invoice ID
  * @param {string} paidDate - Optional date when the invoice was paid
@@ -683,6 +693,7 @@ export default {
   addItemsToInvoice,
   generateInvoicePdf,
   sendInvoice,
+  markInvoiceAsPaymentPending,
   markInvoiceAsPaid,
   exportInvoiceCsv,
   getUnbilledRecords,

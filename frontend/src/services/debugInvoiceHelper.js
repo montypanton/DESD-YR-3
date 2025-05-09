@@ -3,13 +3,14 @@
 
 import { createInvoice } from './financeService';
 import { apiClient } from './authService';
+import { generateUniqueMLInvoiceNumber } from './sharedInvoiceRegistry';
 
 /**
  * Creates a test invoice with fixed values to debug backend issues
  * @param {number} companyId - The insurance company ID to use
  * @returns {Promise} API response with created invoice or error details
  */
-export const createDebugInvoice = async (companyId = 1) => {
+export const createDebugInvoice = async (companyId = 1, userId = null, isMLInvoice = false) => {
   try {
     console.log(`Attempting to create debug invoice with company ID: ${companyId}`);
     
@@ -22,6 +23,24 @@ export const createDebugInvoice = async (companyId = 1) => {
       currency: "USD",
       status: "ISSUED"
     };
+    
+    // If this is an ML invoice and we have a user ID, add the ML-specific fields
+    if (isMLInvoice && userId) {
+      // Generate a unique ML invoice number that will be consistent across systems
+      const uniqueInvoiceNumber = generateUniqueMLInvoiceNumber(userId);
+      
+      // Add ML-specific fields
+      simpleInvoice.invoice_type = 'ml_usage';
+      simpleInvoice.invoice_number = uniqueInvoiceNumber;
+      simpleInvoice.user_id = userId;
+      simpleInvoice.metadata = {
+        is_ml_usage: true,
+        ml_usage_invoice: true,
+        user_id: userId
+      };
+      
+      console.log(`Created debug ML invoice with number ${uniqueInvoiceNumber} for user ${userId}`);
+    }
     
     console.log('Debug invoice payload:', simpleInvoice);
     

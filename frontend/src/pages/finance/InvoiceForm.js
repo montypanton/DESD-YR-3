@@ -33,6 +33,8 @@ import {
 } from '../../services/financeService';
 import { createDebugInvoice, testInvoiceCreation } from '../../services/debugInvoiceHelper';
 import { useTheme } from '../../context/ThemeContext';
+import { generateUniqueMLInvoiceNumber } from '../../services/sharedInvoiceRegistry';
+import apiClient from '../../services/apiClient';
 
 const { Option } = Select;
 const { Title, Text } = Typography;
@@ -47,22 +49,35 @@ const InvoiceForm = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(id ? true : false);
   const [companies, setCompanies] = useState([]);
+  const [users, setUsers] = useState([]);
   const [unbilledRecords, setUnbilledRecords] = useState([]);
   const [selectedBillingRecords, setSelectedBillingRecords] = useState([]);
   const [invoice, setInvoice] = useState(null);
   const [activeTab, setActiveTab] = useState('1');
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [addingItems, setAddingItems] = useState(false);
+  const [invoiceType, setInvoiceType] = useState('regular'); // 'regular' or 'ml_usage'
   
   const isEditing = !!id;
 
   useEffect(() => {
     fetchCompanies();
+    fetchUsers(); // Fetch users for ML usage invoices
     
     if (isEditing) {
       fetchInvoiceDetails();
     }
   }, [id]);
+  
+  const fetchUsers = async () => {
+    try {
+      const response = await apiClient.get('/account/users/');
+      setUsers(response.data.results || response.data || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      // Don't show an error message as this is not critical
+    }
+  };
 
   const fetchCompanies = async () => {
     try {
@@ -133,6 +148,38 @@ const InvoiceForm = () => {
         currency: 'USD', // Using USD to match model default in backend
         status: 'ISSUED', // Simplified status
       };
+      
+      // Check if this is an ML usage invoice based on the invoice number format or type
+      const isMLUsage = values.invoice_type === 'ml_usage' || 
+                        (values.invoice_number && values.invoice_number.startsWith('ML-'));
+      
+      // If ML usage invoice, set special fields to make it discoverable by the ML usage page
+      if (isMLUsage) {
+        if (!values.user_id) {
+          message.error('User ID is required for ML usage invoices');
+          setLoading(false);
+          return;
+        }
+        
+        // Include additional metadata for ML usage invoices
+        formattedValues.invoice_type = 'ml_usage';
+        formattedValues.metadata = {
+          is_ml_usage: true,
+          ml_usage_invoice: true,
+          user_id: values.user_id,
+        };
+        
+        // ALWAYS generate a truly unique invoice number for ML invoices
+        // This ensures the same number appears in both finance and end-user areas
+        const uniqueInvoiceNumber = generateUniqueMLInvoiceNumber(values.user_id);
+        formattedValues.invoice_number = uniqueInvoiceNumber;
+        
+        // Log the unique invoice number being used
+        console.log(`Created ML usage invoice with number ${uniqueInvoiceNumber} for user ${values.user_id}`);
+        
+        // Always store user_id on the invoice itself for lookup
+        formattedValues.user_id = values.user_id;
+      }
       
       // We're not including insurance_company_name as the backend is supposed to handle this
       
@@ -381,6 +428,23 @@ const InvoiceForm = () => {
                 >
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <Form.Item
+                      name="invoice_type"
+                      label="Invoice Type"
+                      initialValue="regular"
+                      rules={[{ required: true, message: 'Please select an invoice type' }]}
+                    >
+                      <Select 
+                        placeholder="Select invoice type"
+                        onChange={(value) => setInvoiceType(value)}
+                        disabled={isEditing}
+                        className={darkMode ? 'dark-select' : ''}
+                      >
+                        <Option value="regular">Regular Invoice</Option>
+                        <Option value="ml_usage">ML Usage Invoice</Option>
+                      </Select>
+                    </Form.Item>
+
+                    <Form.Item
                       name="insurance_company"
                       label="Insurance Company"
                       rules={[{ required: true, message: 'Please select an insurance company' }]}
@@ -397,13 +461,43 @@ const InvoiceForm = () => {
                       </Select>
                     </Form.Item>
 
+                    {invoiceType === 'ml_usage' && (
+                      <Form.Item
+                        name="user_id"
+                        label="End User (for ML Usage)"
+                        rules={[{ required: invoiceType === 'ml_usage', message: 'Please select a user for ML usage invoice' }]}
+                        tooltip="The end user who will be billed for ML model usage"
+                      >
+                        <Select 
+                          placeholder="Select end user"
+                          disabled={isEditing}
+                          className={darkMode ? 'dark-select' : ''}
+                          showSearch
+                          optionFilterProp="children"
+                          filterOption={(input, option) =>
+                            option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                          }
+                        >
+                          {users.map(user => (
+                            <Option key={user.id} value={user.id}>
+                              {user.first_name} {user.last_name} ({user.email})
+                            </Option>
+                          ))}
+                        </Select>
+                      </Form.Item>
+                    )}
+
                     <Form.Item
                       name="invoice_number"
                       label="Invoice Number"
-                      extra="Leave blank to auto-generate"
+                      extra={invoiceType === 'ml_usage' ? 
+                        "For ML Usage invoices, format should be ML-YYYYMM-XXXX" : 
+                        "Leave blank to auto-generate"}
                     >
                       <Input 
-                        placeholder="Auto-generated if left blank"
+                        placeholder={invoiceType === 'ml_usage' ? 
+                          "ML-YYYYMM-XXXX (auto-generated if blank)" : 
+                          "Auto-generated if left blank"}
                         disabled={isEditing}
                         className={darkMode ? 'bg-gray-700 text-white border-gray-600' : ''} 
                       />
@@ -475,8 +569,11 @@ const InvoiceForm = () => {
                             return;
                           }
                           
+                          const userId = form.getFieldValue('user_id');
+                          const isMLInvoice = form.getFieldValue('invoice_type') === 'ml_usage';
+                          
                           setLoading(true);
-                          createDebugInvoice(companyId)
+                          createDebugInvoice(companyId, userId, isMLInvoice)
                             .then(result => {
                               message.success('Debug invoice created successfully!');
                               console.log('Debug invoice result:', result);

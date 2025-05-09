@@ -83,13 +83,29 @@ const FinanceUserProfile = () => {
         // Get unbilled ML usage records for this user
         const response = await getUnbilledRecords({ user: userId });
         
-        // Enhance records with ML model name and claim reference
+        console.log('Raw ML usage records:', response.data);
+        
+        // Enhance records with ML model name, claim reference, and billing rate
         const enhancedRecords = await Promise.all((response.data.results || response.data || []).map(async (record) => {
           // If the record has a claim_id but no claim_reference, try to get the reference
           if (record.claim_id && !record.claim_reference) {
             try {
               const claimResponse = await apiClient.get(`/claims/${record.claim_id}/`);
               record.claim_reference = claimResponse.data.reference_number || `#${record.claim_id}`;
+              
+              // If we don't have a rate yet, try to get it from the user's company rate
+              if (!record.rate && !record.billing_rate) {
+                try {
+                  // Get the billing rate for this user's insurance company AT THE TIME OF THE CLAIM
+                  // This is crucial - we need the rate that was active when the claim was processed
+                  const rateResponse = await apiClient.get(`/finance/user-company-rate/?claim_id=${record.claim_id}&historical=true`);
+                  record.rate = rateResponse.data.rate_per_claim || 30.00; // Default to £30 if no rate found
+                  console.log(`Setting historical rate for record ${record.id} to ${record.rate} (from time of claim)`);
+                } catch (rateError) {
+                  console.error(`Error fetching rate for claim ${record.claim_id}:`, rateError);
+                  record.rate = 30.00; // Default to £30 if error occurs
+                }
+              }
             } catch (error) {
               console.error(`Error fetching claim reference for claim ${record.claim_id}:`, error);
               record.claim_reference = `#${record.claim_id}`;
@@ -107,9 +123,16 @@ const FinanceUserProfile = () => {
             }
           }
           
+          // Final check to ensure we have a rate
+          if (!record.rate && !record.billing_rate) {
+            console.log(`No rate found for record ${record.id}, using default of 30.00`);
+            record.rate = 30.00; // Default value if we still don't have a rate
+          }
+          
           return record;
         }));
         
+        console.log('Enhanced ML records with rates:', enhancedRecords);
         setMlRecords(enhancedRecords);
       } catch (error) {
         console.error('Error fetching ML usage records:', error);
@@ -141,9 +164,12 @@ const FinanceUserProfile = () => {
       
       const recordIds = mlRecords.map(record => record.id);
       
-      // Calculate total amount from records
+      // Calculate total amount from records - ensure we're using the right property
       const totalAmount = mlRecords.reduce((sum, record) => {
-        return sum + parseFloat(record.rate || 0);
+        // Try different property names that might contain the rate
+        const rateValue = record.rate || record.billing_rate || 30.00; // Default to £30 if no rate found
+        console.log(`Record ${record.id}: Using rate ${rateValue}`);
+        return sum + parseFloat(rateValue);
       }, 0);
       
       // Set issued and due dates
